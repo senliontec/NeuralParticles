@@ -1,0 +1,5 @@
+build
+*.uni
+*.bin
+*.pyc
+doc
