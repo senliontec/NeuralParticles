@@ -14,7 +14,7 @@
 import math
 
 guion = False
-pause = True
+pause = False
 
 # default solver parameters
 params          = {}
