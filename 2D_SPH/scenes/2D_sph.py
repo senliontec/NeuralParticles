@@ -37,8 +37,34 @@ eta   = float(getParam("eta", 0.1, paramUsed))
 fps   = int(getParam("fps", 30, paramUsed))
 t_end = float(getParam("t_end", 5.0, paramUsed))
 sdt   = float(getParam("dt", 0, paramUsed))
-if sdt == 0:
+if sdt <= 0:
 	sdt = None
+
+cube_cnt = int(getParam("c_cnt", 0, paramUsed))
+cube = []
+
+if cube_cnt <= 0:
+	print("provide at least one cube definition!")
+	exit()
+
+class Cube:
+	def __init__(self, p, s):
+		self.pos = p
+		self.scale = s
+
+def stringToCube(s):
+	v = s.split(",")
+	if dim == 2:
+		if len(v) != 4:
+			print("Wrong format of cube! Format have to be: x_pos,y_pos,x_scale,y_scale")
+			exit()
+		return Cube(vec3(float(v[0]), float(v[1]), 0), vec3(float(v[2]), float(v[3]), 1))
+	else:
+		print("3D stringtocube NYI!")
+		exit()
+
+for i in range(cube_cnt):
+	cube.append(stringToCube(getParam("c%d"%i, "", paramUsed)))
 
 checkUnusedParam(paramUsed);
 
@@ -99,9 +125,6 @@ if out_path != "":
 	#out['velOld'] = s.create(MACGrid)
 	out['pres'] = s.create(RealGrid)
 
-# boundary setup
-gFlags.initDomain(bnd-1)
-
 
 def generateBlock(pos, scale, flag):
 	if(dim != 3):
@@ -111,11 +134,14 @@ def generateBlock(pos, scale, flag):
 	fld   = s.create(Box, center=pos * gs, size=scale * gs)
 
 	begin = pp.size()
-	sampleShapeWithParticles(shape=fld, flags=gFlags, parts=pp, discretization=sres, randomness=0, notiming=True)
+	sampleShapeWithParticles(shape=fld, flags=gFlags, parts=pp, discretization=sres, randomness=0, notiming=True, refillEmpty=True)
 	end = pp.size()
 	pT.setConstRange(s=flag, begin=begin, end=end, notiming=True)
 	fld.applyToGrid(grid=gFlags, value=flag, respectFlags=gFlags)
+	
 
+# boundary setup
+gFlags.initDomain(bnd-1)
 
 begin = pp.size()
 sampleFlagsWithParticles(flags=gFlags, parts=pp, discretization=sres, randomness=0, ftype=FlagObstacle, notiming=True)
@@ -125,8 +151,10 @@ pT.setConstRange(s=FlagObstacle, begin=begin, end=end, notiming=True)
 # obstacle
 #generateBlock(vec3(0.766, 0.08, 0.5), vec3(0.08, 0.15, 0.4), FlagObstacle)
 
+for c in cube:
+	generateBlock(c.pos, c.scale, FlagFluid)
 # fluid setup: dam
-generateBlock(vec3(0.766, 0.08, 0.5), vec3(0.08, 0.15, 0.4), FlagFluid)
+#generateBlock(vec3(0.766, 0.08, 0.5), vec3(0.08, 0.15, 0.4), FlagFluid)
 
 sph.bindParticleSystem(p_system=pp, p_type=pT, p_neighbor=neighbor, notiming=True)
 sph.updateSoundSpeed(math.sqrt(2.0*math.fabs(grav)*0.55*gs.y/eta), notiming=True)

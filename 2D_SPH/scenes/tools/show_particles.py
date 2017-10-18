@@ -7,17 +7,22 @@ guion = True
 pause = True
 
 in_path = getParam("in", "", paramUsed)
-res  = int(getParam("res", 15, paramUsed))
+sdf_path = getParam("sdf", "", paramUsed)
+
+res  = int(getParam("res", 150, paramUsed))
 
 t = int(getParam("t", 50, paramUsed))
+
+screenshot = getParam("scr", "", paramUsed)
 
 checkUnusedParam(paramUsed)
 
 gs = vec3(res, res, 1)
 
 s = Solver(name='IISPH', gridSize=gs, dim=2)
-#pp = s.create(BasicParticleSystem)
-pp = s.create(LevelsetGrid)
+pp = s.create(BasicParticleSystem)
+if sdf_path != "":
+	sdf = s.create(LevelsetGrid)
 gFlags   = s.create(FlagGrid)
 
 gFlags.initDomain(FlagFluid)
@@ -29,4 +34,8 @@ if guion:
 
 for i in range(t):
 	pp.load(in_path % i)
+	if sdf_path != "":
+		sdf.load(sdf_path % i)
 	s.step()
+	if screenshot != "":
+		gui.screenshot(screenshot % i)

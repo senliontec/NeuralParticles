@@ -22,7 +22,7 @@ checkUnusedParam(paramUsed)
 # some random seed for the downscale
 seed = 29837913847
 
-gs = vec3(round(float(res)*3.2)+bnd*2, res*3+bnd*2, res+bnd* 2 if dim==3 else 1)
+gs = vec3(res, res, 1)
 
 s = Solver(name='IISPH', gridSize=gs, dim=dim)
 pp = s.create(BasicParticleSystem)
