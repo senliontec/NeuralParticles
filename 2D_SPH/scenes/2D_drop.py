@@ -36,7 +36,9 @@ params['avis']  = True               # aritificial viscosity
 params['eta']   = float(getParam("eta", 0.1, paramUsed))
 params['fps']   = int(getParam("fps", 30, paramUsed))
 params['t_end'] = float(getParam("t_end", 5.0, paramUsed))
-params['sdt']   = None
+params['sdt']   = float(getParam("dt", 0, paramUsed))
+if params['sdt'] == 0:
+	params['sdt'] = None
 
 checkUnusedParam(paramUsed);
 
@@ -60,6 +62,9 @@ kern = s.create(CubicSpline, h=sph.delta)
 print('h = {}, sr = {}'.format(kern.radius(), kern.supportRadius()))
 
 pp = s.create(BasicParticleSystem)
+
+dummyFlags = s.create(FlagGrid)
+dummyFlags.initDomain(FlagFluid)
 
 # acceleration data for particle neighbors
 gIdxSys  = s.create(ParticleIndexSystem)
@@ -129,6 +134,8 @@ if guion:
 	gui.show()
 	if pause: gui.pause()
 
+out_frame = 0
+
 while (s.timeTotal<params['t_end']): # main loop
 	sphComputeDensity(d=pD, k=kern, sph=sph, itype=overFld, jtype=overAll)
 	sphComputeConstantForce(f=pF, v=vec3(0, params['grav']*sph.mass, 0), sph=sph, itype=overFld, accumulate=False)
@@ -186,8 +193,10 @@ while (s.timeTotal<params['t_end']): # main loop
 	gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
 	neighbor.update(pts=pp, indexSys=gIdxSys, index=gIdx, radius=kern.supportRadius())
 
-	if out_path != "":
-		pp.save(out_path % int(s.timeTotal*100));
+	print(s.timeTotal*params['fps'])
+	if out_path != "" and s.timeTotal*params['fps'] > out_frame:
+		pp.save(out_path % out_frame)
+		out_frame+=1
 
 	if params['dim']==3 and guion:
 		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=mesh['levelset'], radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
