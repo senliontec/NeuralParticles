@@ -18,38 +18,36 @@ from tools.helpers import *
 paramUsed = [];
 
 guion = int(getParam("gui", 1, paramUsed)) != 0
-pause = bool(getParam("pause", 0, paramUsed))
+pause = int(getParam("pause", 0, paramUsed)) != 0
 
 out_path = getParam("out", "", paramUsed)
 
+# fluid init parameters
+
+
 # default solver parameters
-params          = {}
-params['dim']   = int(getParam("dim", 2, paramUsed))                  # dimension
-params['sres']  = int(getParam("sres", 2, paramUsed))                 # sub-resolution per cell
-params['dx']    = 1.0/params['sres'] 								  # particle spacing (= 2 x radius)
-params['res']   = int(getParam("res", 50, paramUsed))                 # reference resolution
-params['len']   = float(getParam("len", 1.0, paramUsed))              # reference length
-params['bnd']   = int(getParam("bnd", 4, paramUsed))                  # boundary cells
-params['gref']  = -9.8               # real-world gravity
-params['dens']  = float(getParam("dens", 1000.0, paramUsed))          # density
-params['avis']  = True               # aritificial viscosity
-params['eta']   = float(getParam("eta", 0.1, paramUsed))
-params['fps']   = int(getParam("fps", 30, paramUsed))
-params['t_end'] = float(getParam("t_end", 5.0, paramUsed))
-params['sdt']   = float(getParam("dt", 0, paramUsed))
-if params['sdt'] == 0:
-	params['sdt'] = None
+dim   = int(getParam("dim", 2, paramUsed))                  # dimension
+sres  = int(getParam("sres", 2, paramUsed))                 # sub-resolution per cell
+dx    = 1.0/sres 								            # particle spacing (= 2 x radius)
+res   = int(getParam("res", 150, paramUsed))                # reference resolution
+bnd   = int(getParam("bnd", 4, paramUsed))                  # boundary cells
+dens  = float(getParam("dens", 1000.0, paramUsed))          # density
+avis  = int(getParam("vis", 1, paramUsed)) != 0             # aritificial viscosity
+eta   = float(getParam("eta", 0.1, paramUsed))
+fps   = int(getParam("fps", 30, paramUsed))
+t_end = float(getParam("t_end", 5.0, paramUsed))
+sdt   = float(getParam("dt", 0, paramUsed))
+if sdt == 0:
+	sdt = None
 
 checkUnusedParam(paramUsed);
 
-scaleToManta   = float(params['res'])/params['len']
-# NOTE: the original test uses 3.22; but, here it's slightly modified for the sake of convenience in discretization
-params['gs']   = [round(float(params['res'])*3.2)+params['bnd']*2, params['res']*3+params['bnd']*2, params['res']+params['bnd']*2 if params['dim']==3 else 1]
-params['grav'] = params['gref']*scaleToManta
+gs   = vec3(res, res, res if dim==3 else 1)
+grav = -9.8 * gs.y # gravity
 
-s             = Solver(name='IISPH', gridSize=vec3(params['gs'][0], params['gs'][1], params['gs'][2]), dim=params['dim'])
+s             = Solver(name='IISPH', gridSize=gs, dim=dim)
 s.cfl         = 1
-s.frameLength = 1.0/float(params['fps'])
+s.frameLength = 1.0/float(fps)
 s.timestepMin = 0
 s.timestepMax = s.frameLength
 s.timestep    = s.frameLength
@@ -57,7 +55,7 @@ s.timestep    = s.frameLength
 overFld = FlagFluid
 overAll = FlagFluid|FlagObstacle
 
-sph  = s.create(SphWorld, delta=params['dx'], density=params['dens'], g=(0,params['grav'],0), eta=params['eta'])
+sph  = s.create(SphWorld, delta=dx, density=dens, g=(0,grav,0), eta=eta)
 kern = s.create(CubicSpline, h=sph.delta)
 print('h = {}, sr = {}'.format(kern.radius(), kern.supportRadius()))
 
@@ -88,43 +86,50 @@ pDtmp = pp.create(PdataReal)
 pVtmp = pp.create(PdataVec3)
 
 mesh = {}
-if params['dim']==3:
+if dim==3:
 	mesh['mesh']     = s.create(Mesh)
 	mesh['levelset'] = s.create(LevelsetGrid)
 
+out = {}
+if out_path != "":
+	out['frame'] = 0
+	out['levelset'] = s.create(LevelsetGrid)
+	out['dens'] = s.create(RealGrid)
+	out['vel'] = s.create(Vec3Grid)
+	#out['velOld'] = s.create(MACGrid)
+	out['pres'] = s.create(RealGrid)
+
 # boundary setup
-gFlags.initDomain(params['bnd']-1)
+gFlags.initDomain(bnd-1)
+
+
+def generateBlock(pos, scale, flag):
+	if(dim != 3):
+		pos.z = 0
+		scale.z = 1
+
+	fld   = s.create(Box, center=pos * gs, size=scale * gs)
+
+	begin = pp.size()
+	sampleShapeWithParticles(shape=fld, flags=gFlags, parts=pp, discretization=sres, randomness=0, notiming=True)
+	end = pp.size()
+	pT.setConstRange(s=flag, begin=begin, end=end, notiming=True)
+	fld.applyToGrid(grid=gFlags, value=flag, respectFlags=gFlags)
+
 
 begin = pp.size()
-sampleFlagsWithParticles(flags=gFlags, parts=pp, discretization=params['sres'], randomness=0, ftype=FlagObstacle, notiming=True)
+sampleFlagsWithParticles(flags=gFlags, parts=pp, discretization=sres, randomness=0, ftype=FlagObstacle, notiming=True)
 end = pp.size()
 pT.setConstRange(s=FlagObstacle, begin=begin, end=end, notiming=True)
 
 # obstacle
-a   = vec3(0.744*scaleToManta+params['bnd'], 0.161*0.5*scaleToManta+params['bnd'], 0.5*params['gs'][2] if (params['dim']==3) else 0)
-b   = vec3(0.161*0.5*scaleToManta, 0.3*0.5*scaleToManta, 0.403*0.5*scaleToManta if (params['dim']==3) else params['gs'][2])
-obs = s.create(Box, center=a, size=b)
-
-begin = pp.size()
-sampleShapeWithParticles(shape=obs, flags=gFlags, parts=pp, discretization=params['sres'], randomness=0, notiming=True)
-end = pp.size()
-pT.setConstRange(s=FlagObstacle, begin=begin, end=end, notiming=True)
-obs.applyToGrid(grid=gFlags, value=FlagObstacle, respectFlags=gFlags)
+#generateBlock(vec3(0.766, 0.08, 0.5), vec3(0.08, 0.15, 0.4), FlagObstacle)
 
 # fluid setup: dam
-dam_c = [2.606, 0.275, 0.5]
-dam_s = [1.0*0.5, 1.228*0.5, 0.5]
-a     = vec3(dam_c[0]*scaleToManta+params['bnd'], dam_c[1]*scaleToManta+params['bnd'], dam_c[2]*scaleToManta+params['bnd'] if (params['dim']==3) else 0)
-b     = vec3(dam_s[0]*scaleToManta, dam_s[1]*scaleToManta, dam_s[2]*scaleToManta if (params['dim']==3) else params['gs'][2])
-fld   = s.create(Box, center=a, size=b)
-
-begin = pp.size()
-sampleShapeWithParticles(shape=fld, flags=gFlags, parts=pp, discretization=params['sres'], randomness=0, notiming=True)
-end = pp.size()
-pT.setConstRange(s=FlagFluid, begin=begin, end=end, notiming=True)
+generateBlock(vec3(0.766, 0.08, 0.5), vec3(0.08, 0.15, 0.4), FlagFluid)
 
 sph.bindParticleSystem(p_system=pp, p_type=pT, p_neighbor=neighbor, notiming=True)
-sph.updateSoundSpeed(math.sqrt(2.0*math.fabs(params['grav'])*0.55*scaleToManta/params['eta']), notiming=True)
+sph.updateSoundSpeed(math.sqrt(2.0*math.fabs(grav)*0.55*gs.y/eta), notiming=True)
 pD.setConst(s=sph.density, notiming=True)
 gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt, notiming=True)
 neighbor.update(pts=pp, indexSys=gIdxSys, index=gIdx, radius=kern.supportRadius(), notiming=True)
@@ -134,21 +139,19 @@ if guion:
 	gui.show()
 	if pause: gui.pause()
 
-out_frame = 0
-
-while (s.timeTotal<params['t_end']): # main loop
+while (s.timeTotal<t_end): # main loop
 	sphComputeDensity(d=pD, k=kern, sph=sph, itype=overFld, jtype=overAll)
-	sphComputeConstantForce(f=pF, v=vec3(0, params['grav']*sph.mass, 0), sph=sph, itype=overFld, accumulate=False)
+	sphComputeConstantForce(f=pF, v=vec3(0, grav*sph.mass, 0), sph=sph, itype=overFld, accumulate=False)
 	sphComputeSurfTension(f=pF, k=kern, sph=sph, kappa=0.8, itype=overFld, jtype=overAll, accumulate=True)
-	if(params['avis']):
+	if(avis):
 		sphComputeArtificialViscousForce(f=pF, v=pV, d=pD, k=kern, sph=sph, itype=overFld, jtype=overFld, accumulate=True)
 
-	if params['sdt'] is None:
+	if sdt is None:
 		adt = min(s.frameLength, kern.supportRadius()/sph.c)
 		adt = sph.limitDtByVmax(dt=adt, h=kern.supportRadius(), vmax=pV.getMaxAbsValue(), a=0.4)
 		s.adaptTimestepByDt(adt)
 	else:
-		s.adaptTimestepByDt(params['sdt'])
+		s.adaptTimestepByDt(sdt)
 
 	sphUpdateVelocity(v=pVtmp, vn=pV, f=pF, sph=sph, dt=s.timestep)
 	sphComputeIisphDii(dii=pDii, d=pD, k=kern, sph=sph, dt=s.timestep, itype=overFld, jtype=overAll)
@@ -193,12 +196,34 @@ while (s.timeTotal<params['t_end']): # main loop
 	gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
 	neighbor.update(pts=pp, indexSys=gIdxSys, index=gIdx, radius=kern.supportRadius())
 
-	print(s.timeTotal*params['fps'])
-	if out_path != "" and s.timeTotal*params['fps'] > out_frame:
-		pp.save(out_path % out_frame)
-		out_frame+=1
+	if out_path != "" and s.timeTotal*fps > out['frame']:
+		path = out_path % out['frame']
+		pp.save(path + "_ps.uni")
+		pT.save(path + "_pt.uni")
+		pV.save(path + "_pv.uni")
+		pD.save(path + "_pd.uni")
+		pP.save(path + "_pP.uni")
 
-	if params['dim']==3 and guion:
+		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
+		extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
+		out['levelset'].save(path + "_sdf.uni")
+
+		#mapPartsToMAC(flags=gFlags, vel=out['vel'], velOld=out['velOld'], parts=pp, partVel=pV)
+		#extrapolateMACSimple(flags=gFlags, vel=out['vel'], distance=4)
+		#out['vel'].save(path + "_vel.uni")
+
+		mapPartsToGridVec3(flags=gFlags, target=out['vel'], parts=pp, source=pV)
+		out['vel'].save(path + "_vel.uni")
+
+		mapPartsToGrid(flags=gFlags, target=out['dens'], parts=pp, source=pD)
+		out['dens'].save(path + "_dens.uni")
+
+		mapPartsToGrid(flags=gFlags, target=out['pres'], parts=pp, source=pP)
+		out['pres'].save(path + "_pres.uni")
+
+		out['frame']+=1
+
+	if dim==3 and guion:
 		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=mesh['levelset'], radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
 		extrapolateLsSimple(phi=mesh['levelset'], distance=4, inside=True)
 		mesh['levelset'].createMesh(mesh['mesh'])

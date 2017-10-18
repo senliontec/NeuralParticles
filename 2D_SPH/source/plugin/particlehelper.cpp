@@ -14,10 +14,16 @@ namespace Manta
 
 	// reduce particle in a random way
 	PYTHON() 
-	void reduceParticlesRandom(BasicParticleSystem &x, const int factor)
+	void reduceParticlesRandom(BasicParticleSystem &x, const int factor, const int seed=23892489)
 	{
-		RandomStream rs(23892489l);
+		RandomStream rs((long)seed);
 		knReduceParticlesRandom(x, 1.0f/factor, rs);
 		x.doCompress();
+	}
+
+	PYTHON()
+	void extractSurfacePatches()
+	{
+		
 	}
 }

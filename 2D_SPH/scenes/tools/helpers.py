@@ -1,4 +1,4 @@
-# 
+#
 # tool runs helpers
 #
 import sys
@@ -35,6 +35,3 @@ def checkUnusedParam(paramUsed, off=0):
 			err = True;
 	if err:
 		exit(1);
-
-
-
