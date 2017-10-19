@@ -68,6 +68,8 @@ for i in range(cube_cnt):
 
 checkUnusedParam(paramUsed);
 
+backupSources(out_path)
+
 gs   = vec3(res, res, res if dim==3 else 1)
 grav = -9.8 * gs.y # gravity
 
@@ -122,23 +124,9 @@ if out_path != "":
 	out['levelset'] = s.create(LevelsetGrid)
 	out['dens'] = s.create(RealGrid)
 	out['vel'] = s.create(Vec3Grid)
-	#out['velOld'] = s.create(MACGrid)
 	out['pres'] = s.create(RealGrid)
 
-
-def generateBlock(pos, scale, flag):
-	if(dim != 3):
-		pos.z = 0
-		scale.z = 1
-
-	fld   = s.create(Box, center=pos * gs, size=scale * gs)
-
-	begin = pp.size()
-	sampleShapeWithParticles(shape=fld, flags=gFlags, parts=pp, discretization=sres, randomness=0, notiming=True, refillEmpty=True)
-	end = pp.size()
-	pT.setConstRange(s=flag, begin=begin, end=end, notiming=True)
-	fld.applyToGrid(grid=gFlags, value=flag, respectFlags=gFlags)
-	
+init_phi = s.create(LevelsetGrid)
 
 # boundary setup
 gFlags.initDomain(bnd-1)
@@ -151,8 +139,18 @@ pT.setConstRange(s=FlagObstacle, begin=begin, end=end, notiming=True)
 # obstacle
 #generateBlock(vec3(0.766, 0.08, 0.5), vec3(0.08, 0.15, 0.4), FlagObstacle)
 
+init_phi.setConst(999.)
+
 for c in cube:
-	generateBlock(c.pos, c.scale, FlagFluid)
+	fld = s.create(Box, center=c.pos*gs, size=c.scale*gs)
+	fld.applyToGrid(grid=gFlags, value=FlagFluid, respectFlags=gFlags)
+	init_phi.join(fld.computeLevelset())
+
+begin = pp.size()
+sampleLevelsetWithParticles(phi=init_phi, flags=gFlags, parts=pp, discretization=sres, randomness=0)
+end = pp.size()
+pT.setConstRange(s=FlagFluid, begin=begin, end=end, notiming=True)
+
 # fluid setup: dam
 #generateBlock(vec3(0.766, 0.08, 0.5), vec3(0.08, 0.15, 0.4), FlagFluid)
 
@@ -235,10 +233,6 @@ while (s.timeTotal<t_end): # main loop
 		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
 		extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
 		out['levelset'].save(path + "_sdf.uni")
-
-		#mapPartsToMAC(flags=gFlags, vel=out['vel'], velOld=out['velOld'], parts=pp, partVel=pV)
-		#extrapolateMACSimple(flags=gFlags, vel=out['vel'], distance=4)
-		#out['vel'].save(path + "_vel.uni")
 
 		mapPartsToGridVec3(flags=gFlags, target=out['vel'], parts=pp, source=pV)
 		out['vel'].save(path + "_vel.uni")

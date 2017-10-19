@@ -2,6 +2,7 @@
 # tool runs helpers
 #
 import sys
+import shutil
 
 # ======================================================================================================================
 # duplicated from main "helpers", not to require manta
@@ -35,3 +36,17 @@ def checkUnusedParam(paramUsed, off=0):
 			err = True;
 	if err:
 		exit(1);
+
+def backupSources(name):
+	#return; # off
+	# save scene file
+	#shutil.copyfile( sceneSrcFile, '%s_source.py' % (name) )
+	sceneFile = sys.argv[0];
+	shutil.copyfile( sceneFile, '%s_scene.py' % (name) )
+
+	# save command line call
+	callfile = open( ("%s_call.txt"%name), 'w+')
+	callfile.write("\n");
+	callfile.write(str(" ".join(sys.argv) ) );
+	callfile.write("\n\n");
+	callfile.close();

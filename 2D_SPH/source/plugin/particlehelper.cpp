@@ -2,9 +2,34 @@
 #include "randomstream.h"
 #include "grid.h"
 #include "levelset.h"
+#include "pneighbors.h"
+
+#include <cmath>
 
 namespace Manta
 {
+	//
+	// helper
+	//
+
+	inline float poisson(int lambda, int k)
+	{
+		float res = pow(lambda, k) * exp(-lambda);
+		std::cout << lambda << " " << k << "-> ";
+		while(k > 0)
+		{
+			res /= k;
+			k--;
+		}
+		std::cout << res << std::endl;
+		return res;
+	}
+
+
+	//
+	// kernels
+	//
+
 	KERNEL(pts) 
 	void knReduceParticlesRandom(BasicParticleSystem &x, const float factor, RandomStream& rs)
 	{
@@ -13,6 +38,20 @@ namespace Manta
 			x.kill(idx);
 		}
 	}
+	
+	KERNEL(pts) 
+	void knReduceParticlesPoisson(BasicParticleSystem &x, const ParticleNeighbors &n, const int factor, RandomStream& rs)
+	{
+		if(rs.getFloat() > poisson(factor, n.size(idx)))
+		{
+			x.kill(idx);
+		}
+	}
+
+
+	//
+	// python functions
+	//
 
 	// reduce particle in a random way
 	PYTHON() 
@@ -20,6 +59,47 @@ namespace Manta
 	{
 		RandomStream rs((long)seed);
 		knReduceParticlesRandom(x, 1.0f/factor, rs);
+		x.doCompress();
+	}
+
+	PYTHON()
+	void reduceParticlesPoisson(BasicParticleSystem &x, const ParticleNeighbors &n, const int factor, const int seed=23892489)
+	{
+		RandomStream rs((long)seed);
+		//reduceParticlesPoisson(x, n, factor, seed);
+		//x.doCompress();
+		for(int idx = 0; idx < x.size(); idx++)
+		{
+			int cnt = 0;
+			for(ParticleNeighbors::Neighbors::const_iterator it=n.begin(idx); it!=n.end(idx); ++it) 
+			{
+				if(x.isActive(n.neighborIdx(it)))
+				{
+					cnt++;
+				}
+			}
+			if(rs.getFloat() > poisson(factor, cnt))
+			{
+				x.kill(idx);
+			}
+		}
+		x.doCompress();
+	}
+
+	PYTHON()
+	void reduceParticlesNeighbors(BasicParticleSystem &x, const ParticleNeighbors &n)
+	{
+		for(int i = 0; i < x.size(); i++)
+		{
+			if(x.isActive(i))
+			{
+				for(ParticleNeighbors::Neighbors::const_iterator it=n.begin(i); it!=n.end(i); ++it) 
+				{
+					const int idx = n.neighborIdx(it);
+					if(idx != i) x.kill(idx);
+				}
+			}
+		}
 		x.doCompress();
 	}
 
