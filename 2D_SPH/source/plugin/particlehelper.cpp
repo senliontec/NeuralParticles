@@ -103,8 +103,8 @@ namespace Manta
 		x.doCompress();
 	}
 
-	PYTHON()
-	void extractSurfacePatches(const LevelsetGrid& levelset, float* patches, const int maxCnt, int* patchCnt, const float tol = 0.1f)
+	/*PYTHON()
+	void extractSurfacePatches(const LevelsetGrid& phi0, const LevelsetGrid& phi1, float* patches, const int maxCnt, int* patchCnt, const float tol = 0.1f)
 	{
 		// TODO: use second levelset grid as reference + respect also scale!
 		for(int z = 0; z < levelset.getSizeZ(); z++)
@@ -138,5 +138,5 @@ namespace Manta
 				}
 			}
 		}
-	}
+	}*/
 }

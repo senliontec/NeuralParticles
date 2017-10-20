@@ -1,6 +1,6 @@
 from manta import *
 import math
-from helpers import *
+from tools.helpers import *
 paramUsed = []
 
 guion = int(getParam("gui", 1, paramUsed)) != 0
@@ -14,7 +14,6 @@ factor = int(getParam("factor", 10, paramUsed))
 dim = int(getParam("dim", 2, paramUsed))
 high_res = int(getParam("res", 150, paramUsed))
 sres = int(getParam("sres", 2, paramUsed))
-bnd = int(getParam("bnd", 4, paramUsed))
 
 t = int(getParam("t", 50, paramUsed))
 
@@ -72,6 +71,11 @@ if out_path != "":
 	out['vel'] = s.create(Vec3Grid)
 	out['pres'] = s.create(RealGrid)
 
+	out['h_levelset'] = high_s.create(LevelsetGrid)
+	out['h_dens'] = high_s.create(RealGrid)
+	out['h_vel'] = high_s.create(Vec3Grid)
+	out['h_pres'] = high_s.create(RealGrid)
+
 if guion:
 	gui = Gui()
 	gui.show()
@@ -107,16 +111,20 @@ for i in range(t):
 		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
 
 		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
-		extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
-		out['levelset'].save(path + "_sdf.uni")
+		interpolateGrid(out['h_levelset'], out['levelset'] );
+		extrapolateLsSimple(phi=out['h_levelset'], distance=4, inside=True)
+		out['h_levelset'].save(path + "_sdf.uni")
 
 		mapPartsToGridVec3(flags=gFlags, target=out['vel'], parts=pp, source=pV)
-		out['vel'].save(path + "_vel.uni")
+		interpolateGridVec3(out['h_vel'], out['vel'] );
+		out['h_vel'].save(path + "_vel.uni")
 
 		mapPartsToGrid(flags=gFlags, target=out['dens'], parts=pp, source=pD)
-		out['dens'].save(path + "_dens.uni")
+		interpolateGrid(out['h_dens'], out['dens'] );
+		out['h_dens'].save(path + "_dens.uni")
 
 		mapPartsToGrid(flags=gFlags, target=out['pres'], parts=pp, source=pP)
-		out['pres'].save(path + "_pres.uni")
+		interpolateGrid(out['h_pres'], out['pres'] );
+		out['h_pres'].save(path + "_pres.uni")
 
 	s.step()
