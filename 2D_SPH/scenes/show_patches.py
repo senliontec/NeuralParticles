@@ -5,27 +5,6 @@ from collections import OrderedDict
 from tools.uniio import *
 from tools.helpers import *
 
-class NPZBuffer:
-	def __init__(self, path):
-		self.p = path
-		self.c = 0
-		self.arr_c = 0
-		self.npz = readNumpy(path+"_%04d.npz"%self.c)
-
-	def next(self):
-		k = "arr_%d"%self.arr_c
-		if k in self.npz:
-			self.arr_c+=1
-			return self.npz[k]
-		else:
-			self.arr_c=0
-			self.c+=1
-			path = self.p+"_%04d.npz"%self.c
-			if not os.path.exists(path):
-				return None
-			self.npz = readNumpy(path)
-			return self.next()
-
 paramUsed = []
 
 guion = True
@@ -66,9 +45,11 @@ hdr = OrderedDict([	('dimX',psize),
 					('info',b'\0'*252),
 					('dimT',0),
 					('timestamp',(int)(time.time()*1e6))])
-for i in range(10,t):
-	src_buf = NPZBuffer(src_path%i)
-	ref_buf = NPZBuffer(ref_path%i)
+
+if t <= 1:
+	src_buf = NPZBuffer(src_path)
+	ref_buf = NPZBuffer(ref_path)
+	pcnt = 0
 	while True:
 		s_v = src_buf.next()
 		r_v = ref_buf.next()
@@ -81,3 +62,26 @@ for i in range(10,t):
 		writeUni("tmp.uni", hdr, r_v)
 		ref_sdf.load("tmp.uni")
 		s.step()
+		if screenshot != "":
+			gui.screenshot(screenshot % pcnt)
+		pcnt += 1
+else:
+	for i in range(0,t):
+		src_buf = NPZBuffer(src_path%i)
+		ref_buf = NPZBuffer(ref_path%i)
+		pcnt = 0
+		while True:
+			s_v = src_buf.next()
+			r_v = ref_buf.next()
+			if s_v is None:
+				break
+
+			#HACK: find better way!
+			writeUni("tmp.uni", hdr, s_v)
+			src_sdf.load("tmp.uni")
+			writeUni("tmp.uni", hdr, r_v)
+			ref_sdf.load("tmp.uni")
+			s.step()
+			if screenshot != "":
+				gui.screenshot(screenshot % (i, pcnt))
+				pcnt += 1

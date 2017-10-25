@@ -204,3 +204,24 @@ def readNumpy(filename):
 	#print("reading "+filename)
 	npz = np.load( filename )
 	return npz
+
+class NPZBuffer:
+	def __init__(self, path):
+		self.p = path
+		self.c = 0
+		self.arr_c = 0
+		self.npz = readNumpy(path+"_%04d.npz"%self.c)
+
+	def next(self):
+		k = "arr_%d"%self.arr_c
+		if k in self.npz:
+			self.arr_c+=1
+			return self.npz[k]
+		else:
+			self.arr_c=0
+			self.c+=1
+			path = self.p+"_%04d.npz"%self.c
+			if not os.path.exists(path):
+				return None
+			self.npz = readNumpy(path)
+			return self.next()

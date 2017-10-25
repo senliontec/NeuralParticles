@@ -112,8 +112,11 @@ for i in range(t):
 
 		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
 		interpolateGrid(out['h_levelset'], out['levelset'] );
+		out['h_levelset'].multConst(high_res/res)
 		extrapolateLsSimple(phi=out['h_levelset'], distance=4, inside=True)
 		out['h_levelset'].save(path + "_sdf.uni")
+
+		# TODO: multiplicate by multConst(high_res/res)?
 
 		mapPartsToGridVec3(flags=gFlags, target=out['vel'], parts=pp, source=pV)
 		interpolateGridVec3(out['h_vel'], out['vel'] );

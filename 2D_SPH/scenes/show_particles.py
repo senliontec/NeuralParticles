@@ -22,6 +22,7 @@ s = Solver(name='IISPH', gridSize=gs, dim=2)
 pp = s.create(BasicParticleSystem)
 if sdf_path != "":
 	sdf = s.create(LevelsetGrid)
+
 gFlags   = s.create(FlagGrid)
 
 gFlags.initDomain(FlagFluid)
