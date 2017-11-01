@@ -15,6 +15,8 @@ dim = int(getParam("dim", 2, paramUsed))
 high_res = int(getParam("res", 150, paramUsed))
 sres = int(getParam("sres", 2, paramUsed))
 
+upres = int(getParam("upres", 0, paramUsed)) != 0
+
 t = int(getParam("t", 50, paramUsed))
 
 checkUnusedParam(paramUsed)
@@ -71,10 +73,11 @@ if out_path != "":
 	out['vel'] = s.create(Vec3Grid)
 	out['pres'] = s.create(RealGrid)
 
-	out['h_levelset'] = high_s.create(LevelsetGrid)
-	out['h_dens'] = high_s.create(RealGrid)
-	out['h_vel'] = high_s.create(Vec3Grid)
-	out['h_pres'] = high_s.create(RealGrid)
+	if upres:
+		out['h_levelset'] = high_s.create(LevelsetGrid)
+		out['h_dens'] = high_s.create(RealGrid)
+		out['h_vel'] = high_s.create(Vec3Grid)
+		out['h_pres'] = high_s.create(RealGrid)
 
 if guion:
 	gui = Gui()
@@ -111,23 +114,32 @@ for i in range(t):
 		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
 
 		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
-		interpolateGrid(out['h_levelset'], out['levelset'] );
-		out['h_levelset'].multConst(high_res/res)
-		extrapolateLsSimple(phi=out['h_levelset'], distance=4, inside=True)
-		out['h_levelset'].save(path + "_sdf.uni")
-
-		# TODO: multiplicate by multConst(high_res/res)?
 
 		mapPartsToGridVec3(flags=gFlags, target=out['vel'], parts=pp, source=pV)
-		interpolateGridVec3(out['h_vel'], out['vel'] );
-		out['h_vel'].save(path + "_vel.uni")
-
 		mapPartsToGrid(flags=gFlags, target=out['dens'], parts=pp, source=pD)
-		interpolateGrid(out['h_dens'], out['dens'] );
-		out['h_dens'].save(path + "_dens.uni")
-
 		mapPartsToGrid(flags=gFlags, target=out['pres'], parts=pp, source=pP)
-		interpolateGrid(out['h_pres'], out['pres'] );
-		out['h_pres'].save(path + "_pres.uni")
+
+		if upres:
+			interpolateGrid(out['h_levelset'], out['levelset'] );
+			extrapolateLsSimple(phi=out['h_levelset'], distance=4, inside=True)
+			out['h_levelset'].multConst(high_res/res)
+			out['h_levelset'].save(path + "_sdf.uni")
+
+			# TODO: multiplicate by multConst(high_res/res)?
+			interpolateGridVec3(out['h_vel'], out['vel'] );
+			out['h_vel'].save(path + "_vel.uni")
+
+			interpolateGrid(out['h_dens'], out['dens'] );
+			out['h_dens'].save(path + "_dens.uni")
+
+			interpolateGrid(out['h_pres'], out['pres'] );
+			out['h_pres'].save(path + "_pres.uni")
+		else:
+			#out['levelset'].multConst(high_res/res)
+			extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
+			out['levelset'].save(path + "_sdf.uni")
+			out['vel'].save(path + "_vel.uni")
+			out['dens'].save(path + "_dens.uni")
+			out['pres'].save(path + "_pres.uni")
 
 	s.step()

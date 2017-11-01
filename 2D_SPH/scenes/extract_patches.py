@@ -15,8 +15,19 @@ t = int(getParam("t", 50, paramUsed))
 
 surface = float(getParam("surface", 0.5, paramUsed))
 
-patch_size = int(int(getParam("psize", 5, paramUsed)) / 2)
+patch_size = int(getParam("psize", 5, paramUsed))
+high_patch_size = int(getParam("hpsize", patch_size, paramUsed))
+
 stride = int(getParam("stride", 1, paramUsed))
+
+fac = float(high_patch_size)/patch_size
+
+patch_size = int(patch_size/2)
+high_patch_size = int(high_patch_size/2)
+
+border = 2#int(math.ceil(high_patch_size-patch_size*fac))
+
+print("fac: %f, patch size: %d, high patch size: %d" % (fac, patch_size, high_patch_size))
 
 checkUnusedParam(paramUsed)
 
@@ -34,9 +45,11 @@ for i in range(t):
 
 	path = (h_in_path % i) + "_"
 	_, h_data = readUni(path + "sdf.uni")
+	np.pad(h_data,border,mode="edge")
 	h_prop_data = {}
 	for p in props:
 		_, h_prop_data[p] = readUni(path + p + ".uni")
+		np.pad(h_prop_data,border,mode="edge")
 
 	#TODO: handle also 3D
 	#for z in range(1, header['dimZ']-1):
@@ -49,9 +62,13 @@ for i in range(t):
 					writeNumpyBuf(path + p, l_prop_data[p][0,y-patch_size:y+patch_size+1,x-patch_size:x+patch_size+1])
 
 				path = (h_out_path%i) + "_"
-				writeNumpyBuf(path + "sdf", h_data[0,y-patch_size:y+patch_size+1,x-patch_size:x+patch_size+1])
+				hx0 = int(fac*x-high_patch_size)+border
+				hx1 = int(fac*x+high_patch_size)+border+1
+				hy0 = int(fac*y-high_patch_size)+border
+				hy1 = int(fac*y+high_patch_size)+border+1
+				writeNumpyBuf(path + "sdf", h_data[0,hy0:hy1,hx0:hx1])
 				for p in props:
-					writeNumpyBuf(path + p, h_prop_data[p][0,y-patch_size:y+patch_size+1,x-patch_size:x+patch_size+1])
+					writeNumpyBuf(path + p, h_prop_data[p][0,hy0:hy1,hx0:hx1])
 
 finalizeNumpyBufs()
 
