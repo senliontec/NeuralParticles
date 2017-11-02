@@ -45,11 +45,11 @@ for i in range(t):
 
 	path = (h_in_path % i) + "_"
 	_, h_data = readUni(path + "sdf.uni")
-	np.pad(h_data,border,mode="edge")
+	h_data=np.pad(h_data,((0,0),(border,border),(border,border),(0,0)),mode="edge")
 	h_prop_data = {}
 	for p in props:
 		_, h_prop_data[p] = readUni(path + p + ".uni")
-		np.pad(h_prop_data,border,mode="edge")
+		h_prop_data[p]=np.pad(h_prop_data[p],((0,0),(border,border),(border,border),(0,0)),mode="edge")
 
 	#TODO: handle also 3D
 	#for z in range(1, header['dimZ']-1):

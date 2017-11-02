@@ -19,7 +19,8 @@ checkUnusedParam(paramUsed)
 gs = vec3(res, res, 1)
 
 s = Solver(name='IISPH', gridSize=gs, dim=2)
-pp = s.create(BasicParticleSystem)
+if in_path != "":
+	pp = s.create(BasicParticleSystem)
 if sdf_path != "":
 	sdf = s.create(LevelsetGrid)
 
@@ -33,9 +34,10 @@ if guion:
 	if pause: gui.pause()
 
 for i in range(t):
-	pp.load(in_path % i)
+	if in_path != "":
+		pp.load(in_path % i if t > 1 else in_path)
 	if sdf_path != "":
-		sdf.load(sdf_path % i)
+		sdf.load(sdf_path % i if t > 1 else sdf_path)
 	s.step()
 	if screenshot != "":
-		gui.screenshot(screenshot % i)
+		gui.screenshot(screenshot % i if t > 1 else screenshot)
