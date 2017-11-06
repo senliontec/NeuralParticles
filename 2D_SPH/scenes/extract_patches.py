@@ -2,6 +2,7 @@ from manta import *
 import math
 from tools.uniio import *
 from tools.helpers import *
+import numpy
 
 paramUsed = []
 
@@ -12,6 +13,10 @@ h_out_path = getParam("h_out", "", paramUsed)
 l_out_path = getParam("l_out", "", paramUsed)
 
 t = int(getParam("t", 50, paramUsed))
+
+use_tanh = int(getParam("tanh", 0, paramUsed)) != 0
+l_fac = float(getParam("l_fac", 1.0, paramUsed))
+h_fac = float(getParam("h_fac", 1.0, paramUsed))
 
 surface = float(getParam("surface", 0.5, paramUsed))
 
@@ -57,7 +62,8 @@ for i in range(t):
 		for y in range(patch_size,header['dimY']-patch_size, stride):
 			if(abs(l_data[0,y,x]) < surface):
 				path = (l_out_path%i) + "_"
-				writeNumpyBuf(path + "sdf", l_data[0,y-patch_size:y+patch_size+1,x-patch_size:x+patch_size+1])
+				data = l_fac * l_data[0,y-patch_size:y+patch_size+1,x-patch_size:x+patch_size+1]
+				writeNumpyBuf(path + "sdf", numpy.tanh(data) if use_tanh else data)
 				for p in props:
 					writeNumpyBuf(path + p, l_prop_data[p][0,y-patch_size:y+patch_size+1,x-patch_size:x+patch_size+1])
 
@@ -66,7 +72,8 @@ for i in range(t):
 				hx1 = int(fac*x+high_patch_size)+border+1
 				hy0 = int(fac*y-high_patch_size)+border
 				hy1 = int(fac*y+high_patch_size)+border+1
-				writeNumpyBuf(path + "sdf", h_data[0,hy0:hy1,hx0:hx1])
+				data = h_fac * h_data[0,hy0:hy1,hx0:hx1]
+				writeNumpyBuf(path + "sdf", numpy.tanh(data) if use_tanh else data)
 				for p in props:
 					writeNumpyBuf(path + p, h_prop_data[p][0,hy0:hy1,hx0:hx1])
 

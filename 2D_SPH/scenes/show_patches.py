@@ -11,6 +11,7 @@ guion = True
 pause = True
 
 src_path = getParam("src", "", paramUsed)
+vel_path = getParam("vel", "", paramUsed)
 ref_path = getParam("ref", "", paramUsed)
 ref2_path = getParam("ref2", "", paramUsed)
 
@@ -30,7 +31,13 @@ s = Solver(name='patch', gridSize=gs, dim=2)
 s_ref = Solver(name='hpatch', gridSize=gs_ref, dim=2)
 
 src_sdf = s.create(LevelsetGrid)
-ref_sdf = s_ref.create(LevelsetGrid)
+
+if vel_path != "":
+	vel = s.create(VecGrid)
+
+if ref_path != "":
+	ref_sdf = s_ref.create(LevelsetGrid)
+
 if ref2_path != "":
 	ref2_sdf = s_ref.create(LevelsetGrid)
 
@@ -52,6 +59,16 @@ hdr = OrderedDict([	('dimX',psize),
 					('dimT',0),
 					('timestamp',(int)(time.time()*1e6))])
 
+vel_hdr = OrderedDict([	('dimX',psize),
+			 		('dimY',psize),
+					('dimZ',1),
+					('gridType',4),
+					('elementType',2),
+					('bytesPerElement',12),
+					('info',b'\0'*252),
+					('dimT',0),
+					('timestamp',(int)(time.time()*1e6))])
+
 ref_hdr = OrderedDict([	('dimX',hpsize),
 			 		('dimY',hpsize),
 					('dimZ',1),
@@ -64,14 +81,20 @@ ref_hdr = OrderedDict([	('dimX',hpsize),
 
 for i in range(0, t):
 	src_buf = NPZBuffer(src_path if t == 1 else src_path%i)
-	ref_buf = NPZBuffer(ref_path if t == 1 else ref_path%i)
+	if vel_path != "":
+		vel_buf = NPZBuffer(vel_path if t == 1 else vel_path%i)
+	if ref_path != "":
+		ref_buf = NPZBuffer(ref_path if t == 1 else ref_path%i)
 	if ref2_path != "":
-		ref2_buf = NPZBuffer(ref2_path)
+		ref2_buf = NPZBuffer(ref2_path if t == 1 else ref2_path%i)
 
 	pcnt = 0
 	while True:
 		s_v = src_buf.next()
-		r_v = ref_buf.next()
+		if vel_path != "":
+			v_v = vel_buf.next()
+		if ref_path != "":
+			r_v = ref_buf.next()
 		if ref2_path != "":
 			r2_v = ref2_buf.next()
 
@@ -81,8 +104,12 @@ for i in range(0, t):
 		#HACK: find better way!
 		writeUni("tmp.uni", hdr, s_v)
 		src_sdf.load("tmp.uni")
-		writeUni("tmp.uni", ref_hdr, r_v)
-		ref_sdf.load("tmp.uni")
+		if vel_path != "":
+			writeUni("tmp.uni", vel_hdr, v_v)
+			vel.load("tmp.uni")
+		if ref_path != "":
+			writeUni("tmp.uni", ref_hdr, r_v)
+			ref_sdf.load("tmp.uni")
 		if ref2_path != "":
 			writeUni("tmp.uni", ref_hdr, r2_v)
 			ref2_sdf.load("tmp.uni")
