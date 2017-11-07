@@ -37,6 +37,8 @@ eta   = float(getParam("eta", 0.1, paramUsed))
 fps   = int(getParam("fps", 30, paramUsed))
 t_end = float(getParam("t_end", 5.0, paramUsed))
 sdt   = float(getParam("dt", 0, paramUsed))
+circular_vel = float(getParam("circ", 0., paramUsed))
+
 if sdt <= 0:
 	sdt = None
 
@@ -159,6 +161,10 @@ sph.updateSoundSpeed(math.sqrt(2.0*math.fabs(grav)*0.55*gs.y/eta), notiming=True
 pD.setConst(s=sph.density, notiming=True)
 gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt, notiming=True)
 neighbor.update(pts=pp, indexSys=gIdxSys, index=gIdx, radius=kern.supportRadius(), notiming=True)
+
+if circular_vel > 0:
+	fillVelocityCircular(pV, pp, -circular_vel, vec3(res/2.,res/2.,0.5))
+	#grav = 0
 
 if guion:
 	gui = Gui()

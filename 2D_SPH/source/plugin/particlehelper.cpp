@@ -48,6 +48,14 @@ namespace Manta
 		}
 	}
 
+	KERNEL(pts)
+	void knFillVelocityCircular(ParticleDataImpl<Vec3> &v, BasicParticleSystem &x, float magnitude, Vec3 center)
+	{
+		Vec3 tmp = x[idx].pos - center;
+
+		v[idx] = magnitude * tmp/normalize(tmp);
+	}
+
 
 	//
 	// python functions
@@ -101,6 +109,12 @@ namespace Manta
 			}
 		}
 		x.doCompress();
+	}
+
+	PYTHON()
+	void fillVelocityCircular(ParticleDataImpl<Vec3> &v, BasicParticleSystem &x, float magnitude, Vec3 center)
+	{
+		knFillVelocityCircular(v, x, magnitude, center);
 	}
 
 	/*PYTHON()
