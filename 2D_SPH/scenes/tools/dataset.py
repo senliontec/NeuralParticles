@@ -2,21 +2,22 @@ from uniio import *
 import numpy as np
 
 class Dataset:
-    def __init__(self, prefix, ref_prefix, offset, count, src_features, ref_features):
+    def __init__(self, prefix, ref_prefix, start, end, t_start, t_end, src_features, ref_features):
         self.data = None
         self.ref_data = None
         def read_dataset(path):
             tmp = None
-            for d in range(offset, count):
-                buf = NPZBuffer(path%d)
-                while True:
-                    v = buf.next()
-                    if v is None:
-                        break
-                    if tmp is None:
-                        tmp = [v]
-                    else:
-                        tmp = np.append(tmp, [v], axis=0)
+            for d in range(start, end):
+                for t in range(t_start, t_end):
+                    buf = NPZBuffer(path%(d,t))
+                    while True:
+                        v = buf.next()
+                        if v is None:
+                            break
+                        if tmp is None:
+                            tmp = [v]
+                        else:
+                            tmp = np.append(tmp, [v], axis=0)
             return tmp
         
         for f in src_features:
