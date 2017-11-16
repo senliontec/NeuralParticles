@@ -147,6 +147,7 @@ def RP_read_content(bytestream, head, data_type=None): # data_type = {None: Basi
     if(head['elementType']==0): # BasicParticleSystem
         print('(BasicParticleSystem) ' )
         data = np.frombuffer(bytestream.read(), dtype=np.dtype([('f1',(np.float32,3)),('f2',(np.int32,1))]))['f1']
+		
     else:                       # head['elementType']==1: ParticleDataImpl<T>, where T = {float32: Real(4) or Vec3(12); int32: Int(4)}
         print('(ParticleDataImpl<T={}{}>) '.format(data_type, 'x3' if (head['bytesPerElement']==12) else '') )
         data = np.reshape(np.frombuffer(bytestream.read(), dtype=data_type), (-1, 3 if (head['bytesPerElement']==12) else 1))
@@ -161,6 +162,38 @@ def readParticles(filename, data_type=None):
 
         print('Done.')
         return head, data
+
+# use this to write a .uni file. The header has to be supplied in the same dictionary format as the output of readuni
+def writeParticles(filename, header, content):
+	with gzip.open(filename, 'wb') as bytestream:
+
+		# current header
+		bytestream.write(b'PB02') 
+		head_tuple = namedtuple('UniPartHeader', header.keys())(**header)
+		head_buffer = struct.pack('iiiiii256sQ', *head_tuple)
+		bytestream.write(head_buffer)
+
+		if(header['elementType']==0): # BasicParticleSystem
+			content = np.append(content, np.full((header['dim'],1), 1.401298464324817e-45), axis=1) # corresponds '1' as int
+			content = np.reshape(content, header['dim']*4, order='C')
+			if content.dtype!="float32":
+				content = np.asarray(content, dtype="float32")
+			if sys.version_info >= (3,0):
+				# changed for Python3
+				bytestream.write(memoryview(content))
+			else:
+				bytestream.write(np.getbuffer(content))
+
+		else:                      
+			content = np.reshape(content, header['dim'] * 3 if (header['bytesPerElement']==12) else 1)
+			if content.dtype!="float32":
+				content = np.asarray(content, dtype="float32")
+			if sys.version_info >= (3,0):
+				# changed for Python3
+				bytestream.write(memoryview(content))
+			else:
+				bytestream.write(np.getbuffer(content))
+
 
 #******************************************************************************
 # numpy array files
