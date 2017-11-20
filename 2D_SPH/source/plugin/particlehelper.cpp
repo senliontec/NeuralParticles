@@ -117,6 +117,16 @@ namespace Manta
 		knFillVelocityCircular(v, x, magnitude, center);
 	}
 
+	PYTHON() 
+	void placeGrid2d(Grid<Real>& src, Grid<Real>& dst, int dstz) 
+	{
+		FOR_IJK(src) 
+		{
+			if(!dst.isInBounds(Vec3i(i,j,dstz))) continue;
+			dst(i,j,dstz) = src(i,j,0);
+		}
+	}
+
 	/*PYTHON()
 	void extractSurfacePatches(const LevelsetGrid& phi0, const LevelsetGrid& phi1, float* patches, const int maxCnt, int* patchCnt, const float tol = 0.1f)
 	{

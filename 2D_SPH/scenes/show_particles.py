@@ -23,11 +23,22 @@ checkUnusedParam(paramUsed)
 
 gs = vec3(res, res, 1)
 
+gs_show = vec3(res, res, 3)
+
 s = Solver(name='IISPH', gridSize=gs, dim=2)
+s_show = Solver(name="show", gridSize=gs_show, dim=3)
+
 pp = s.create(BasicParticleSystem)
 
 if sdf_path != "":
 	sdf = s.create(LevelsetGrid)
+	sdf_show = s_show.create(LevelsetGrid)
+	sdf_show.setBound(value=0., boundaryWidth=1)
+	mesh = s_show.create(Mesh)
+
+	flags_show = s.create(FlagGrid)
+	flags_show.initDomain()
+	flags_show.fillGrid(TypeEmpty)
 
 gFlags   = s.create(FlagGrid)
 
@@ -41,6 +52,9 @@ if guion:
 for i in range(t_start,t_end):
 	if sdf_path != "":
 		sdf.load(sdf_path % i if t > 1 else sdf_path)
+		sdf.reinitMarching(flags=gFlags)
+		placeGrid2d(sdf,sdf_show,dstz=1) 
+		sdf_show.createMesh(mesh)
 
 	if in_path != "":
 		pp.load(in_path % i if t > 1 else in_path)
