@@ -13,5 +13,6 @@
         "stdexcept": "cpp",
         "typeinfo": "cpp"
     },
-    "python.linting.pylintEnabled": false
+    "python.linting.pylintEnabled": false,
+    "python.pythonPath": "/Library/Frameworks/Python.framework/Versions/3.5/bin/python3"
 }

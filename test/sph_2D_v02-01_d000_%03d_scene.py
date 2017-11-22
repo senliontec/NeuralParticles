@@ -17,15 +17,14 @@ sres = int(getParam("sres", 2, paramUsed))
 
 upres = int(getParam("upres", 0, paramUsed)) != 0
 
-minN = int(getParam("min_n", 3, paramUsed))
-
-seed = int(getParam("seed", 29837913847, paramUsed))
-
 t = int(getParam("t", 50, paramUsed))
 
 checkUnusedParam(paramUsed)
 
 backupSources(out_path)
+
+# some random seed for the downscale
+seed = 29837913847
 
 res = int(high_res/math.sqrt(factor))
 
@@ -102,7 +101,9 @@ for i in range(t):
 	hcnt = cntPts(t=pT, itype=FlagFluid)
 
 	#reduceParticlesRandom(pp, factor, seed)
-	reduceParticlesNeighbors(pp, high_neighbor,minN,seed)
+	# add time coherency?!
+	# run multiple times with different seed?!
+	reduceParticlesNeighbors(pp, high_neighbor,3,seed)
 
 	lcnt = cntPts(t=pT, itype=FlagFluid)
 

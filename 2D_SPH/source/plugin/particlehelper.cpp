@@ -4,6 +4,10 @@
 #include "levelset.h"
 #include "pneighbors.h"
 
+#include <random>
+#include <algorithm>
+#include <iterator>
+
 #include <cmath>
 
 namespace Manta
@@ -95,12 +99,28 @@ namespace Manta
 	}
 
 	PYTHON()
-	void reduceParticlesNeighbors(BasicParticleSystem &x, const ParticleNeighbors &n)
+	void reduceParticlesNeighbors(BasicParticleSystem &x, const ParticleNeighbors &n, const int minN=3, const int seed=23892489)
 	{
+		std::vector<int> v = std::vector<int>(x.size());
+
 		for(int i = 0; i < x.size(); i++)
+		{
+			v[i] = i;
+		}
+ 
+		std::random_device rd;
+		std::mt19937 g(rd());
+		g.seed(seed);
+	
+		std::shuffle(v.begin(), v.end(), g);
+
+		for(const auto i : v)
 		{
 			if(x.isActive(i))
 			{
+				if(n.size(i) < minN){
+					x.kill(i);
+				}
 				for(ParticleNeighbors::Neighbors::const_iterator it=n.begin(i); it!=n.end(i); ++it) 
 				{
 					const int idx = n.neighborIdx(it);

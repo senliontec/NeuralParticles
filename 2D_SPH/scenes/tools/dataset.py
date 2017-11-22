@@ -2,26 +2,27 @@ from uniio import *
 import numpy as np
 
 class Dataset:
-    def __init__(self, prefix, start, end, t_start, t_end, src_features, ref_prefix="", ref_features=[]):
+    def __init__(self, prefix, start, end, t_start, t_end, src_features, var_cnt=1, ref_prefix="", ref_features=[]):
         self.data = None
         self.ref_data = None
         def read_dataset(path,lim):
             tmp = None
             for d in range(start, end):
-                for t in range(t_start, t_end):
-                    buf = NPZBuffer(path%(d,t))
-                    while True:
-                        v = buf.next()
-                        if v is None:
-                            break
-                        if lim > 0:
-                            v = v[:,:2]
-                            np.random.shuffle(v)
-                            v = np.resize(v,lim)
-                        if tmp is None:
-                            tmp = [v]
-                        else:
-                            tmp = np.append(tmp, [v], axis=0)
+                for var in range(var_cnt):
+                    for t in range(t_start, t_end):
+                        buf = NPZBuffer(path%(d,var,t))
+                        while True:
+                            v = buf.next()
+                            if v is None:
+                                break
+                            if lim > 0:
+                                v = v[:,:2]
+                                np.random.shuffle(v)
+                                v = np.resize(v,lim)
+                            if tmp is None:
+                                tmp = [v]
+                            else:
+                                tmp = np.append(tmp, [v], axis=0)
             return tmp
         
         for f in src_features:
