@@ -83,9 +83,7 @@ for i in range(t_start, t_end):
 				for p in props:
 					writeNumpyBuf(path + p, l_prop_data[p][0,hy0:hy1,hx0:hx1])
 
-				part = numpy.subtract(particle_range(l_particle_data, [hx0, hy0], [hx1, hy1]), [hx0+0.5, hy0+0.5, 0])
-				numpy.sort
-				writeNumpyBuf(path + "ps", )
+				writeNumpyBuf(path + "ps", numpy.subtract(particle_range(l_particle_data, [hx0, hy0], [hx1, hy1]), [hx0, hy0, 0]))
 
 
 				if h_in_path != "":
