@@ -29,6 +29,8 @@ high_patch_size = int(getParam("hpsize", patch_size, paramUsed))
 
 stride = int(getParam("stride", 1, paramUsed))
 
+particle_cnt = int(getParam("par_cnt", 0, paramUsed))
+
 fac = float(high_patch_size)/patch_size
 
 patch_size = int(patch_size/2)
@@ -78,14 +80,21 @@ for i in range(t_start, t_end):
 				hx1 = x+patch_size+1
 				hy0 = y-patch_size
 				hy1 = y+patch_size+1
+
+                if particle_cnt > 0:
+                    par = numpy.subtract(particle_range(l_particle_data, [hx0, hy0], [hx1, hy1]), [(hx0+hx1)/2, (hy0+hy1)/2, 0.])
+                    if par.shape[1] < particle_cnt:
+                        continue
+
+                    idx = np.argsort(np.linalg.norm(par,axis=1))
+                    writeNumpyBuf(path + "ps", par[idx[:particle_cnt]])
+
 				data = l_fac * l_data[0,hy0:hy1,hx0:hx1]
 				writeNumpyBuf(path + "sdf", numpy.tanh(data) if use_tanh else data)
 				for p in props:
 					writeNumpyBuf(path + p, l_prop_data[p][0,hy0:hy1,hx0:hx1])
 
-				writeNumpyBuf(path + "ps", numpy.subtract(particle_range(l_particle_data, [hx0, hy0], [hx1, hy1]), [hx0, hy0, 0]))
-
-                
+                #writeNumpyBuf(path + "ps", numpy.subtract(particle_range(l_particle_data, [hx0, hy0], [hx1, hy1]), [hx0, hy0, 0]))
 
 				if h_in_path != "":
 					path = (h_out_path%i) + "_"
@@ -93,11 +102,18 @@ for i in range(t_start, t_end):
 					hx1 = int(fac*x+high_patch_size)+border+1
 					hy0 = int(fac*y-high_patch_size)+border
 					hy1 = int(fac*y+high_patch_size)+border+1
+
+                    if particle_cnt > 0:
+                        par = numpy.subtract(particle_range(h_particle_data, [hx0-border,hy0-border], [hx1-border-1,hy1-border-1]), [(hx0+hx1)/2-border,(hy0+hy1)/2-border,0])
+                        idx = np.argsort(np.linalg.norm(par,axis=1))
+                        writeNumpyBuf(path + "ps", par[idx[:10]])
+
 					data = h_fac * h_data[0,hy0:hy1,hx0:hx1]
 					writeNumpyBuf(path + "sdf", numpy.tanh(data) if use_tanh else data)
 					for p in props:
 						writeNumpyBuf(path + p, h_prop_data[p][0,hy0:hy1,hx0:hx1])
-					writeNumpyBuf(path + "ps", numpy.subtract(particle_range(h_particle_data, [hx0-border,hy0-border], [hx1-border-1,hy1-border-1]), [hx0-border,hy0-border,0] ))
+                    
+					#writeNumpyBuf(path + "ps", numpy.subtract(particle_range(h_particle_data, [hx0-border,hy0-border], [hx1-border-1,hy1-border-1]), [hx0-border,hy0-border,0] ))
 
 
 finalizeNumpyBufs()
