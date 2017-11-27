@@ -40,7 +40,7 @@ fig_path = getParam("fig", "", paramUsed)
 
 checkUnusedParam(paramUsed)
 
-print("Load Train Data")
+print("Load Training Data")
 train_data = Dataset(src_patches_path, 
                      data_start, data_end, time_start, time_end, 
                      features, var, ref_patches_path, ['sdf'])
