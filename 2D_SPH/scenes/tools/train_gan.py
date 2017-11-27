@@ -80,6 +80,8 @@ combined = Model([z,z_aux], [img,valid])
 combined.compile(loss=['mse','binary_crossentropy'], optimizer=keras.optimizers.adam(lr=lr),
                 loss_weights=[mse_fac, adv_fac])
 
+combined.summary
+
 print("Start Training")
 
 half_batch = batch_size//2
@@ -91,8 +93,8 @@ print('eval count: %d' % eval_cnt)
 
 cnt_inv = batch_size/train_cnt
 
-history = {'d_loss':[],'d_acc':[],'g_mse':[],'g_loss':[],
-           'd_val_loss':[],'d_val_acc':[],'g_val_mse':[],'g_val_loss':[]}
+history = {'d_loss':[],'d_acc':[],'g_loss':[],'g_mse':[],'g_adv_loss':[],
+           'd_val_loss':[],'d_val_acc':[],'g_val_loss':[],'g_val_mse':[],'g_val_adv_loss':[]}
 idx0 = np.arange(train_cnt+eval_cnt)
 idx1 = np.arange(train_cnt+eval_cnt)
 
@@ -151,15 +153,17 @@ for ep in range(epochs):
     history['d_acc'].append(d_loss[1])
     history['d_val_loss'].append(d_val_loss[0])
     history['d_val_acc'].append(d_val_loss[1])
-    history['g_mse'].append(g_loss[0])
-    history['g_loss'].append(g_loss[1])
-    history['g_val_mse'].append(g_val_loss[0])
-    history['g_val_loss'].append(g_val_loss[1])
+    history['g_loss'].append(g_loss[0])
+    history['g_mse'].append(g_loss[1])
+    history['g_adv_loss'].append(g_loss[2])
+    history['g_val_loss'].append(g_val_loss[0])
+    history['g_val_mse'].append(g_val_loss[1])
+    history['g_val_adv_loss'].append(g_val_loss[2])
             
     if (ep+1) % log_intervall == 0 or ep == 0:
         print ("epoch %i" % (ep+1))
-        print ("\ttrain: [D loss: %f, acc.: %.2f%%] [G mse: %f, loss: %f]" % (d_loss[0], 100*d_loss[1], g_loss[0], g_loss[1]))
-        print ("\teval.: [D loss: %f, acc.: %.2f%%] [G mse: %f, loss: %f]" % (d_val_loss[0], 100*d_val_loss[1], g_val_loss[0], g_val_loss[1]))
+        print ("\ttrain: [D loss: %f, acc.: %.2f%%] [G loss: %f, mse: %f, adv: %f]" % (d_loss[0], 100*d_loss[1], g_loss[0], g_loss[1], g_loss[2]))
+        print ("\teval.: [D loss: %f, acc.: %.2f%%] [G loss: %f, mse: %f, adv: %f]" % (d_val_loss[0], 100*d_val_loss[1], g_val_loss[0], g_val_loss[1], g_val_loss[2]))
     
     if (ep+1) % checkpoint_intervall == 0:
         path = "%s_%04d.h5" % (model_src, (ep+1)//checkpoint_intervall)
@@ -173,17 +177,21 @@ gen_p = "%s_trained.h5" % model_src
 generator.save(gen_p)
 print("Saved Model: %s" % gen_p)
 
-plt.plot(history['g_mse'])
 plt.plot(history['g_loss'])
+plt.plot(history['g_mse'])
+plt.plot(history['g_adv_loss'])
 plt.plot(history['g_val_mse'])
 plt.plot(history['g_val_loss'])
+plt.plot(history['g_val_adv_loss'])
 plt.title('model loss')
 plt.ylabel('loss')
 plt.xlabel('epoch')
-plt.legend(['g_mse','g_loss','g_val_mse','g_val_loss'], loc='upper left')
+plt.legend(['g_loss','g_mse','g_adv_loss','g_val_loss','g_val_mse','g_val_adv_loss'], loc='upper left')
 
 plt.savefig(fig_path+".png")
 plt.savefig(fig_path+".pdf")
+
+plt.clf()
 
 plt.plot(history['d_loss'])
 plt.plot(history['d_val_loss'])
