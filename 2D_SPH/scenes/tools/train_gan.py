@@ -156,12 +156,12 @@ for ep in range(epochs):
     history['g_val_mse'].append(g_val_loss[0])
     history['g_val_loss'].append(g_val_loss[1])
             
-    if ep+1 % log_intervall == 0 or ep == 1:
+    if (ep+1) % log_intervall == 0 or ep == 0:
         print ("epoch %i" % (ep+1))
         print ("\ttrain: [D loss: %f, acc.: %.2f%%] [G mse: %f, loss: %f]" % (d_loss[0], 100*d_loss[1], g_loss[0], g_loss[1]))
         print ("\teval.: [D loss: %f, acc.: %.2f%%] [G mse: %f, loss: %f]" % (d_val_loss[0], 100*d_val_loss[1], g_val_loss[0], g_val_loss[1]))
     
-    if ep+1 % checkpoint_intervall == 0:
+    if (ep+1) % checkpoint_intervall == 0:
         path = "%s_%04d.h5" % (model_src, (ep+1)//checkpoint_intervall)
         generator.save(path)
         print('Saved Generator Checkpoint: %s' % path)
