@@ -51,8 +51,8 @@ train_data = Dataset(src_patches_path,
                      data_start, data_end, time_start, time_end, 
                      features, var, ref_patches_path, ['sdf'])
 
-print("Source Data Shape: " + str(train_data.data.shape))
-print("Reference Data Shape: " + str(train_data.ref_data.shape))
+print("Source Data Shape: " + str(train_data.data[features[0]].shape))
+print("Reference Data Shape: " + str(train_data.ref_data[features[0]].shape))
 
 if start_checkpoint > 0:
     gen_p = "%s_%04d.h5" % (model_src, start_checkpoint)
@@ -65,8 +65,13 @@ print("Loading Model: %s" % gen_p)
 generator = load_model(gen_p, custom_objects={'Subpixel': Subpixel})
 discriminator = load_model(adv_p)
 
-z = Input(shape=(train_data.data.shape[1],train_data.data.shape[2],1), name='main')
-z_aux = Input(shape=(train_data.data.shape[1],train_data.data.shape[2],train_data.data.shape[3]-1), name='aux')
+feature_cnt = 0
+for d in train_data.data.values():
+    feature_cnt += d.shape[3]
+
+z = Input(shape=(train_data.data[features[0]].shape[1],train_data.data[features[0]].shape[2],1), name='main')
+z_aux = Input(shape=(train_data.data[features[0]].shape[1],train_data.data[features[0]].shape[2],feature_cnt-1), name='aux')
+
 img = generator([z,z_aux])
 
 # For the combined model we will only train the generator
@@ -86,9 +91,9 @@ print("Start Training")
 
 half_batch = batch_size//2
 
-train_cnt = int(len(train_data.data)*(1-val_split))//batch_size*batch_size
+train_cnt = int(len(train_data.data[features[0]])*(1-val_split))//batch_size*batch_size
 print('train count: %d' % train_cnt)
-eval_cnt = int(len(train_data.data)*val_split)//batch_size*batch_size
+eval_cnt = int(len(train_data.data[features[0]])*val_split)//batch_size*batch_size
 print('eval count: %d' % eval_cnt)
 
 cnt_inv = batch_size/train_cnt
@@ -112,20 +117,16 @@ for ep in range(epochs):
     d_loss = [0.,0.]
     
     for i in range(0,train_cnt,batch_size):
-        x = train_data.ref_data[idx0[i:i+half_batch]]
-        
-        y = train_data.data[idx0[i+half_batch:i+batch_size]]
-        y = np.split(y,[1],axis=3)
-        y = generator.predict(y)
+        x = train_data.get_data_splitted(idx0[i:i+half_batch])[0]
+        y = train_data.get_data_splitted(idx0[i+half_batch:i+batch_size])[1]
+        x = generator.predict(x)
 
-        d_loss_real = discriminator.train_on_batch(x, np.ones((half_batch, 1)))
-        d_loss_fake = discriminator.train_on_batch(y, np.zeros((half_batch, 1)))
+        d_loss_fake = discriminator.train_on_batch(x, np.zeros((half_batch, 1)))
+        d_loss_real = discriminator.train_on_batch(y, np.ones((half_batch, 1)))
         d_loss = np.add(d_loss, cnt_inv * 0.5 * np.add(d_loss_real, d_loss_fake) )
         
-        x = train_data.data[idx1[i:i+batch_size]]
-        y = train_data.ref_data[idx1[i:i+batch_size]]
-        x = np.split(x,[1],axis=3)
-        g_loss = np.add(g_loss, cnt_inv * np.array(combined.train_on_batch(x, [y,np.ones((batch_size, 1))])))
+        x, y = train_data.get_data_splitted(idx1[i:i+batch_size])
+        g_loss = np.add(g_loss, cnt_inv * np.array(combined.train_on_batch(x, [y[0],np.ones((batch_size, 1))])))
     
     # eval
     np.random.shuffle(val_idx0)
@@ -133,21 +134,15 @@ for ep in range(epochs):
     g_val_loss = [0.,0.,0.]
     d_val_loss = [0.,0.]
     
-    x = train_data.ref_data[val_idx0]
+    x, y = train_data.get_data_splitted(val_idx0)
+    x = generator.predict(x)
     
-    y = train_data.data[val_idx0]
-    y = np.split(y,[1],axis=3)
-    y = generator.predict(y)
-    
-    d_loss_real = discriminator.evaluate(x, np.ones((eval_cnt, 1)), batch_size=half_batch, verbose=0)
-    d_loss_fake = discriminator.evaluate(y, np.zeros((eval_cnt, 1)), batch_size=half_batch, verbose=0)
+    d_loss_fake = discriminator.evaluate(x, np.zeros((eval_cnt, 1)), batch_size=half_batch, verbose=0)
+    d_loss_real = discriminator.evaluate(y, np.ones((eval_cnt, 1)), batch_size=half_batch, verbose=0)
     d_val_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
     
-    x = train_data.data[val_idx1]
-    y = train_data.ref_data[val_idx1]
-    x = np.split(x,[1],axis=3)
-    
-    g_val_loss = combined.evaluate(x, [y,np.ones((eval_cnt, 1))], batch_size=batch_size, verbose=0)
+    x, y = train_data.get_data_splitted(val_idx1)
+    g_val_loss = combined.evaluate(x, [y[0],np.ones((eval_cnt, 1))], batch_size=batch_size, verbose=0)
     
     history['d_loss'].append(d_loss[0])
     history['d_acc'].append(d_loss[1])

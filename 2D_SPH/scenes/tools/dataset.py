@@ -3,9 +3,11 @@ import numpy as np
 
 class Dataset:
     def __init__(self, prefix, start, end, t_start, t_end, src_features, var_cnt=1, ref_prefix="", ref_features=[]):
-        self.data = None
-        self.ref_data = None
-        def read_dataset(path,lim):
+        self.src_features=src_features
+        self.ref_features=ref_features
+        self.data = {}
+        self.ref_data = {}
+        def read_dataset(path):
             tmp = None
             for d in range(start, end):
                 for var in range(var_cnt):
@@ -15,37 +17,31 @@ class Dataset:
                             v = buf.next()
                             if v is None:
                                 break
-                            if lim > 0:
-                                v = v[:,:2]
-                                np.random.shuffle(v)
-                                v = np.resize(v,lim)
-                            if tmp is None:
-                                tmp = [v]
-                            else:
-                                tmp = np.append(tmp, [v], axis=0)
+                            tmp = [v] if tmp is None else np.append(tmp, [v], axis=0)
             return tmp
         
         for f in src_features:
-            lim = 0
-            if f == "ps":
-                lim = 100
-            if self.data is None:
-                self.data = read_dataset(prefix+'_'+f,lim)
-            else:
-                self.data = np.append(self.data, read_dataset(prefix+'_'+f,lim), axis=3)
+            self.data[f] = read_dataset(prefix+'_'+f)
 
         if ref_prefix != "":
             for f in ref_features:
-                lim = 0
-                if f == "ps":
-                    lim = 1000
-                if self.ref_data is None:
-                    self.ref_data = read_dataset(ref_prefix+'_'+f,lim)
-                else:
-                    self.ref_data = np.append(self.ref_data, read_dataset(ref_prefix+'_'+f,lim), axis=3)
+                self.ref_data[f] = read_dataset(ref_prefix+'_'+f)
 
+    def get_data_splitted(self, idx=None):
+        def split(data, features, idx=None):
+            if idx is None:
+                x = [np.array(data[features[0]])]
+                if len(features) > 1:
+                    x = [x[0], np.array(np.concatenate([data[f] for f in features[1:]],axis=3))]
+            else:
+                x = [np.array(data[features[0]][idx])]
+                if len(features) > 1:
+                    x = [x[0], np.array(np.concatenate([data[f][idx] for f in features[1:]],axis=3))]
+            return x
 
-    def get_batch(self, size):
-        rnd_idx = np.random.randint(0, len(self.data),size)
-        return (self.data[rnd_idx],
-                self.ref_data[rnd_idx])
+        if len(self.ref_features) > 0:
+            return split(self.data, self.src_features, idx), split(self.ref_data, self.ref_features, idx)
+        else:
+            return split(self.data, self.src_features, idx)
+        
+            

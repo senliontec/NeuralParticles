@@ -43,10 +43,10 @@ checkUnusedParam(paramUsed)
 print("Load Training Data")
 train_data = Dataset(src_patches_path, 
                      data_start, data_end, time_start, time_end, 
-                     features, var, ref_patches_path, ['sdf'])
+                     features, var, ref_patches_path, [features[0]])
 
-print("Source Data Shape: " + str(train_data.data.shape))
-print("Reference Data Shape: " + str(train_data.ref_data.shape))
+print("Source Data Shape: " + str(train_data.data[features[0]].shape))
+print("Reference Data Shape: " + str(train_data.ref_data[features[0]].shape))
 
 class NthLogger(keras.callbacks.Callback):
     def __init__(self,li=10,cpi=100,model_path="model"):
@@ -72,8 +72,10 @@ else:
 print("Loading Model: %s" % m_p)
 model = load_model(m_p, custom_objects={'Subpixel': Subpixel})
 
+x, y = train_data.get_data_splitted()
+
 print("Start Training")
-history = model.fit(x=np.split(train_data.data,[1],axis=3),y=train_data.ref_data, validation_split=val_split, 
+history = model.fit(x=x,y=y, validation_split=val_split, 
                     epochs=epochs - start_checkpoint*checkpoint_intervall, batch_size=batch_size, 
                     verbose=0, callbacks=[NthLogger(log_intervall, checkpoint_intervall, model_src)])
 
