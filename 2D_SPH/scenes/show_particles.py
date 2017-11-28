@@ -30,19 +30,23 @@ s_show = Solver(name="show", gridSize=gs_show, dim=3)
 
 pp = s.create(BasicParticleSystem)
 
-if sdf_path != "":
-	sdf = s.create(LevelsetGrid)
-	sdf_show = s_show.create(LevelsetGrid)
-	sdf_show.setBound(value=0., boundaryWidth=1)
-	mesh = s_show.create(Mesh)
+#if sdf_path != "":
+sdf = s.create(LevelsetGrid)
+sdf_show = s_show.create(LevelsetGrid)
+sdf_show.setBound(value=0., boundaryWidth=1)
+mesh = s_show.create(Mesh)
 
-	flags_show = s.create(FlagGrid)
-	flags_show.initDomain()
-	flags_show.fillGrid(TypeEmpty)
+flags_show = s.create(FlagGrid)
+flags_show.initDomain()
+flags_show.fillGrid(TypeEmpty)
 
 gFlags   = s.create(FlagGrid)
 
 gFlags.initDomain(FlagFluid)
+
+gIdxSys  = s.create(ParticleIndexSystem)
+gIdx     = s.create(IntGrid)
+gCnt     = s.create(IntGrid)
 
 if guion:
 	gui = Gui()
@@ -53,9 +57,13 @@ for i in range(t_start,t_end):
 	if sdf_path != "":
 		sdf.load(sdf_path % i if t > 1 else sdf_path)
 		sdf.reinitMarching(flags=gFlags)
-		placeGrid2d(sdf,sdf_show,dstz=1) 
-		sdf_show.createMesh(mesh)
+	else:
+		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
+		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=sdf, radiusFactor=1.0)
 
+	placeGrid2d(sdf,sdf_show,dstz=1) 
+	sdf_show.createMesh(mesh)
+	
 	if in_path != "":
 		pp.load(in_path % i if t > 1 else in_path)
 	elif sdf_path != "":
