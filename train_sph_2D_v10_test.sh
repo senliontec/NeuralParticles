@@ -1,4 +1,6 @@
 #!/bin/sh
+rm 2D_data/lowres/sph_2D_v02-01*
+rm 2D_data/highres/ref_sph_2D_v02-01*
 2D_SPH/build/manta 2D_SPH/scenes/extract_patches.py l_in 2D_data/lowres/sph_2D_v02-01_d000_var00_%03d tanh 1 h_fac 4.0 h_in 2D_data/highres/ref_sph_2D_v02_d000_%03d t 20 par_cnt 40 surface 0.5 hpsize 15 l_out 2D_data/patches/lowres/sph_2D_v02-01_d000_var00_%03d psize 5 l_fac 12.0 stride 2 h_out 2D_data/patches/highres/ref_sph_2D_v02-01_d000_var00_%03d
 2D_SPH/build/manta 2D_SPH/scenes/extract_patches.py l_in 2D_data/lowres/sph_2D_v02-01_d001_var00_%03d tanh 1 h_fac 4.0 h_in 2D_data/highres/ref_sph_2D_v02_d001_%03d t 20 par_cnt 40 surface 0.5 hpsize 15 l_out 2D_data/patches/lowres/sph_2D_v02-01_d001_var00_%03d psize 5 l_fac 12.0 stride 2 h_out 2D_data/patches/highres/ref_sph_2D_v02-01_d001_var00_%03d
 2D_SPH/build/manta 2D_SPH/scenes/extract_patches.py l_in 2D_data/lowres/sph_2D_v02-01_d002_var00_%03d tanh 1 h_fac 4.0 h_in 2D_data/highres/ref_sph_2D_v02_d002_%03d t 20 par_cnt 40 surface 0.5 hpsize 15 l_out 2D_data/patches/lowres/sph_2D_v02-01_d002_var00_%03d psize 5 l_fac 12.0 stride 2 h_out 2D_data/patches/highres/ref_sph_2D_v02-01_d002_var00_%03d
@@ -22,6 +24,8 @@
 
 python3 2D_SPH/scenes/tools/train_sequential.py ref 2D_data/patches/highres/ref_sph_2D_v02-01_d%03d_var%02d_%03d time_end 15 features ps,dens,vel data_end 18 fig models/2D/sph_2D_v10_loss var 1 checkpoint_intervall 10 model models/2D/sph_2D_v10-0 val_split 0.2 src 2D_data/patches/lowres/sph_2D_v02-01_d%03d_var%02d_%03d log_intervall 10 epochs 250 time_start 5 batch 32 data_start 0
 
+rm 2D_data/lowres/sph_2D_v02-01*
+rm 2D_data/highres/ref_sph_2D_v02-01*
 2D_SPH/build/manta 2D_SPH/scenes/extract_patches.py l_in 2D_data/lowres/sph_2D_v02-01_d000_var00_%03d tanh 1 h_fac 4.0 h_in 2D_data/highres/ref_sph_2D_v02_d000_%03d t 20 par_cnt 10 surface 0.5 hpsize 15 l_out 2D_data/patches/lowres/sph_2D_v02-01_d000_var00_%03d psize 5 l_fac 12.0 stride 2 h_out 2D_data/patches/highres/ref_sph_2D_v02-01_d000_var00_%03d
 2D_SPH/build/manta 2D_SPH/scenes/extract_patches.py l_in 2D_data/lowres/sph_2D_v02-01_d001_var00_%03d tanh 1 h_fac 4.0 h_in 2D_data/highres/ref_sph_2D_v02_d001_%03d t 20 par_cnt 10 surface 0.5 hpsize 15 l_out 2D_data/patches/lowres/sph_2D_v02-01_d001_var00_%03d psize 5 l_fac 12.0 stride 2 h_out 2D_data/patches/highres/ref_sph_2D_v02-01_d001_var00_%03d
 2D_SPH/build/manta 2D_SPH/scenes/extract_patches.py l_in 2D_data/lowres/sph_2D_v02-01_d002_var00_%03d tanh 1 h_fac 4.0 h_in 2D_data/highres/ref_sph_2D_v02_d002_%03d t 20 par_cnt 10 surface 0.5 hpsize 15 l_out 2D_data/patches/lowres/sph_2D_v02-01_d002_var00_%03d psize 5 l_fac 12.0 stride 2 h_out 2D_data/patches/highres/ref_sph_2D_v02-01_d002_var00_%03d
@@ -44,3 +48,5 @@ python3 2D_SPH/scenes/tools/train_sequential.py ref 2D_data/patches/highres/ref_
 2D_SPH/build/manta 2D_SPH/scenes/extract_patches.py l_in 2D_data/lowres/sph_2D_v02-01_d019_var00_%03d tanh 1 h_fac 4.0 h_in 2D_data/highres/ref_sph_2D_v02_d019_%03d t 20 par_cnt 10 surface 0.5 hpsize 15 l_out 2D_data/patches/lowres/sph_2D_v02-01_d019_var00_%03d psize 5 l_fac 12.0 stride 2 h_out 2D_data/patches/highres/ref_sph_2D_v02-01_d019_var00_%03d
 
 python3 2D_SPH/scenes/tools/train_sequential.py ref 2D_data/patches/highres/ref_sph_2D_v02-01_d%03d_var%02d_%03d time_end 15 features ps,dens,vel data_end 18 fig models/2D/sph_2D_v10_loss var 1 checkpoint_intervall 10 model models/2D/sph_2D_v10-1 val_split 0.2 src 2D_data/patches/lowres/sph_2D_v02-01_d%03d_var%02d_%03d log_intervall 10 epochs 250 time_start 5 batch 32 data_start 0
+
+./train_sph_2D_v08.sh
