@@ -71,9 +71,19 @@ def insert_patch(data, patch, pos, func):
 
 	data[0,y0:y1,x0:x1] = func(data[0,y0:y1,x0:x1], patch)
 
-def extract_particles(data, pos, cnt):
+def extract_particles(data, pos, cnt, constraint=None):
 	# select the 'cnt'th nearest particles to pos 
-	par = data[np.argpartition(np.linalg.norm(np.subtract(data,pos), axis=1), cnt)[:cnt]]
+	if constraint != None:
+		constraint = constraint//2
+		x0 = pos[0]-constraint
+		x1 = pos[0]+constraint+1
+		y0 = pos[1]-constraint
+		y1 = pos[1]+constraint+1
+		data = particle_range(data, [x0,y0], [x1,y1])
+		if len(data) < cnt:
+			return None
+	
+	par = data[np.argpartition(np.linalg.norm(np.subtract(data,pos), axis=1), cnt-1)[:cnt]]
 	par = np.subtract(par,pos)
 	return par[np.argsort(np.linalg.norm(par, axis=1))]
 
