@@ -210,7 +210,7 @@ def writeNumpyBuf(filename, content):
 		npCnt[filename] = 0
 	npBuf[filename].append(content)
 	#print("writing buffered, arrays "+format( len(npBuf[filename]) ) + ", size "+ format(content.size) )
-	if len(npBuf[filename])>10:
+	if len(npBuf[filename])>100:
 		#print("writing buffered "+filename)
 		np.savez_compressed( filename+("_%04d.npz"%(npCnt[filename])), *npBuf[filename] )
 		npCnt[filename] += 1

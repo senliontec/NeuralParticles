@@ -33,10 +33,7 @@ particle_cnt = int(getParam("par_cnt", 0, paramUsed))
 
 fac = float(high_patch_size)/patch_size
 
-patch_size = int(patch_size/2)
-high_patch_size = int(high_patch_size/2)
-
-border = int(math.ceil(high_patch_size-patch_size*fac))
+border = int(math.ceil(high_patch_size//2-patch_size//2*fac))
 
 print("fac: %f, patch size: %d, high patch size: %d" % (fac, patch_size, high_patch_size))
 
@@ -47,80 +44,55 @@ backupSources(l_out_path)
 
 props = ["vel", "dens", "pres"]
 
-def particle_range(arr, start, end):
-	for i in range(len(start)):
-		arr = arr[np.where((arr[:,i]>=start[i])&(arr[:,i]<=end[i]))]
-	return arr
-
 for i in range(t_start, t_end):
 	path = (l_in_path % i) + "_"
 	header, l_data = readUni(path + "sdf.uni")
 	l_prop_data = {}
 	for p in props:
-		_, l_prop_data[p] = readUni(path + p + ".uni")
-	_,l_particle_data = readParticles(path+"ps.uni")
+		l_prop_data[p] = readUni(path + p + ".uni")[1]
+	l_particle_data = readParticles(path+"ps.uni")[1]
 
 	if h_in_path != "":
 		path = (h_in_path % i) + "_"
-		_, h_data = readUni(path + "sdf.uni")
+		h_data = readUni(path + "sdf.uni")[1]
 		h_data=np.pad(h_data,((0,0),(border,border),(border,border),(0,0)),mode="edge")
 		h_prop_data = {}
 		for p in props:
-			_, h_prop_data[p] = readUni(path + p + ".uni")
+			h_prop_data[p] = readUni(path + p + ".uni")[1]
 			h_prop_data[p]=np.pad(h_prop_data[p],((0,0),(border,border),(border,border),(0,0)),mode="edge")
-		_,h_particle_data = readParticles(path+"ps.uni")
+		h_particle_data = readParticles(path+"ps.uni")[1]
 
-	#TODO: handle also 3D
-	#for z in range(1, header['dimZ']-1):
-	for x in range(patch_size,header['dimX']-patch_size, stride):
-		for y in range(patch_size,header['dimY']-patch_size, stride):
-			if(abs(l_data[0,y,x,0]) < surface):
-				path = (l_out_path%i) + "_"
-				hx0 = x-patch_size
-				hx1 = x+patch_size+1
-				hy0 = y-patch_size
-				hy1 = y+patch_size+1
+	patch_pos = get_patches(l_data, patch_size, header['dimX'], header['dimY'], stride, surface)
 
-				if particle_cnt > 0:
-					par = numpy.subtract(particle_range(l_particle_data, [hx0, hy0], [hx1, hy1]), [(hx0+hx1)/2, (hy0+hy1)/2, 0.])
-					if par.shape[0] < particle_cnt:
-						continue
+	for pos in patch_pos:
+		path = (l_out_path%i) + "_"
 
-					if h_in_path != "":
-						a0 = int(fac*x-high_patch_size)
-						a1 = int(fac*x+high_patch_size)
-						b0 = int(fac*y-high_patch_size)
-						b1 = int(fac*y+high_patch_size)
-						hpar = numpy.subtract(particle_range(h_particle_data, [a0,b0], [a1,b1]), [(a0+a1)/2,(b0+b1)/2,0.])
-						if hpar.shape[0] < particle_cnt:
-							continue
+		if particle_cnt > 0:
+			par = extract_particles(l_particle_data, pos, particle_cnt)
+			if par is None:
+				continue
 
-						idx = np.argsort(np.linalg.norm(hpar,axis=1))
-						writeNumpyBuf((h_out_path%i) + "_ps", hpar[idx[:particle_cnt]])
+			if h_in_path != "":
+				h_par = extract_particles(h_particle_data, pos, particle_cnt)
+				if h_par is None:
+					continue
+		
+		data = l_fac * extract_patch(l_data, pos, patch_size)
+		writeNumpyBuf(path + "sdf", numpy.tanh(data) if use_tanh else data)
+		for p in props:
+			writeNumpyBuf(path + p, extract_patch(l_prop_data[p], pos, patch_size))
+		if particle_cnt > 0:
+			writeNumpyBuf(path + "ps", par)
+		
+		if h_in_path != "":
+			pos = (fac*pos).astype(int)
 
-					idx = np.argsort(np.linalg.norm(par,axis=1))
-					writeNumpyBuf(path + "ps", par[idx[:particle_cnt]])
-
-				data = l_fac * l_data[0,hy0:hy1,hx0:hx1]
-				writeNumpyBuf(path + "sdf", numpy.tanh(data) if use_tanh else data)
-				for p in props:
-					writeNumpyBuf(path + p, l_prop_data[p][0,hy0:hy1,hx0:hx1])
-
-				#writeNumpyBuf(path + "ps", numpy.subtract(particle_range(l_particle_data, [hx0, hy0], [hx1, hy1]), [hx0, hy0, 0]))
-
-				if h_in_path != "":
-					path = (h_out_path%i) + "_"
-					hx0 = int(fac*x-high_patch_size)+border
-					hx1 = int(fac*x+high_patch_size)+border+1
-					hy0 = int(fac*y-high_patch_size)+border
-					hy1 = int(fac*y+high_patch_size)+border+1						
-
-					data = h_fac * h_data[0,hy0:hy1,hx0:hx1]
-					writeNumpyBuf(path + "sdf", numpy.tanh(data) if use_tanh else data)
-					for p in props:
-						writeNumpyBuf(path + p, h_prop_data[p][0,hy0:hy1,hx0:hx1])
-
-					#writeNumpyBuf(path + "ps", numpy.subtract(particle_range(h_particle_data, [hx0-border,hy0-border], [hx1-border-1,hy1-border-1]), [hx0-border,hy0-border,0] ))
-
+			path = (h_out_path%i) + "_"
+			data = h_fac * extract_patch(h_data, pos+border, high_patch_size)
+			writeNumpyBuf(path + "sdf", numpy.tanh(data) if use_tanh else data)
+			for p in props:
+				writeNumpyBuf(path + p, extract_patch(h_prop_data[p], pos+border, high_patch_size))
+			if particle_cnt > 0:
+				writeNumpyBuf(path + "ps", h_par)
 
 finalizeNumpyBufs()
