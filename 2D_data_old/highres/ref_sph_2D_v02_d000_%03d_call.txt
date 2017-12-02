@@ -1,0 +1,3 @@
+
+2D_SPH/scenes/2D_sph.py out 2D_data/highres/ref_sph_2D_v02_d000_%03d res 150 t_end 0.6666666666666666 c0 0.494799,0.117561,0.235628,0.121357 sres 2 gui 0 fps 30 circ 0 c_cnt 1
+

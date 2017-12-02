@@ -1,0 +1,3 @@
+
+2D_SPH/scenes/down_scale.py res 150 sres 2 min_n 0 in 2D_data/highres/ref_sph_2D_v02_d003_%03d gui 0 factor 9 upres 0 out 2D_data/lowres/sph_2D_v02-01_d003_%03d t 20
+

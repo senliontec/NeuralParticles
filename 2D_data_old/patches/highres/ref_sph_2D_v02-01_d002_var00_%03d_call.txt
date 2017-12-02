@@ -1,0 +1,3 @@
+
+2D_SPH/scenes/extract_patches.py stride 2 l_fac 12.0 t 20 tanh 1 par_cnt 10 h_out 2D_data/patches/highres/ref_sph_2D_v02-01_d002_var00_%03d h_fac 4.0 hpsize 15 l_in 2D_data/lowres/sph_2D_v02-01_d002_var00_%03d h_in 2D_data/highres/ref_sph_2D_v02_d002_%03d psize 5 l_out 2D_data/patches/lowres/sph_2D_v02-01_d002_var00_%03d surface 0.5
+

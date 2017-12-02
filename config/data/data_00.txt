@@ -1,0 +1,18 @@
+{
+    "id":             "dat00",
+    "prefix":         "sph_2D",
+    "fps":            30,
+    "frame_count":    20,
+    "sub_res":        2,
+    "res":            150,
+    "var1":           0.5,
+    "var2":           0,
+    "seed":           123412144,
+    "min_scale":      0.05,
+    "max_scale":      0.3,
+    "min_pos":        0.2,
+    "max_pos":        0.8,
+    "max_h":          0.1,
+    "max_cnt":        5,
+    "circ_vel":       100.0
+}
