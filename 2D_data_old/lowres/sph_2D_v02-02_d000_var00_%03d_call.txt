@@ -1,3 +1,0 @@
-
-2D_SPH/scenes/down_scale.py t 20 upres 0 in 2D_data/highres/ref_sph_2D_v02_d000_%03d res 150 seed 20622653208 gui 0 sres 2 factor 9 min_n 3 out 2D_data/lowres/sph_2D_v02-02_d000_var00_%03d
-

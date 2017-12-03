@@ -1,3 +1,0 @@
-
-2D_SPH/scenes/2D_sph.py c0 0.000000,0.050000,1.000000,0.100000 circ 0 t_end 0.6666666666666666 out 2D_data/test/sph_2D_v02_d019_%03d gui 0 c1 0.266501,0.279644,0.082800,0.121546 fps 30 res 50 c_cnt 2 sres 2
-

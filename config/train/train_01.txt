@@ -1,0 +1,15 @@
+{
+    "id":                 "t01",
+    "train_data_count":   18,
+    "val_split":          0.2,
+    "test_data_count":    2,
+    "t_start":            5,
+    "t_end":              15,
+    "features":           ["sdf","vel"],
+    "batch_size":         32,
+    "learning_rate":      1e-3,
+    "epochs":             250,
+    "explicit":           false,
+    "mse_fac":            1.0,
+    "adv_fac":            0.01
+}

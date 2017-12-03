@@ -1,0 +1,13 @@
+{
+    "id":                 "t02",
+    "train_data_count":   18,
+    "val_split":          0.2,
+    "test_data_count":    2,
+    "t_start":            5,
+    "t_end":              15,
+    "features":           ["ps"],
+    "batch_size":         32,
+    "learning_rate":      1e-3,
+    "epochs":             250,
+    "explicit":           true
+}
