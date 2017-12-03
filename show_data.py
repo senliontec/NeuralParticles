@@ -23,6 +23,8 @@ var = int(getParam("var", 0, paramUsed))
 
 data_type = getParam("type", "ref", paramUsed)
 
+scr = getParam("scr", "", paramUsed)
+
 checkUnusedParam(paramUsed)
 
 with open(config_path, 'r') as f:
@@ -65,5 +67,6 @@ if t_end < 0:
 param['t_start'] = t_start
 param['t_end'] = t_end
 param['res'] = res
+param['scr'] = scr
 
 run_manta(manta_path, "scenes/show_particles.py", param, verbose)

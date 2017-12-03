@@ -3,7 +3,7 @@ from tools.helpers import *
 paramUsed = []
 
 guion = True
-pause = True
+pause = False
 
 in_path = getParam("in", "", paramUsed)
 sdf_path = getParam("sdf", "", paramUsed)
@@ -55,7 +55,7 @@ if guion:
 
 for i in range(t_start,t_end):
 	if sdf_path != "":
-		sdf.load(sdf_path % i if t > 1 else sdf_path)
+		sdf.load(sdf_path % i)
 		sdf.reinitMarching(flags=gFlags)
 	else:
 		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
@@ -65,7 +65,7 @@ for i in range(t_start,t_end):
 	sdf_show.createMesh(mesh)
 	
 	if in_path != "":
-		pp.load(in_path % i if t > 1 else in_path)
+		pp.load(in_path % i)
 	elif sdf_path != "":
 		pp.clear()
 		sampleLevelsetWithParticles(phi=sdf, flags=gFlags, parts=pp, discretization=sres, randomness=0)

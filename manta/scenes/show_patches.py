@@ -11,7 +11,7 @@ if not os.path.exists("tmp"):
 paramUsed = []
 
 guion = True
-pause = True
+pause = False
 
 src_path = getParam("src", "", paramUsed)
 vel_path = getParam("vel", "", paramUsed)
@@ -24,7 +24,8 @@ hpsize = int(getParam("hpsize", psize, paramUsed))
 
 t = int(getParam("t", 50, paramUsed))
 
-screenshot = getParam("scr", "", paramUsed)
+l_scr = getParam("l_scr", "", paramUsed)
+h_scr = getParam("h_scr", "", paramUsed)
 
 checkUnusedParam(paramUsed)
 
@@ -139,6 +140,13 @@ for i in range(0, t):
 			ref2_sdf.load("tmp/tmp.uni")
 
 		s.step()
-		if screenshot != "":
-			gui.screenshot(screenshot % (pcnt if t == 1 else (i, pcnt)))
-			pcnt += 1
+		if l_scr != "":
+			gui.screenshot(l_scr % (pcnt if t == 1 else (i, pcnt)))
+
+		if h_scr != "":
+			gui.nextRealGrid()
+			s.step()
+			gui.screenshot(h_scr % (pcnt if t == 1 else (i, pcnt)))
+			gui.nextRealGrid()
+		
+		pcnt += 1
