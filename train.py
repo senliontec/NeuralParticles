@@ -83,12 +83,12 @@ if start_checkpoint == 0:
     print("Generate Network")
     if train_config['explicit']:  
         inputs = Input((pre_config['par_cnt'],3), name="main")
-        auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")  
         
         base = Flatten()(inputs)
         base = Dense(100, activation='tanh')(base)
         
         if feature_cnt > 1:
+            auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")  
             x = Conv2D(filters=16, kernel_size=3, 
                     strides=1, activation='tanh', padding='same', name="conv2D_0")(auxiliary_input)
             x = BatchNormalization(name="normalize_0")(x)
@@ -110,7 +110,7 @@ if start_checkpoint == 0:
         base = Dense(pre_config['par_cnt']*3, activation='tanh')(base)
         out = Reshape((pre_config['par_cnt'],3))(base)
         
-        model = Model(inputs=[inputs, auxiliary_input], outputs=out)
+        model = Model(inputs=[inputs, auxiliary_input], outputs=out) if feature_cnt > 1 else Model(inputs=[inputs], outputs=out)
         model.compile( loss='mse', optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
         
         model.save(model_path + '.h5')
@@ -186,7 +186,7 @@ if start_checkpoint == 0:
             if verbose: 
                 discriminator.summary()
 else:
-    if not train_config["adv_fac"] > 0.:
+    if train_config["adv_fac"] <= 0.:
         model = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel})
     else:
         generator = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel})
@@ -195,7 +195,7 @@ else:
 
 print("Load Training Data")
 train_data = Dataset(src_path, 
-                     0, data_config['data_count']*train_config['train_split'], train_config['t_start'], train_config['t_end'], 
+                     0, int(data_config['data_count']*train_config['train_split']), train_config['t_start'], train_config['t_end'], 
                      features, pre_config['var'], ref_path, [features[0]])
 
 print("Source Data Shape: " + str(train_data.data[features[0]].shape))
@@ -219,7 +219,7 @@ class NthLogger(keras.callbacks.Callback):
 
 
 print("Start Training")
-if not train_config["adv_fac"] > 0.:
+if train_config["adv_fac"] <= 0.:
     x, y = train_data.get_data_splitted()
 
     history = model.fit(x=x,y=y, validation_split=train_config['val_split'], 
