@@ -41,9 +41,6 @@ with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
 with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
     pre_config = json.loads(f.read())
 
-with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
-    train_config = json.loads(f.read())
-
 param = {}
 
 param["t"] = data_config['frame_count']
@@ -73,7 +70,7 @@ dst_path_ref = "%s%s_%s-%s" % (dst_path_ref, data_config['prefix'], data_config[
 print(dst_path_src)
 print(dst_path_ref)
 
-for i in range(train_config['train_data_count'] + train_config['test_data_count']):
+for i in range(data_config['data_count']):
     for j in range(pre_config['var']):
         param["h_in"] = src_path_ref%(i) + "_%03d"
         param["l_in"] = src_path_src%(i,j) + "_%03d"

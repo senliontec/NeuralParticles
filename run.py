@@ -55,9 +55,9 @@ def filter2D(kernlen, s, fac):
     return np.clip(fi.gaussian_filter(dirac, s) * fac, a_min=None, a_max=1.0)
 
 if src_path == "":
-    src_path = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['train_data_count'], 0) + "_%03d"
+    src_path = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], data_config['data_count']*train_config['train_split'], 0) + "_%03d"
 if dst_path == "":
-    dst_path = data_path + "result/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['train_data_count'], 0) + "_%03d_result.uni"
+    dst_path = data_path + "result/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], data_config['data_count']*train_config['train_split'], 0) + "_%03d_result.uni"
 if t_start < 0:
     t_start = train_config['t_start']
 if t_end < 0:

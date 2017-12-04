@@ -30,14 +30,10 @@ with open(config_path, 'r') as f:
 with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
     data_config = json.loads(f.read())
 
-with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
-    train_config = json.loads(f.read())
-
 if verbose:
     print("Config Loaded:")
     print(config)
     print(data_config)
-    print(train_config)
 
 param = {}
 
@@ -109,14 +105,8 @@ def call_dataset_gen(var0,var1,var2,off):
         run_gen(cubes, off)
         off+=1
     
-var1 = int(train_config['train_data_count'] * data_config['var1'])
-var2 = int(train_config['train_data_count'] * data_config['var2'])
-var0 = train_config['train_data_count'] - var1 - var2
+var1 = int(data_config['data_count'] * data_config['var1'])
+var2 = int(data_config['data_count'] * data_config['var2'])
+var0 = data_config['data_count'] - var1 - var2
  
 call_dataset_gen(var0,var1,var2,0)
-
-var1 = int(train_config['test_data_count'] * data_config['var1'])
-var2 = int(train_config['test_data_count'] * data_config['var2'])
-var0 = train_config['test_data_count'] - var1 - var2
-
-call_dataset_gen(var0,var1,var2,train_config['train_data_count'])

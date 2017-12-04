@@ -1,8 +1,7 @@
 {
     "id":                 "t01",
-    "train_data_count":   18,
+    "train_split":        0.9,
     "val_split":          0.2,
-    "test_data_count":    2,
     "t_start":            5,
     "t_end":              15,
     "features":           ["sdf","vel"],

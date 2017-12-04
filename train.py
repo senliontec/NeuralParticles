@@ -88,22 +88,23 @@ if start_checkpoint == 0:
         base = Flatten()(par_in)
         base = Dense(100, activation='tanh')(base)
         
-        x = Conv2D(filters=16, kernel_size=3, 
-                strides=1, activation='tanh', padding='same', name="conv2D_0")(auxiliary_input)
-        x = BatchNormalization(name="normalize_0")(x)
-        x = Conv2D(filters=32, kernel_size=3,
-                strides=1, activation='tanh', padding='same', name="conv2D_1")(x)    
-        x = BatchNormalization(name="normalize_1")(x)
-        x = Conv2DTranspose(filters=16, kernel_size=3, 
-                            strides=1, activation='tanh', padding='same', name="deconv2D_0")(x)
-        x = BatchNormalization(name="normalize_2")(x)
-        x = Conv2DTranspose(filters=4, kernel_size=3, 
-                            strides=1, activation='tanh', padding='same', name="deconv2D_1")(x)
-        x = BatchNormalization(name="normalize_3")(x)
-        
-        x = Reshape((pre_config['patch_size']*pre_config['patch_size']*4,))(x)
-        
-        base = concatenate([base, x], name="concatenate")
+        if feature_cnt > 1:
+            x = Conv2D(filters=16, kernel_size=3, 
+                    strides=1, activation='tanh', padding='same', name="conv2D_0")(auxiliary_input)
+            x = BatchNormalization(name="normalize_0")(x)
+            x = Conv2D(filters=32, kernel_size=3,
+                    strides=1, activation='tanh', padding='same', name="conv2D_1")(x)    
+            x = BatchNormalization(name="normalize_1")(x)
+            x = Conv2DTranspose(filters=16, kernel_size=3, 
+                                strides=1, activation='tanh', padding='same', name="deconv2D_0")(x)
+            x = BatchNormalization(name="normalize_2")(x)
+            x = Conv2DTranspose(filters=4, kernel_size=3, 
+                                strides=1, activation='tanh', padding='same', name="deconv2D_1")(x)
+            x = BatchNormalization(name="normalize_3")(x)
+            
+            x = Reshape((pre_config['patch_size']*pre_config['patch_size']*4,))(x)
+            
+            base = concatenate([base, x], name="concatenate")
         
         base = Dense(100, activation='tanh')(base)
         base = Dense(pre_config['par_cnt']*3, activation='tanh')(base)
@@ -194,7 +195,7 @@ else:
 
 print("Load Training Data")
 train_data = Dataset(src_path, 
-                     0, train_config['train_data_count'], train_config['t_start'], train_config['t_end'], 
+                     0, data_config['data_count']*train_config['train_split'], train_config['t_start'], train_config['t_end'], 
                      features, pre_config['var'], ref_path, [features[0]])
 
 print("Source Data Shape: " + str(train_data.data[features[0]].shape))

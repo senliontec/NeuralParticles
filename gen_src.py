@@ -32,15 +32,11 @@ with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
 with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
     pre_config = json.loads(f.read())
 
-with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
-    train_config = json.loads(f.read())
-
 if verbose:
     print("Config Loaded:")
     print(config)
     print(data_config)
     print(pre_config)
-    print(train_config)
 
 param = {}
 
@@ -59,7 +55,7 @@ output_path = "%s%s_%s-%s" % (dst_path, data_config['prefix'], data_config['id']
 print(src_path)
 print(output_path)
 
-for i in range(train_config['train_data_count']+train_config['test_data_count']):
+for i in range(data_config['data_count']):
     for j in range(pre_config['var']):
         param['seed'] = random.randint(0,45820438204)
         param['in'] = src_path%(i) + "_%03d"
