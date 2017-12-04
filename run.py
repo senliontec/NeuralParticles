@@ -62,7 +62,7 @@ if dataset < 0:
 if src_path == "":
     src_path = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d"
 if dst_path == "":
-    dst_path = data_path + "result/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_result.uni"
+    dst_path = data_path + "result/%s_result.uni" % os.path.basename(src_path)
 if t_start < 0:
     t_start = train_config['t_start']
 if t_end < 0:
@@ -74,6 +74,8 @@ if verbose:
     print(t_start)
     print(t_end)
 
+use_particles = train_config['explicit'] != 0
+
 factor_2D = math.sqrt(pre_config['factor'])
 patch_size = pre_config['patch_size']
 high_patch_size = int(patch_size*factor_2D)
@@ -81,51 +83,73 @@ high_patch_size = int(patch_size*factor_2D)
 res = data_config['res']
 low_res = int(res/factor_2D)
 
-result = np.ndarray(shape=(1,res,res,1), dtype=float)
+if not use_particles:
+    result = np.ndarray(shape=(1,res,res,1), dtype=float)
 
-half_ps = high_patch_size//2
-border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
+    half_ps = high_patch_size//2
+    border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
 
-result=np.pad(result,((0,0),(border,border),(border,border),(0,0)),mode="edge")
+    result=np.pad(result,((0,0),(border,border),(border,border),(0,0)),mode="edge")
 
-elem_min = np.vectorize(lambda x,y: min(x,y))
-circular_filter = np.reshape(filter2D(high_patch_size, high_patch_size*0.2, 500), (high_patch_size, high_patch_size,1))
+    elem_min = np.vectorize(lambda x,y: min(x,y))
+    circular_filter = np.reshape(filter2D(high_patch_size, high_patch_size*0.2, 500), (high_patch_size, high_patch_size,1))
 
 model = load_model(data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id']), custom_objects={'Subpixel': Subpixel})
 
 for t in range(t_start, t_end):
-    result.fill(1)
-    hdr, source = readUni(src_path%t+"_sdf.uni")
+    if use_particles:
+        result = None
+    else:
+        result.fill(1)
+        
+    hdr, sdf = readUni(src_path%t+"_sdf.uni")
+    if use_particles:
+        hdr, source = readUni(src_path%t+"_ps.uni")
+    else:
+        source = sdf
+
     aux = []
     for f in train_config['features']:
-        if f != "sdf":
+        if use_particles and f == "sdf":
+            aux.append(sdf)
+        elif f != "ps" and f != "sdf":
             aux.append(readUni(src_path%t+"_"+f+".uni")[1])
     
     if len(aux) > 0:
         aux = np.concatenate(aux, axis=3)
     
-    # pre_param.stride instead of "1"!
-    patch_pos = get_patches(source, patch_size, low_res, low_res, 1, pre_config['surf'])
+    # pre_param.stride instead of "1"?!
+    patch_pos = get_patches(sdf, patch_size, low_res, low_res, 1, pre_config['surf'])
 
     for pos in patch_pos:
-        data = [np.array([extract_patch(source, pos, patch_size) * pre_config['l_fac']])]
+        data = [np.array([extract_patch(source, pos, patch_size)])]
 
-        if pre_config['use_tanh'] != 0:
-            data[0] = np.tanh(data[0])
+        if not use_particles:
+            data[0] = data[0] * pre_config['l_fac']
+            if pre_config['use_tanh'] != 0:
+                data[0] = np.tanh(data[0])
         if len(aux) > 0:
             data.append(np.array([extract_patch(aux, pos, patch_size)]))
 
         predict = model.predict(x=data, batch_size=1)
 
-        if pre_config['use_tanh'] != 0:
-            predict = np.arctanh(np.clip(predict,-.999999,.999999))
+        if use_particles:
+            predict = np.add(np.reshape(predict, (pre_config['par_cnt'])), [pos[0], pos[1], 0.])
+            if result is None:
+                result = predict
+            else:
+                result = np.append(result, predict)
+        else:
+            if pre_config['use_tanh'] != 0:
+                predict = np.arctanh(np.clip(predict,-.999999,.999999))
+            predict = predict * circular_filter/pre_config['h_fac']
+            insert_patch(result, predict[0], (factor_2D*pos).astype(int)+border, elem_min)
 
-        predict = predict * circular_filter/pre_config['h_fac']
-        
-        insert_patch(result, predict[0], (factor_2D*pos).astype(int)+border, elem_min)
-
-    hdr['dimX'] = res
-    hdr['dimY'] = res
-
-    writeUni(dst_path%t, hdr, result[0,border:res+border,border:res+border,0])
+    if use_particles:
+        hdr['dim'] = len(result)
+        writeParticles(dst_path%t, hdr, result)
+    else:
+        hdr['dimX'] = res
+        hdr['dimY'] = res
+        writeUni(dst_path%t, hdr, result[0,border:res+border,border:res+border,0])
 

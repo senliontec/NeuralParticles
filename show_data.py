@@ -15,6 +15,8 @@ manta_path = getParam("manta", "manta/", paramUsed)
 config_path = getParam("config", "config/version_00.txt", paramUsed)
 verbose = int(getParam("verbose", 0, paramUsed)) != 0
 
+src = getParam("src", "", paramUsed)
+
 t_start = int(getParam("t_start", -1, paramUsed))
 t_end = int(getParam("t_end", -1, paramUsed))
 
@@ -47,6 +49,11 @@ if data_type == "ref":
     data_path += "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
     param['in'] = data_path + "_%03d_ps.uni"
     param['sdf'] = data_path + "_%03d_sdf.uni"
+elif data_type == "real":
+    data_path += "real/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
+    res = int(res/math.sqrt(pre_config['factor']))
+    param['in'] = data_path + "_%03d_ps.uni"
+    param['sdf'] = data_path + "_%03d_sdf.uni"
 elif data_type == "src":
     data_path += "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
     res = int(res/math.sqrt(pre_config['factor']))
@@ -54,7 +61,10 @@ elif data_type == "src":
     param['sdf'] = data_path + "_%03d_sdf.uni"
 elif data_type == "res":
     data_path += "result/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
-    param['sdf'] = data_path + "_%03d_result.uni"
+    param['in' if train_config['explicit'] else 'sdf'] = data_path + "_%03d_result.uni"
+elif data_type == "res_real":
+    data_path += "result/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
+    param['in' if train_config['explicit'] else 'sdf'] = data_path + "_%03d_result.uni"
 else:
     print("data type not supported!")
     exit()
