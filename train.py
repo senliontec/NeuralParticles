@@ -4,6 +4,8 @@ sys.path.append("manta/scenes/tools")
 import json
 from helpers import *
 
+import math
+
 from dataset import Dataset
 
 import keras
