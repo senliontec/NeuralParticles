@@ -24,6 +24,8 @@ dst_path = getParam("dst", "", paramUsed)
 data_path = getParam("data", "data/", paramUsed)
 config_path = getParam("config", "config/version_00.txt", paramUsed)
 verbose = int(getParam("verbose", 0, paramUsed)) != 0
+dataset = int(getParam("dataset", -1, paramUsed))
+var = int(getParam("var", 0, paramUsed))
 
 checkUnusedParam(paramUsed)
 
@@ -54,10 +56,13 @@ def filter2D(kernlen, s, fac):
     dirac[kernlen//2, kernlen//2] = 1
     return np.clip(fi.gaussian_filter(dirac, s) * fac, a_min=None, a_max=1.0)
 
+if dataset < 0:
+    dataset = int(data_config['data_count']*train_config['train_split'])
+
 if src_path == "":
-    src_path = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], int(data_config['data_count']*train_config['train_split']), 0) + "_%03d"
+    src_path = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d"
 if dst_path == "":
-    dst_path = data_path + "result/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], int(data_config['data_count']*train_config['train_split']), 0) + "_%03d_result.uni"
+    dst_path = data_path + "result/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_result.uni"
 if t_start < 0:
     t_start = train_config['t_start']
 if t_end < 0:
