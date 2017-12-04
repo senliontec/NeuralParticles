@@ -85,7 +85,7 @@ if start_checkpoint == 0:
         inputs = Input((pre_config['par_cnt'],3), name="main")
         auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")  
         
-        base = Flatten()(par_in)
+        base = Flatten()(inputs)
         base = Dense(100, activation='tanh')(base)
         
         if feature_cnt > 1:
