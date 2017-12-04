@@ -110,7 +110,7 @@ if start_checkpoint == 0:
         base = Dense(pre_config['par_cnt']*3, activation='tanh')(base)
         out = Reshape((pre_config['par_cnt'],3))(base)
         
-        model = Model(inputs=[par_in, auxiliary_input], outputs=out)
+        model = Model(inputs=[inputs, auxiliary_input], outputs=out)
         model.compile( loss='mse', optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
         
         model.save(model_path + '.h5')
