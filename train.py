@@ -160,6 +160,7 @@ if start_checkpoint == 0:
             generator = model
             discriminator = Sequential(name="discriminator")
 
+            high_patch_size = int(pre_config['patch_size']*math.sqrt(pre_config['factor']))
             img_shape = (high_patch_size, high_patch_size, 1)
 
             discriminator.add(Conv2D(32, kernel_size=3, strides=2, input_shape=img_shape, padding="same"))
