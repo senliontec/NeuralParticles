@@ -3,7 +3,6 @@ from tools.helpers import *
 paramUsed = []
 
 guion = True
-pause = False
 
 in_path = getParam("in", "", paramUsed)
 sdf_path = getParam("sdf", "", paramUsed)
@@ -18,6 +17,8 @@ t_end = int(getParam("t_end", t, paramUsed))
 t = t_end - t_start
 
 screenshot = getParam("scr", "", paramUsed)
+
+pause = screenshot == ""
 
 checkUnusedParam(paramUsed)
 

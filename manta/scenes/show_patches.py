@@ -11,7 +11,6 @@ if not os.path.exists("tmp"):
 paramUsed = []
 
 guion = True
-pause = False
 
 src_path = getParam("src", "", paramUsed)
 vel_path = getParam("vel", "", paramUsed)
@@ -26,6 +25,8 @@ t = int(getParam("t", 50, paramUsed))
 
 l_scr = getParam("l_scr", "", paramUsed)
 h_scr = getParam("h_scr", "", paramUsed)
+
+pause = (l_scr == "" and h_scr == "")
 
 checkUnusedParam(paramUsed)
 

@@ -104,9 +104,7 @@ for t in range(t_start, t_end):
         
     hdr, sdf = readUni(src_path%t+"_sdf.uni")
     if use_particles:
-        hdr, source = readUni(src_path%t+"_ps.uni")
-    else:
-        source = sdf
+        hdr, source = readParticles(src_path%t+"_ps.uni")
 
     aux = []
     for f in train_config['features']:
@@ -122,7 +120,10 @@ for t in range(t_start, t_end):
     patch_pos = get_patches(sdf, patch_size, low_res, low_res, 1, pre_config['surf'])
 
     for pos in patch_pos:
-        data = [np.array([extract_patch(source, pos, patch_size)])]
+        data = extract_particles(source, pos, pre_config['par_cnt'], patch_size) if use_particles else extract_patch(sdf, pos, patch_size)
+        if data is None:
+            continue
+        data = [np.array([data])]        
 
         if not use_particles:
             data[0] = data[0] * pre_config['l_fac']
@@ -134,11 +135,11 @@ for t in range(t_start, t_end):
         predict = model.predict(x=data, batch_size=1)
 
         if use_particles:
-            predict = np.add(np.reshape(predict, (pre_config['par_cnt'])), [pos[0], pos[1], 0.])
+            predict = np.add(np.reshape(predict, (pre_config['par_cnt'],3)), [pos[0], pos[1], 0.])
             if result is None:
                 result = predict
             else:
-                result = np.append(result, predict)
+                result = np.append(result, predict, axis=0)
         else:
             if pre_config['use_tanh'] != 0:
                 predict = np.arctanh(np.clip(predict,-.999999,.999999))

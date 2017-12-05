@@ -56,6 +56,7 @@ param["h_fac"] = pre_config['h_fac']
 param["tanh"] = pre_config['use_tanh']
 
 param['par_cnt'] = pre_config['par_cnt']
+param['par_constraint'] = 1
 
 # tolerance of surface
 param["surface"] = pre_config['surf']
