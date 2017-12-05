@@ -7,10 +7,10 @@ from keras.layers import Conv2D, Conv1D, Conv2DTranspose, BatchNormalization, In
 from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, Activation, Flatten
 from keras import regularizers
 import numpy as np
-import tensorflow as tf
 #from spatial_transformer import SpatialTransformer 
 
 from keras.layers.core import Layer
+
 class SpatialTransformer(Layer):
     def __init__(self,
                  localization_net,
@@ -27,16 +27,34 @@ class SpatialTransformer(Layer):
 
     def call(self, X, mask=None):
         transform = self.locnet.call(X)
-        print(transform.get_shape())
         output = keras.backend.batch_dot(X, transform)
         return output
 
+class SplitLayer(Layer):
+    def __init__(self, layer, **kwargs):
+        self.layer = layer
+        super(SplitLayer, self).__init__(**kwargs)
+    
+    def build(self, input_shape):
+        self.layer.build(input_shape)
+        self.trainable_weights = self.layer.trainable_weights
+
+    def compute_output_shape(self, input_shape):
+        return [self.layer.output_shape] * len(input_shape)
+
+    def call(self, X, mask=None):
+        Y = []
+        for x in X:
+            Y.append(self.layer(x))
+        return Y
+
 def test_locnet(cnt,b=None):
     m = Sequential()
+    m.add(Flatten(input_shape=(cnt,3)))
     if b is None:
         b = np.eye(3, dtype='float32').flatten()
-    W = np.zeros((3, 9), dtype='float32')
-    m.add(Dense(9, weights=[W,b], input_shape=(cnt,3)))
+    W = np.zeros((cnt*3, 9), dtype='float32')
+    m.add(Dense(9, weights=[W,b]))
     m.add(Reshape((3,3)))
     return m
 
@@ -77,46 +95,35 @@ def feature_locnet(cnt, K=64):
     return m
 
 k = 128
-in_cnt = 1
-out_cnt = 1
+in_cnt = 2
+out_cnt = 2
 
-inputs = Input((in_cnt,3))
+inputs = [Input((1,3)) for i in range(in_cnt)]
 
-x = SpatialTransformer(test_locnet(in_cnt, np.array([0,0,1,0,1,0,1,0,0])))(inputs)
+branch = Sequential()
+branch.add(SpatialTransformer(test_locnet(1), input_shape=(1,3)))
+branch.add(Dense(64, activation='tanh'))
+branch.add(Dense(64, activation='tanh'))
+branch.add(SpatialTransformer(feature_locnet(1)))
+branch.add(Dense(64, activation='tanh'))
+branch.add(Dense(128, activation='tanh'))
+branch.add(Dense(k, activation='tanh'))
 
-'''g = []
-for x in inputs:
-    #x = tf.matmul(x, transform)
-    
-    x = Dense(64, activation='tanh')(x)
-    x = Dense(64, activation='tanh')(x)
-    g.append(x)
+x = SplitLayer(branch)(inputs)
 
-transform = concatenate(g)
-transform = Reshape((in_cnt,64))(transform)
-transform = feature_transform_net(transform)
-
-h = []
-for x in g:
-    x = Dense(64, activation='tanh')(x)
-    x = Dense(128, activation='tanh')(x)
-    h.append(Dense(k, activation='tanh')(x))
-
-# sum 
-x = add(h)
+x = add(x)
 
 x = Dense(512, activation='tanh')(x)
 x = Dense(256, activation='tanh')(x)
-x = Dense(3*out_cnt, activation='tanh')(x)'''
+x = Dense(3*out_cnt, activation='tanh')(x)
 
-#x = Reshape((out_cnt,3))(x)
+x = Reshape((out_cnt,3))(x)
 
 model = Model(inputs=inputs, outputs=x)
 model.compile(loss='mse', optimizer=keras.optimizers.adam(lr=0.001))
 
 model.summary()
 
-particles = np.array([[[1,2,3]]])
-print(inputs.shape)
-print(particles.shape)
+particles = [np.array([[[3,4,6]]]),np.array([[[1,2,3]]])]
+
 print(model.predict(particles, batch_size=1))
