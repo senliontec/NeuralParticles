@@ -15,7 +15,7 @@ from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, Activ
 from keras.layers.advanced_activations import LeakyReLU
 from subpixel import *
 from spatial_transformer import *
-from split_layer import *
+from split_dense import *
 from keras import regularizers
 import numpy as np
 
@@ -84,65 +84,42 @@ print(ref_path)
 if start_checkpoint == 0:
     print("Generate Network")
     if train_config['explicit']:
-
         k = 128
-        def input_locnet(cnt):
-            m = Sequential()
-            m.add(Reshape((cnt,3,1), input_shape=(cnt,3)))
-            m.add(Conv2D(64, (1,3)))
-            m.add(Conv2D(128, 1))
-            m.add(Conv2D(1024, 1))
-            m.add(MaxPooling2D((cnt,1)))
-            m.add(Flatten())
-            m.add(Dense(512))
-            m.add(Dense(256))
 
-            b = np.eye(3, dtype='float32').flatten()
-            W = np.zeros((256, 9), dtype='float32')
-            m.add(Dense(9, weights=[W,b]))
-            m.add(Reshape((3,3)))
+        par_cnt = pre_config['par_cnt']
+        inputs = Input((par_cnt,3), name="main")
 
-            return m
+        x = SpatialTransformer(par_cnt)(inputs)
+        print(x.get_shape())
+        x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(par_cnt)]
+        print(x[0].get_shape())
 
-        def feature_locnet(cnt, K=64):
-            m = Sequential()
-            m.add(Reshape((cnt,K,1), input_shape=(cnt,K)))
-            m.add(Conv2D(64, 1))
-            m.add(Conv2D(128, 1))
-            m.add(Conv2D(1024, 1))
-            m.add(MaxPooling2D((cnt,1)))
-            m.add(Flatten())
-            m.add(Dense(512))
-            m.add(Dense(256))
+        x = SplitDense(64, activation='tanh')(x)
+        x = SplitDense(64, activation='tanh')(x)
 
-            b = np.eye(K, dtype='float32').flatten()
-            W = np.zeros((256, K*K), dtype='float32')
-            m.add(Dense(K*K, weights=[W,b]))
-            m.add(Reshape((K,K)))
+        print(x[0].get_shape())
+        x = concatenate(x, axis=1)
+        print(x.get_shape())
+        x = SpatialTransformer(par_cnt,64,1)(x)
+        print(x.get_shape())
 
-            return m
+        x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(par_cnt)]
+        print(x[0].get_shape())
 
-        inputs = Input((pre_config['par_cnt'],3), name="main")
-        input_list = [(Lambda(lambda x: x[:,i:i+1,:])(inputs)) for i in range(pre_config['par_cnt'])]
+        x = SplitDense(64, activation='tanh')(x)
+        x = SplitDense(128, activation='tanh')(x)
+        x = SplitDense(k, activation='tanh')(x)
 
-        branch = Sequential()
-        branch.add(SpatialTransformer(input_locnet(1), input_shape=(1,3)))
-        branch.add(Dense(64, activation='tanh'))
-        branch.add(Dense(64, activation='tanh'))
-        branch.add(SpatialTransformer(feature_locnet(1)))
-        branch.add(Dense(64, activation='tanh'))
-        branch.add(Dense(128, activation='tanh'))
-        branch.add(Dense(k, activation='tanh'))
-
-        x = SplitLayer(branch)(input_list)
+        print(x[0].get_shape())
 
         x = add(x)
+        print(x.get_shape())
 
         x = Dense(512, activation='tanh')(x)
         x = Dense(256, activation='tanh')(x)
-        x = Dense(3*pre_config['par_cnt'], activation='tanh')(x)
+        x = Dense(3*par_cnt, activation='tanh')(x)
 
-        out = Reshape((pre_config['par_cnt'],3))(x)
+        out = Reshape((par_cnt,3))(x)
 
         '''inputs = Input((pre_config['par_cnt'],3), name="main")
         
@@ -171,7 +148,7 @@ if start_checkpoint == 0:
         base = Dense(100, activation='tanh')(base)
         base = Dense(pre_config['par_cnt']*3, activation='tanh')(base)
         out = Reshape((pre_config['par_cnt'],3))(base)'''
-        
+
         if feature_cnt > 1:
             auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")  
 

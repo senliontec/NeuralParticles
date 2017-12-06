@@ -5,6 +5,8 @@ import keras
 from keras.models import Model, load_model
 
 from subpixel import *
+from spatial_transformer import *
+from split_dense import *
 
 import json
 from helpers import *
@@ -94,7 +96,7 @@ if not use_particles:
     elem_min = np.vectorize(lambda x,y: min(x,y))
     circular_filter = np.reshape(filter2D(high_patch_size, high_patch_size*0.2, 500), (high_patch_size, high_patch_size,1))
 
-model = load_model(data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id']), custom_objects={'Subpixel': Subpixel})
+model = load_model(data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id']), custom_objects={'Subpixel': Subpixel, 'SpatialTransformer': SpatialTransformer, 'SplitDense': SplitDense})
 
 for t in range(t_start, t_end):
     if use_particles:
@@ -135,7 +137,7 @@ for t in range(t_start, t_end):
         predict = model.predict(x=data, batch_size=1)
 
         if use_particles:
-            predict = np.add(np.reshape(predict, (pre_config['par_cnt'],3)), [pos[0], pos[1], 0.])
+            predict = np.add(np.reshape(predict*patch_size, (pre_config['par_cnt'],3)), [pos[0], pos[1], 0.])
             if result is None:
                 result = predict
             else:

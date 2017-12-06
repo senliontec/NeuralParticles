@@ -7,46 +7,10 @@ from keras.layers import Conv2D, Conv1D, Conv2DTranspose, BatchNormalization, In
 from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, Activation, Flatten
 from keras import regularizers
 import numpy as np
-#from spatial_transformer import SpatialTransformer 
+from spatial_transformer import SpatialTransformer 
+from split_dense import SplitDense
 
 from keras.layers.core import Layer
-
-class SpatialTransformer(Layer):
-    def __init__(self,
-                 localization_net,
-                 **kwargs):
-        self.locnet = localization_net        
-        super(SpatialTransformer, self).__init__(**kwargs)
-    
-    def build(self, input_shape):
-        self.locnet.build(input_shape)
-        self.trainable_weights = self.locnet.trainable_weights
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-    def call(self, X, mask=None):
-        transform = self.locnet.call(X)
-        output = keras.backend.batch_dot(X, transform)
-        return output
-
-class SplitLayer(Layer):
-    def __init__(self, layer, **kwargs):
-        self.layer = layer
-        super(SplitLayer, self).__init__(**kwargs)
-    
-    def build(self, input_shape):
-        self.layer.build(input_shape)
-        self.trainable_weights = self.layer.trainable_weights
-
-    def compute_output_shape(self, input_shape):
-        return [self.layer.output_shape] * len(input_shape)
-
-    def call(self, X, mask=None):
-        Y = []
-        for x in X:
-            Y.append(self.layer(x))
-        return Y
 
 def test_locnet(cnt,b=None):
     m = Sequential()
@@ -58,46 +22,24 @@ def test_locnet(cnt,b=None):
     m.add(Reshape((3,3)))
     return m
 
-def input_locnet(cnt):
-    m = Sequential()
-    m.add(Reshape((cnt,3,1), input_shape=(cnt,3)))
-    m.add(Conv2D(64, (1,3)))
-    m.add(Conv2D(128, 1))
-    m.add(Conv2D(1024, 1))
-    m.add(MaxPooling2D((cnt,1)))
-    m.add(Flatten())
-    m.add(Dense(512))
-    m.add(Dense(256))
-
-    b = np.eye(3, dtype='float32').flatten()
-    W = np.zeros((256, 9), dtype='float32')
-    m.add(Dense(9, weights=[W,b]))
-    m.add(Reshape((3,3)))
-
-    return m
-
-def feature_locnet(cnt, K=64):
-    m = Sequential()
-    m.add(Reshape((cnt,K,1), input_shape=(cnt,K)))
-    m.add(Conv2D(64, 1))
-    m.add(Conv2D(128, 1))
-    m.add(Conv2D(1024, 1))
-    m.add(MaxPooling2D((cnt,1)))
-    m.add(Flatten())
-    m.add(Dense(512))
-    m.add(Dense(256))
-
-    b = np.eye(K, dtype='float32').flatten()
-    W = np.zeros((256, K*K), dtype='float32')
-    m.add(Dense(K*K, weights=[W,b]))
-    m.add(Reshape((K,K)))
-
-    return m
-
 k = 128
-in_cnt = 2
+par_cnt = 2
 out_cnt = 2
 
+inputs = Input((par_cnt,3), name="main")
+
+print(inputs.get_shape())
+
+x = SpatialTransformer(par_cnt)(inputs)
+print(x.get_shape())
+x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(par_cnt)]
+print(x[0].get_shape())
+
+x = SplitDense(64)(x)
+
+x = add(x)
+
+'''
 main_input = Input((in_cnt,3))
 inputs = [(Lambda(lambda x: x[:,i:i+1,:])(main_input)) for i in range(in_cnt)]
 
@@ -118,13 +60,17 @@ x = Dense(512, activation='tanh')(x)
 x = Dense(256, activation='tanh')(x)
 x = Dense(3*out_cnt, activation='tanh')(x)
 
-x = Reshape((out_cnt,3))(x)
+x = Reshape((out_cnt,3))(x)'''
 
-model = Model(inputs=main_input, outputs=x)
+model = Model(inputs=inputs, outputs=x)
 model.compile(loss='mse', optimizer=keras.optimizers.adam(lr=0.001))
 
 model.summary()
 
+model.save("test.h5")
+model = load_model("test.h5", custom_objects={"SpatialTransformer":SpatialTransformer, "SplitDense":SplitDense})
+
 particles = np.array([[[3,4,6],[1,2,3]]])
 
+print(particles)
 print(model.predict(particles, batch_size=1))
