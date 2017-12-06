@@ -58,6 +58,9 @@ def particle_range(arr, start, end):
 		arr = arr[np.where((arr[:,i]>=start[i])&(arr[:,i]<=end[i]))]
 	return arr
 
+def particle_radius(arr, pos, radius):
+	return arr[np.where(np.linalg.norm(np.subtract(arr,pos), axis=1) < radius)]
+
 def insert_patch(data, patch, pos, func):
 	patch_size = patch.shape[0]//2
 	x0=pos[0]-patch_size
@@ -70,14 +73,20 @@ def insert_patch(data, patch, pos, func):
 def extract_particles(data, pos, cnt, constraint=None):
 	# select the 'cnt'th nearest particles to pos 
 	if constraint != None:
-		constraint = constraint//2
+		'''constraint = constraint//2
 		x0 = pos[0]-constraint
 		x1 = pos[0]+constraint+1
 		y0 = pos[1]-constraint
 		y1 = pos[1]+constraint+1
 		data = particle_range(data, [x0,y0], [x1,y1])
 		if len(data) < cnt:
-			return None
+			return None'''
+		par = particle_radius(data, pos, constraint)
+		par = np.subtract(par,pos)/constraint
+		if len(par) < cnt:
+			par = np.concatenate((par,np.array([[0,0,0]]*(cnt-len(par)))))
+		np.random.shuffle(par)
+		return par[:cnt]
 	
 	par = data[np.argpartition(np.linalg.norm(np.subtract(data,pos), axis=1), cnt-1)[:cnt]]
 	par = np.subtract(par,pos)

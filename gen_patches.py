@@ -57,6 +57,7 @@ param["tanh"] = pre_config['use_tanh']
 
 param['par_cnt'] = pre_config['par_cnt']
 param['par_constraint'] = 1
+param['seed'] = data_config['seed']
 
 # tolerance of surface
 param["surface"] = pre_config['surf']

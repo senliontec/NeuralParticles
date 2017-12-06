@@ -31,6 +31,8 @@ stride = int(getParam("stride", 1, paramUsed))
 
 particle_cnt = int(getParam("par_cnt", 0, paramUsed))
 
+seed = int(getParam("seed", 0, paramUsed))
+
 fac = float(high_patch_size)/patch_size
 
 border = int(math.ceil(high_patch_size//2-patch_size//2*fac))
@@ -40,6 +42,8 @@ constraint = int(getParam("par_constraint", 0, paramUsed)) != 0
 print("fac: %f, patch size: %d, high patch size: %d" % (fac, patch_size, high_patch_size))
 
 checkUnusedParam(paramUsed)
+
+if seed > 0: numpy.random.seed(seed)
 
 backupSources(h_out_path)
 backupSources(l_out_path)
