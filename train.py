@@ -14,6 +14,8 @@ from keras.layers import Conv2D, Conv2DTranspose, BatchNormalization, Input, Zer
 from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, Activation, Flatten
 from keras.layers.advanced_activations import LeakyReLU
 from subpixel import *
+from spatial_transformer import *
+from split_layer import *
 from keras import regularizers
 import numpy as np
 
@@ -81,8 +83,67 @@ print(ref_path)
 
 if start_checkpoint == 0:
     print("Generate Network")
-    if train_config['explicit']:  
-        inputs = Input((pre_config['par_cnt'],3), name="main")
+    if train_config['explicit']:
+
+        def input_locnet(cnt):
+            m = Sequential()
+            m.add(Reshape((cnt,3,1), input_shape=(cnt,3)))
+            m.add(Conv2D(64, (1,3)))
+            m.add(Conv2D(128, 1))
+            m.add(Conv2D(1024, 1))
+            m.add(MaxPooling2D((cnt,1)))
+            m.add(Flatten())
+            m.add(Dense(512))
+            m.add(Dense(256))
+
+            b = np.eye(3, dtype='float32').flatten()
+            W = np.zeros((256, 9), dtype='float32')
+            m.add(Dense(9, weights=[W,b]))
+            m.add(Reshape((3,3)))
+
+            return m
+
+        def feature_locnet(cnt, K=64):
+            m = Sequential()
+            m.add(Reshape((cnt,K,1), input_shape=(cnt,K)))
+            m.add(Conv2D(64, 1))
+            m.add(Conv2D(128, 1))
+            m.add(Conv2D(1024, 1))
+            m.add(MaxPooling2D((cnt,1)))
+            m.add(Flatten())
+            m.add(Dense(512))
+            m.add(Dense(256))
+
+            b = np.eye(K, dtype='float32').flatten()
+            W = np.zeros((256, K*K), dtype='float32')
+            m.add(Dense(K*K, weights=[W,b]))
+            m.add(Reshape((K,K)))
+
+            return m
+
+        inputs = [Input((1,3)) for i in range(in_cnt)]
+        input_list = [(Lambda(lambda x: x[:,i:i+1,:])(inputs)) for i in range(in_cnt)]
+
+        branch = Sequential()
+        branch.add(SpatialTransformer(test_locnet(1), input_shape=(1,3)))
+        branch.add(Dense(64, activation='tanh'))
+        branch.add(Dense(64, activation='tanh'))
+        branch.add(SpatialTransformer(feature_locnet(1)))
+        branch.add(Dense(64, activation='tanh'))
+        branch.add(Dense(128, activation='tanh'))
+        branch.add(Dense(k, activation='tanh'))
+
+        x = SplitLayer(branch)(input_list)
+
+        x = add(x)
+
+        x = Dense(512, activation='tanh')(x)
+        x = Dense(256, activation='tanh')(x)
+        x = Dense(3*out_cnt, activation='tanh')(x)
+
+        out = Reshape((out_cnt,3))(x)
+
+        '''inputs = Input((pre_config['par_cnt'],3), name="main")
         
         base = Flatten()(inputs)
         base = Dense(100, activation='tanh')(base)
@@ -108,7 +169,7 @@ if start_checkpoint == 0:
         
         base = Dense(100, activation='tanh')(base)
         base = Dense(pre_config['par_cnt']*3, activation='tanh')(base)
-        out = Reshape((pre_config['par_cnt'],3))(base)
+        out = Reshape((pre_config['par_cnt'],3))(base)'''
         
         model = Model(inputs=[inputs, auxiliary_input], outputs=out) if feature_cnt > 1 else Model(inputs=[inputs], outputs=out)
         model.compile( loss='mse', optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))

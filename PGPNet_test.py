@@ -98,7 +98,8 @@ k = 128
 in_cnt = 2
 out_cnt = 2
 
-inputs = [Input((1,3)) for i in range(in_cnt)]
+main_input = Input((in_cnt,3))
+inputs = [(Lambda(lambda x: x[:,i:i+1,:])(main_input)) for i in range(in_cnt)]
 
 branch = Sequential()
 branch.add(SpatialTransformer(test_locnet(1), input_shape=(1,3)))
@@ -119,11 +120,11 @@ x = Dense(3*out_cnt, activation='tanh')(x)
 
 x = Reshape((out_cnt,3))(x)
 
-model = Model(inputs=inputs, outputs=x)
+model = Model(inputs=main_input, outputs=x)
 model.compile(loss='mse', optimizer=keras.optimizers.adam(lr=0.001))
 
 model.summary()
 
-particles = [np.array([[[3,4,6]]]),np.array([[[1,2,3]]])]
+particles = np.array([[[3,4,6],[1,2,3]]])
 
 print(model.predict(particles, batch_size=1))
