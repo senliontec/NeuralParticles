@@ -10,8 +10,8 @@ from dataset import Dataset
 
 import keras
 from keras.models import Model, Sequential, load_model
-from keras.layers import Conv2D, Conv2DTranspose, BatchNormalization, Input, ZeroPadding2D, Dense
-from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, Activation, Flatten
+from keras.layers import Conv2D, Conv2DTranspose, BatchNormalization, Input, ZeroPadding2D, Dense, MaxPooling2D
+from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, Activation, Flatten, Lambda
 from keras.layers.advanced_activations import LeakyReLU
 from subpixel import *
 from spatial_transformer import *
@@ -85,6 +85,7 @@ if start_checkpoint == 0:
     print("Generate Network")
     if train_config['explicit']:
 
+        k = 128
         def input_locnet(cnt):
             m = Sequential()
             m.add(Reshape((cnt,3,1), input_shape=(cnt,3)))
@@ -121,11 +122,11 @@ if start_checkpoint == 0:
 
             return m
 
-        inputs = [Input((1,3)) for i in range(in_cnt)]
-        input_list = [(Lambda(lambda x: x[:,i:i+1,:])(inputs)) for i in range(in_cnt)]
+        inputs = Input((pre_config['par_cnt'],3), name="main")
+        input_list = [(Lambda(lambda x: x[:,i:i+1,:])(inputs)) for i in range(pre_config['par_cnt'])]
 
         branch = Sequential()
-        branch.add(SpatialTransformer(test_locnet(1), input_shape=(1,3)))
+        branch.add(SpatialTransformer(input_locnet(1), input_shape=(1,3)))
         branch.add(Dense(64, activation='tanh'))
         branch.add(Dense(64, activation='tanh'))
         branch.add(SpatialTransformer(feature_locnet(1)))
@@ -139,9 +140,9 @@ if start_checkpoint == 0:
 
         x = Dense(512, activation='tanh')(x)
         x = Dense(256, activation='tanh')(x)
-        x = Dense(3*out_cnt, activation='tanh')(x)
+        x = Dense(3*pre_config['par_cnt'], activation='tanh')(x)
 
-        out = Reshape((out_cnt,3))(x)
+        out = Reshape((pre_config['par_cnt'],3))(x)
 
         '''inputs = Input((pre_config['par_cnt'],3), name="main")
         
@@ -171,6 +172,9 @@ if start_checkpoint == 0:
         base = Dense(pre_config['par_cnt']*3, activation='tanh')(base)
         out = Reshape((pre_config['par_cnt'],3))(base)'''
         
+        if feature_cnt > 1:
+            auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")  
+
         model = Model(inputs=[inputs, auxiliary_input], outputs=out) if feature_cnt > 1 else Model(inputs=[inputs], outputs=out)
         model.compile( loss='mse', optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
         
