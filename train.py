@@ -90,30 +90,21 @@ if start_checkpoint == 0:
         inputs = Input((par_cnt,3), name="main")
 
         x = SpatialTransformer(par_cnt)(inputs)
-        print(x.get_shape())
         x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(par_cnt)]
-        print(x[0].get_shape())
 
         x = SplitDense(64, activation='tanh')(x)
         x = SplitDense(64, activation='tanh')(x)
 
-        print(x[0].get_shape())
         x = concatenate(x, axis=1)
-        print(x.get_shape())
         x = SpatialTransformer(par_cnt,64,1)(x)
-        print(x.get_shape())
 
         x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(par_cnt)]
-        print(x[0].get_shape())
 
         x = SplitDense(64, activation='tanh')(x)
         x = SplitDense(128, activation='tanh')(x)
         x = SplitDense(k, activation='tanh')(x)
 
-        print(x[0].get_shape())
-
         x = add(x)
-        print(x.get_shape())
 
         x = Dense(512, activation='tanh')(x)
         x = Dense(256, activation='tanh')(x)

@@ -29,6 +29,8 @@ verbose = int(getParam("verbose", 0, paramUsed)) != 0
 dataset = int(getParam("dataset", -1, paramUsed))
 var = int(getParam("var", 0, paramUsed))
 
+checkpoint = int(getParam("checkpoint", -1, paramUsed))
+
 checkUnusedParam(paramUsed)
 
 if dst_path == "" and not os.path.exists(data_path + "result"):
@@ -96,7 +98,12 @@ if not use_particles:
     elem_min = np.vectorize(lambda x,y: min(x,y))
     circular_filter = np.reshape(filter2D(high_patch_size, high_patch_size*0.2, 500), (high_patch_size, high_patch_size,1))
 
-model = load_model(data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id']), custom_objects={'Subpixel': Subpixel, 'SpatialTransformer': SpatialTransformer, 'SplitDense': SplitDense})
+if checkpoint > 0:
+    model_path = data_path + "models/checkpoints/%s_%s_%04d.h5" % (data_config['prefix'], config['id'], checkpoint)
+else:
+    model_path = data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id'])
+
+model = load_model(model_path, custom_objects={'Subpixel': Subpixel, 'SpatialTransformer': SpatialTransformer, 'SplitDense': SplitDense})
 
 for t in range(t_start, t_end):
     if use_particles:
