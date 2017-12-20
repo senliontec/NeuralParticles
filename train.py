@@ -1,5 +1,6 @@
 import sys, os
-sys.path.append("manta/scenes/tools")
+sys.path.append("manta/scenes/tools/")
+sys.path.append("hungarian/")
 
 import json
 from helpers import *
@@ -18,6 +19,8 @@ from spatial_transformer import *
 from split_dense import *
 from keras import regularizers
 import numpy as np
+
+from hungarian_loss import HungarianLoss
 
 import matplotlib
 matplotlib.use('Agg')
@@ -84,13 +87,15 @@ print(ref_path)
 if start_checkpoint == 0:
     print("Generate Network")
     if train_config['explicit']:
+        hungarian = HungarianLoss(train_config['batch_size'])
+
         k = 128
 
         par_cnt = pre_config['par_cnt']
         inputs = Input((par_cnt,3), name="main")
 
         x = SpatialTransformer(par_cnt)(inputs)
-        x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(par_cnt)]
+        '''x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(par_cnt)]
 
         x = SplitDense(64, activation='tanh')(x)
         x = SplitDense(64, activation='tanh')(x)
@@ -104,8 +109,8 @@ if start_checkpoint == 0:
         x = SplitDense(128, activation='tanh')(x)
         x = SplitDense(k, activation='tanh')(x)
 
-        x = add(x)
-
+        x = add(x)'''
+        x = Flatten()(x)
         x = Dense(512, activation='tanh')(x)
         x = Dense(256, activation='tanh')(x)
         x = Dense(3*par_cnt, activation='tanh')(x)
@@ -144,7 +149,7 @@ if start_checkpoint == 0:
             auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")  
 
         model = Model(inputs=[inputs, auxiliary_input], outputs=out) if feature_cnt > 1 else Model(inputs=[inputs], outputs=out)
-        model.compile( loss='mse', optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
+        model.compile( loss=hungarian.hungarian_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
         
         model.save(model_path + '.h5')
         
@@ -254,10 +259,18 @@ class NthLogger(keras.callbacks.Callback):
 print("Start Training")
 if train_config["adv_fac"] <= 0.:
     x, y = train_data.get_data_splitted()
+    val_split = train_config['val_split']
+    if train_config["explicit"]:
+        new_size = len(x[0])//train_config['batch_size']*train_config['batch_size']
+        x = [xi[:new_size] for xi in x]
+        y = [yi[:new_size] for yi in y]
 
-    history = model.fit(x=x,y=y, validation_split=train_config['val_split'], 
+        new_val_size = int(new_size * val_split) // train_config['batch_size']*train_config['batch_size']
+        val_split = new_val_size/new_size
+
+    history = model.fit(x=x,y=y, validation_split=val_split, 
                         epochs=train_config['epochs'] - start_checkpoint*checkpoint_intervall, batch_size=train_config['batch_size'], 
-                        verbose=0, callbacks=[NthLogger(log_intervall, checkpoint_intervall, checkpoint_path, start_checkpoint*checkpoint_intervall)])
+                        verbose=1, callbacks=[NthLogger(log_intervall, checkpoint_intervall, checkpoint_path, start_checkpoint*checkpoint_intervall)])
 
     m_p = "%s_trained.h5" % model_path
     model.save(m_p)

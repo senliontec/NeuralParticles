@@ -1,5 +1,6 @@
 import sys, os
 sys.path.append("manta/scenes/tools")
+sys.path.append("hungarian/")
 
 import keras
 from keras.models import Model, load_model
@@ -15,6 +16,12 @@ from uniio import *
 import scipy.ndimage.filters as fi
 import math
 import numpy as np
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+from hungarian_loss import HungarianLoss
 
 paramUsed = []
 
@@ -103,7 +110,7 @@ if checkpoint > 0:
 else:
     model_path = data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id'])
 
-model = load_model(model_path, custom_objects={'Subpixel': Subpixel, 'SpatialTransformer': SpatialTransformer, 'SplitDense': SplitDense})
+model = load_model(model_path, custom_objects={'Subpixel': Subpixel, 'SpatialTransformer': SpatialTransformer, 'SplitDense': SplitDense, 'hungarian_loss': HungarianLoss(train_config['batch_size']).hungarian_loss})
 
 for t in range(t_start, t_end):
     if use_particles:
@@ -130,6 +137,7 @@ for t in range(t_start, t_end):
 
     for pos in patch_pos:
         data = extract_particles(source, pos, pre_config['par_cnt'], patch_size) if use_particles else extract_patch(sdf, pos, patch_size)
+
         if data is None:
             continue
         data = [np.array([data])]        
