@@ -4,9 +4,11 @@ from keras.models import Sequential, Model
 from keras.layers import Reshape, Conv2D, MaxPooling2D, Flatten, Dense, Input
 import numpy as np
 
+import tensorflow as tf
+
 import sys
 sys.path.append("manta/scenes/tools/")
-from quaternion_mul import quaternion_rot
+from quaternion_mul import quaternion_rot, quaternion_conj
 
 def locnet(cnt,features,kernel,quat=False):
     m = Sequential()
@@ -53,11 +55,15 @@ class SpatialTransformer(Layer):
         return input_shape
 
     def call(self, X, mask=None):
-        transform = self.locnet.call(X)
-        if self.quat:
-            return quaternion_rot(X,transform)
+        if type(X) is list:
+            x, y = X
         else:
-            return keras.backend.batch_dot(X, transform)
+            x,y = X, X
+        self.transform = self.locnet.call(x)
+        if self.quat:
+            return quaternion_rot(y,self.transform)
+        else:
+            return keras.backend.batch_dot(y, self.transform)
 
     def get_config(self):
         config = {'cnt':self.cnt,
@@ -81,3 +87,23 @@ if __name__ == "__main__":
     m.fit(x=pos,y=pos,epochs=20,batch_size=32)
     print(pos[0:1])
     print(m.predict(x=pos[0:1]))
+
+class InverseTransform(Layer):
+    def __init__(self,
+                 stn,
+                 **kwargs):
+        self.stn = stn
+        super(InverseTransform, self).__init__(**kwargs)
+    
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
+    def call(self, X, mask=None):
+        if self.stn.quat:
+            return quaternion_rot(X,quaternion_conj(self.stn.transform))
+        else:
+            return keras.backend.batch_dot(X, tf.matrix_inverse(self.stn.transform))
+
+    def get_config(self):
+        config = {'stn':self.stn.get_config() }        
+        return config

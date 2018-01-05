@@ -109,6 +109,9 @@ for i in range(t):
 	if out_path != "":
 		path = out_path % i
 		pp.save(path + "_ps.uni")
+		pV.save(path + "_pv.uni")
+		pD.save(path + "_pd.uni")
+		pP.save(path + "_pP.uni")
 
 		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
 

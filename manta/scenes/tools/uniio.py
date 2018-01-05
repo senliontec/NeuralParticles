@@ -138,7 +138,6 @@ def RP_read_header(bytestream):
     head = namedtuple('UniPartHeader', 'dim, dimX, dimY, dimZ, elementType, bytesPerElement, info, timestamp')
     # convert to namedtuple and then directly to a dict
     head = head._asdict(head._make(struct.unpack('iiiiii256sQ', bytestream.read(288))))
-
     return head
 
 def RP_read_content(bytestream, head, data_type=None): # data_type = {None: BasicParticleSystem; "float32": Real; "int32": Int}

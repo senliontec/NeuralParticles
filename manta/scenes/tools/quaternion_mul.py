@@ -7,6 +7,9 @@ from keras import backend as K
 
 import tensorflow as tf
 
+def quaternion_conj(quat):
+    return quat * np.array([1,-1,-1,-1])
+
 def quaternion_rot(vec, quat):
     def quat_mul(q0,q1):
         w0, x0, y0, z0 = q0

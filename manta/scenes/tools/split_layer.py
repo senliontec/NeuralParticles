@@ -24,5 +24,5 @@ class SplitLayer(Layer):
         return Y
 
     def get_config(self):
-        config = self.layer.get_config()
-        return config
+         config = {'layer':self.layer.get_config()}
+         return config

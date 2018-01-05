@@ -7,7 +7,7 @@
     "h_fac":          4.0,
     "use_tanh":       1,
     "factor":         9,
-    "min_n":          0,
-    "var":            1,
+    "min_n":          3,
+    "var":            5,
     "par_cnt":        50
 }
