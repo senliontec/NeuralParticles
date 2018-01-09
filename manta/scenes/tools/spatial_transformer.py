@@ -58,7 +58,8 @@ class SpatialTransformer(Layer):
         if type(X) is list:
             x, y = X
         else:
-            x,y = X, X
+            x, y = X, X
+        
         self.transform = self.locnet.call(x)
         if self.quat:
             return quaternion_rot(y,self.transform)

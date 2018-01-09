@@ -59,7 +59,7 @@ def particle_range(arr, start, end):
 	return arr
 
 def particle_radius(arr, pos, radius):
-	return arr[np.where(np.linalg.norm(np.subtract(arr,pos), axis=1) < radius)]
+	return np.where(np.linalg.norm(np.subtract(arr,pos), axis=1) < radius)
 
 def insert_patch(data, patch, pos, func):
 	patch_size = patch.shape[0]//2
@@ -70,27 +70,41 @@ def insert_patch(data, patch, pos, func):
 
 	data[0,y0:y1,x0:x1] = func(data[0,y0:y1,x0:x1], patch)
 
-def extract_particles(data, pos, cnt, constraint=None):
+def extract_particles(data, pos, cnt, constraint, aux_data={}):
 	# select the 'cnt'th nearest particles to pos 
-	if constraint != None:
-		'''constraint = constraint//2
-		x0 = pos[0]-constraint
-		x1 = pos[0]+constraint+1
-		y0 = pos[1]-constraint
-		y1 = pos[1]+constraint+1
-		data = particle_range(data, [x0,y0], [x1,y1])
-		if len(data) < cnt:
-			return None'''
-		par = particle_radius(data, pos, constraint)
-		par = np.subtract(par,pos)/constraint
-		if len(par) < cnt:
-			par = np.concatenate((par,np.array([[0,0,0]]*(cnt-len(par)))))
-		np.random.shuffle(par)
-		return par[:cnt]
+	#if constraint != None:
+	'''constraint = constraint//2
+	x0 = pos[0]-constraint
+	x1 = pos[0]+constraint+1
+	y0 = pos[1]-constraint
+	y1 = pos[1]+constraint+1
+	data = particle_range(data, [x0,y0], [x1,y1])
+	if len(data) < cnt:
+		return None'''
+	par_idx = particle_radius(data, pos, constraint)
+	par_pos = np.subtract(data[par_idx],pos)/constraint
+
+	par_aux = {}
+	for k, v in aux_data.items():
+		par_aux[k] = v[par_idx]
 	
-	par = data[np.argpartition(np.linalg.norm(np.subtract(data,pos), axis=1), cnt-1)[:cnt]]
-	par = np.subtract(par,pos)
-	return par[np.argsort(np.linalg.norm(par, axis=1))]
+	if len(par_pos) < cnt:
+		par_pos = np.concatenate((par_pos,np.zeros((cnt-len(par_pos),par_pos.shape[-1]))))
+		for k, v in par_aux.items():
+			par_aux[k] = np.concatenate((v,np.zeros((cnt-len(v),v.shape[-1]))))
+	
+	rnd_idx = np.arange(len(par_pos))
+	np.random.shuffle(rnd_idx)
+	rnd_idx = rnd_idx[:cnt]
+
+	par_pos = par_pos[rnd_idx]
+	for k, v in par_aux.items():
+		par_aux[k] = v[rnd_idx]
+	return par_pos, par_aux
+	
+	#par = data[np.argpartition(np.linalg.norm(np.subtract(data,pos), axis=1), cnt-1)[:cnt]]
+	#par = np.subtract(par,pos)
+	#return par[np.argsort(np.linalg.norm(par, axis=1))]
 
 def extract_patch(data, pos, patch_size):
 	patch_size = patch_size//2
