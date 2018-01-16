@@ -6,36 +6,39 @@ import random
 class ParticleGrid:
     def __init__(self, dimX, dimY, sub_dim):
         self.particles = np.empty((0, 3))
-        self.cells = np.zeros((dimX, dimY), dtype=bool)
+        self.cells = np.ones((dimY, dimX),dtype="float32")
         self.dimX = dimX
         self.dimY = dimY
         self.sub_dim = sub_dim**2
     
-    def sample_cell(self, pos):
+    def sample_cell(self, pos, sd):
         if pos[0] < self.dimX and pos[1] < self.dimY:
-            if not self.cells[int(pos[0]),int(pos[1])]:
-                self.cells[int(pos[0]),int(pos[1])] = True
+            if self.cells[int(pos[1]),int(pos[0])] > 0.0:
                 for i in range(self.sub_dim):
                     r_p = pos + np.random.random((2,))
                     self.particles = np.append(self.particles, np.array([[r_p[0], r_p[1], 0]]), axis=0)
+            
+            self.cells[int(pos[1]),int(pos[0])] = min(sd, self.cells[int(pos[1]),int(pos[0])])
 
     def sample_sphere(self, center, radius):
         for x in range(int(-radius), int(radius)):
             for y in range(int(-radius), int(radius)):
-                if (x**2 + y**2) <= radius**2:
-                    self.sample_cell(np.array([x,y])+center)
+                l = math.sqrt(x**2 + y**2)
+                if l <= radius:
+                    self.sample_cell(np.array([x,y])+center, l-radius)
 
     def sample_quad(self, center, a, b):
         for x in range(int(-a), int(a)):
             for y in range(int(-b), int(b)):
-                self.sample_cell(np.array([x,y]+center))
+                self.sample_cell(np.array([x,y]+center), -min(a-abs(x),b-abs(y)))
 
     def sample_cos_sphere(self, center, radius, cos_cnt, cos_amp):
         for x in range(int(-radius-cos_amp), int(radius+cos_amp)):
             for y in range(int(-radius-cos_amp), int(radius+cos_amp)):
                 l = math.sqrt(x**2 + y**2)
-                if l == 0 or l <= radius+math.cos(math.acos(x/l)*cos_cnt)*cos_amp:
-                    self.sample_cell(np.array([x,y])+center)
+                surf = (radius+math.cos(math.acos(x/l)*cos_cnt)*cos_amp) if l > 0 else radius
+                if l == 0 or l <= surf:
+                    self.sample_cell(np.array([x,y])+center, l-surf)
 
 if __name__ == '__main__':
     fac = 3
