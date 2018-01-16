@@ -2,5 +2,6 @@ build
 *.uni
 *.bin
 *.pyc
+*.so
 doc
 2D_data
