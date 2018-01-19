@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, warnings
 sys.path.append("manta/scenes/tools")
 sys.path.append("hungarian/")
 
@@ -36,11 +36,13 @@ def normals(sdf):
     x = np.expand_dims(x,axis=-1)
     y = np.expand_dims(y,axis=-1)
     g = np.concatenate([x,y],axis=-1)
-    return np.nan_to_num(g/np.linalg.norm(g,axis=-1,keepdims=True))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return np.nan_to_num(g/np.linalg.norm(g,axis=-1,keepdims=True))
 
 def curvature(nor):
-    dif = np.gradient(nor)[0]
-    return np.sum(np.square(dif),axis=1)
+    dif = np.gradient(nor)
+    return (np.linalg.norm(dif[0],axis=-1)+np.linalg.norm(dif[1],axis=-1))/2
 
 def sdf_func(sdf):
     x_v = np.arange(0.5, sdf.shape[0]+0.5)
@@ -134,8 +136,11 @@ fac_2d = 3
 ref_patch_size = patch_size * fac_2d
 stride = 1
 surface = 1.0
-particle_cnt_src = 50 #pre_config['par_cnt']
-particle_cnt_dst = 50
+particle_cnt_src = 100 #pre_config['par_cnt']
+particle_cnt_dst = 100
+
+dim = 50
+h_dim = dim * fac_2d
 
 def in_bound(pos, bnd_min, bnd_max):
     return np.where(np.all([np.all(bnd_min<=pos,axis=-1),np.all(pos<=bnd_max,axis=-1)],axis=0))
@@ -150,8 +155,13 @@ def filter2D(kernlen, s, fac):
 
 def translation(par, nor, fac):
     res = np.empty((0,3))
+    x_v = np.arange(0.5, nor.shape[0]+0.5)
+    y_v = np.arange(0.5, nor.shape[1]+0.5)
+    nor_f = lambda x: np.concatenate([interpolate.interp2d(x_v, y_v, nor[:,:,1])(x[0],x[1]), interpolate.interp2d(x_v, y_v, nor[:,:,0])(x[0],x[1])])
+    #if fac <= 0:
+        #curv = lambda x: interpolate.interp2d(x_v, y_v, curvature(nor))(x[0],x[1])
     for p in par:
-        n = (nor(p[:2]) if trans_mode == 1 else np.array([1,0])) * fac
+        n = (nor_f(p[:2]) if trans_mode == 1 else np.array([1,0])) * fac#(fac if fac > 0 else ((-fac) * curv(p[:2])))
         res = np.append(res,np.array([[p[0]+n[0],p[1]+n[1],p[2]]]), axis=0)
     return res
 
@@ -182,30 +192,9 @@ class RandomParticles:
                 ref_grid.sample_quad(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, self.a[i,1] * self.fac_2d)
             else:
                 src_grid.sample_sphere(self.pos[i], self.a[i,0])
-                ref_grid.sample_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d)
-                #ref_grid.sample_cos_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, self.max_size-self.a[i,0], 3)
+                #ref_grid.sample_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d)
+                ref_grid.sample_cos_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, 6, 3)
         return src_grid, ref_grid
-
-def create_rand_particles(dimX, dimY, fac_2d, max_size, cnt, repeate=1):
-    src_grid = ParticleGrid(dimX, dimY, 2)
-    ref_grid = ParticleGrid(dimX*fac_2d, dimY*fac_2d, 2)
-
-    for i in range(cnt):
-        pos = np.random.random((2,))*np.array([dimX, dimY])
-        cube = random.random() < 0.0
-        a, b = 1+random.random()*(max_size-1), 1+random.random()*(max_size-1)
-        for j in range(repeate):
-            if cube:
-                src_grid.sample_quad(pos, a, b)
-                ref_grid.sample_quad(pos*fac_2d, a*fac_2d, b*fac_2d)
-            else:
-                pos = np.array([25, 25])
-                #a = 10
-                src_grid.sample_sphere(pos, a)
-                ref_grid.sample_sphere(pos*fac_2d, a*fac_2d)
-                #ref_grid.sample_cos_sphere(pos*fac_2d, a*fac_2d, max_size-a, 3)
-
-    return src_grid, ref_grid
 
 def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
     result = np.empty((0,par_cnt,3))
@@ -220,8 +209,8 @@ def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
     i = 0
     for pos in positions:
         par = extract_particles(particle_data_nb, pos, par_cnt, patch_size)[0]
-        sort_idx = sort_particles(par, np.array([sdf_f(p) for p in par]))
-        par = par[sort_idx]
+        #sort_idx = sort_particles(par, np.array([sdf_f(p) for p in par]))
+        #par = par[sort_idx]
 
         if [t,i] in samples:
             size = np.arange(20.0,0.0,-20.0/len(par))
@@ -249,7 +238,7 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
 
     sdf_f, nor_f = sdf_func(np.squeeze(sdf))
     i=0
-    img = np.ones((1,150,150))
+    img = np.ones((1,h_dim,h_dim))
     for pos in positions:
         tmp = np.array([[[np.tanh(4.0*sdf_f(pos[:2]-ps_half+np.array([x,y]))[0]) for y in range(patch_size)] for x in range(patch_size)]])
         res = np.append(res, tmp, axis=0)
@@ -265,17 +254,17 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
             plt.clf()
         i+=1
 
-        if np.all(pos[:2]>ps_half) and np.all(pos[:2]<150-ps_half):
+        if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
             tmp = np.transpose(tmp[0], (1,0)) * circular_filter
             insert_patch(img, tmp, pos.astype(int), elem_min)
 
-    for x in range(150):
-        for y in range(150):
+    for x in range(h_dim):
+        for y in range(h_dim):
             v = img[0,y,x]
             if v <= 0.0:
                 plt.plot(x,y,'b.')
-    plt.xlim([0,150])
-    plt.ylim([0,150])
+    plt.xlim([0,h_dim])
+    plt.ylim([0,h_dim])
     plt.savefig((scr+".png")%t)
     plt.clf()
     return res
@@ -343,18 +332,20 @@ aux_src = {}
 for k in aux_postfix:
     aux_src[k] = np.empty((0, particle_cnt_src, 3 if k == "vel" else 1))
 
-src_gen = RandomParticles(50,50,fac_2d,10,obj_cnt,1.0 if fixed else 0.8)
+src_gen = RandomParticles(dim,dim,fac_2d,15,obj_cnt,1.0 if fixed else 0.8)
 
+data_cnt = var*dataset*(t_end-t_start)*repetitions
 for v in range(var):
     for d in range(dataset):
         for t in range(t_start, t_end):
-            src_gen.gen_random(pos=np.array([25,25]) if fixed else None)
+            src_gen.gen_random(pos=np.array([dim/2,dim/2]) if fixed else None)
             for r in range(repetitions):
+                act_d = r+repetitions*((t-t_start)+(t_end-t_start)*(d+v*dataset))
+                print("Generate Data: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
                 src_data, ref_data = src_gen.get_grid()
 
                 if trans_mode > 0:
-                    nor_f = sdf_func(np.squeeze(ref_data.cells))[1]
-                    ref_data.particles = translation(ref_data.particles, nor_f, trans_fac)
+                    ref_data.particles = translation(ref_data.particles, normals(np.squeeze(ref_data.cells)), trans_fac if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
 
                 res, positions = load_test(src_data, 4/fac_2d, particle_cnt_src, patch_size, l_scr, t)
                 #res, aux_res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, l_scr+"_patch.png", "test/source_%03d.png", t, aux_postfix)
@@ -469,16 +460,19 @@ plt.clf()'''
 
 interm = Model(inputs=inputs, outputs=intermediate)
 
+data_cnt = (t_end-t_start)*repetitions
 for v in range(1):
     for d in range(5,6):
         for t in range(t_start, t_end): 
-            src_gen.gen_random(pos=np.array([[25,25]]) if fixed else None, a=np.array([[10,10]]) if fixed else None)
+            src_gen.gen_random(pos=np.array([[dim/2,dim/2]]) if fixed else None, a=np.array([[t+1,t+1]]) if fixed else None)
             for r in range(repetitions):
+                act_d = r+repetitions*(t-t_start)
+                print("Run Test: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
+
                 src_data, ref_data = src_gen.get_grid()
 
                 if trans_mode > 0:
-                    nor_f = sdf_func(np.squeeze(ref_data.cells))[1]
-                    ref_data.particles = translation(ref_data.particles, nor_f, trans_fac)
+                    ref_data.particles = translation(ref_data.particles, normals(np.squeeze(ref_data.cells)), trans_fac if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
             
                 src, positions = load_test(src_data, 4/fac_2d, particle_cnt_src, patch_size, t_scr, t)
 
@@ -494,7 +488,7 @@ for v in range(1):
 
                 if use_sdf:
                     ps_half = ref_patch_size//2
-                    img = np.ones((1,150,150))
+                    img = np.ones((1,h_dim,h_dim))
                     for i in range(len(result)):
                         tmp = np.arctanh(np.clip(result[i],-.999999,.999999))
                         pos = positions[i]*fac_2d
@@ -510,17 +504,17 @@ for v in range(1):
                             plt.clf()
                         i+=1
 
-                        if np.all(pos[:2]>ps_half) and np.all(pos[:2]<150-ps_half):
+                        if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
                             tmp = np.transpose(tmp, (1,0)) * circular_filter
                             insert_patch(img, tmp, pos.astype(int), elem_min)
 
-                    for x in range(150):
-                        for y in range(150):
+                    for x in range(h_dim):
+                        for y in range(h_dim):
                             v = img[0,y,x]
                             if v <= 0.0:
                                 plt.plot(x,y,'b.')
-                    plt.xlim([0,150])
-                    plt.ylim([0,150])
+                    plt.xlim([0,h_dim])
+                    plt.ylim([0,h_dim])
                     plt.savefig((r_scr+"_r%03d.png")%(t,r))
                     plt.clf()
                 else:
@@ -539,8 +533,8 @@ for v in range(1):
                         img = np.append(img, par, axis=0)
 
                     plt.scatter(img[:,0],img[:,1],s=0.1)
-                    plt.xlim([0,50*fac_2d])
-                    plt.ylim([0,50*fac_2d])
+                    plt.xlim([0,h_dim])
+                    plt.ylim([0,h_dim])
                     plt.savefig((r_scr+"_r%03d.png")%(t,r))
                     plt.clf()
 
