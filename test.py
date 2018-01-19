@@ -2,6 +2,10 @@ import sys, os, warnings
 sys.path.append("manta/scenes/tools")
 sys.path.append("hungarian/")
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 import json
 from shell_script import *
 from helpers import *
@@ -25,7 +29,6 @@ from hungarian_loss import HungarianLoss
 
 from particle_grid import ParticleGrid
 
-import matplotlib.pyplot as plt
 import scipy.ndimage.filters as fi
 
 random.seed(235)
