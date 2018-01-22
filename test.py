@@ -336,7 +336,7 @@ aux_src = {}
 for k in aux_postfix:
     aux_src[k] = np.empty((0, particle_cnt_src, 3 if k == "vel" else 1))
 
-src_gen = RandomParticles(dim,dim,fac_2d,15,obj_cnt,1.0)# if fixed else 0.8)
+src_gen = RandomParticles(dim,dim,fac_2d,dim/3,obj_cnt,1.0)# if fixed else 0.8)
 
 data_cnt = var*dataset*(t_end-t_start)*repetitions
 for v in range(var):

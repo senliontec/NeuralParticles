@@ -12,20 +12,31 @@ class ParticleGrid:
         self.sub_dim = sub_dim**2
     
     def sample_cell(self, pos, sd):
+        res = False
         if pos[0] < self.dimX and pos[1] < self.dimY:
             if self.cells[int(pos[1]),int(pos[0])] > 0.0:
+                res = True
                 for i in range(self.sub_dim):
                     r_p = pos + np.random.random((2,))
                     self.particles = np.append(self.particles, np.array([[r_p[0], r_p[1], 0]]), axis=0)
-            
             self.cells[int(pos[1]),int(pos[0])] = min(sd, self.cells[int(pos[1]),int(pos[0])])
+        return res
 
     def sample_sphere(self, center, radius):
-        for x in range(int(-radius), int(radius)):
-            for y in range(int(-radius), int(radius)):
+        for x in range(int(-radius), int(radius)+1):
+            for y in range(int(-radius), int(radius)+1):
                 l = math.sqrt(x**2 + y**2)
-                if l <= radius:
-                    self.sample_cell(np.array([x,y])+center, l-radius)
+                if l <= (radius+0.7071067812):
+                    if self.sample_cell(np.array([x,y])+center, min(l-radius,0.0)):
+                        del_i = []
+                        for i in range(len(self.particles)-self.sub_dim, len(self.particles)):
+                            p = self.particles[i,:2]-center
+                            dis = np.linalg.norm(p)
+                            if dis > radius:
+                                del_i.append(i)
+                                #self.particles[i,:2] = p * radius/dis + center
+                        self.particles = np.delete(self.particles, del_i, axis=0)
+
 
     def sample_quad(self, center, a, b):
         for x in range(int(-a), int(a)):
