@@ -105,7 +105,7 @@ r_scr = getParam("r_scr", "test/result_t%03d", paramUsed)
 sdf_scr = getParam("sdf_scr", "test/sdf_t%03d", paramUsed)
 sdf_t_scr = getParam("sdf_t_scr", "test/test_sdf_t%03d", paramUsed)
 
-dim = getParam("dim", 50, paramUsed)
+dim = int(getParam("dim", 50, paramUsed))
 
 patch_sample_cnt = int(getParam("samples", 3, paramUsed))
 
