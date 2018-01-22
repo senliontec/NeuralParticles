@@ -196,8 +196,8 @@ class RandomParticles:
                 ref_grid.sample_quad(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, self.a[i,1] * self.fac_2d)
             else:
                 src_grid.sample_sphere(self.pos[i], self.a[i,0])
-                #ref_grid.sample_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d)
-                ref_grid.sample_cos_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, 6, 3)
+                ref_grid.sample_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d)
+                #ref_grid.sample_cos_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, 6, 3)
         return src_grid, ref_grid
 
 def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
