@@ -105,6 +105,8 @@ r_scr = getParam("r_scr", "test/result_t%03d", paramUsed)
 sdf_scr = getParam("sdf_scr", "test/sdf_t%03d", paramUsed)
 sdf_t_scr = getParam("sdf_t_scr", "test/test_sdf_t%03d", paramUsed)
 
+dim = getParam("dim", 50, paramUsed)
+
 patch_sample_cnt = int(getParam("samples", 3, paramUsed))
 
 t_start = int(getParam("t_start", -1, paramUsed))
@@ -142,7 +144,6 @@ surface = 1.0
 particle_cnt_src = 100 #pre_config['par_cnt']
 particle_cnt_dst = 100
 
-dim = 50
 h_dim = dim * fac_2d
 
 def in_bound(pos, bnd_min, bnd_max):
@@ -335,7 +336,7 @@ aux_src = {}
 for k in aux_postfix:
     aux_src[k] = np.empty((0, particle_cnt_src, 3 if k == "vel" else 1))
 
-src_gen = RandomParticles(dim,dim,fac_2d,15,obj_cnt,1.0 if fixed else 0.8)
+src_gen = RandomParticles(dim,dim,fac_2d,15,obj_cnt,1.0)# if fixed else 0.8)
 
 data_cnt = var*dataset*(t_end-t_start)*repetitions
 for v in range(var):
