@@ -13,6 +13,7 @@ from uniio import *
 
 import scipy
 from scipy import interpolate
+from sklearn.cluster import KMeans
 
 import keras
 from keras import losses
@@ -33,6 +34,24 @@ import scipy.ndimage.filters as fi
 
 random.seed(235)
 np.random.seed(694)
+
+import keras.backend as K
+import tensorflow as tf
+def density_loss(y_true, y_pred):
+    sh = [s for s in y_pred.get_shape()]
+    sh[0] = 32
+
+    y_pred.set_shape(sh)
+    y_true.set_shape(sh)
+
+    m_pred = K.expand_dims(y_pred,axis=2)
+
+    m_pred_t = K.permute_dimensions(m_pred,(0,2,1,3))
+
+    cost = K.sum(K.square(m_pred - m_pred_t),axis=-1) # K.sqrt(...)
+    dens = K.sum(K.exp(-cost), axis=-1)
+
+    return tf.reciprocal(dens)#tf.stack([K.sum(K.map_fn(kernel,K.flatten(c))) for c in tf.unstack(cost)])
 
 def normals(sdf):
     x,y = np.gradient(sdf)
@@ -443,7 +462,7 @@ model = Model(inputs=inputs, outputs=out)#[inputs, aux_input], outputs=out)
 if use_sdf:
     model.compile(loss='mse', optimizer=keras.optimizers.adam(lr=0.001))
 else:
-    model.compile(loss=HungarianLoss(batch_size).hungarian_loss, optimizer=keras.optimizers.adam(lr=0.001))
+    model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=lambda x,y: (density_loss(x,y) + 0.5*HungarianLoss(batch_size).hungarian_loss(x,y)))#HungarianLoss(batch_size).hungarian_loss)
         
 #model.summary()
 #[src,aux_src['vel']]
@@ -465,6 +484,7 @@ plt.clf()'''
 interm = Model(inputs=inputs, outputs=intermediate)
 
 data_cnt = (t_end-t_start)*repetitions
+#kmeans = KMeans(n_clusters=10)
 for v in range(1):
     for d in range(5,6):
         for t in range(t_start, t_end): 
@@ -525,15 +545,26 @@ for v in range(1):
                     img = np.empty((0,3))
 
                     for i in range(len(result)):
-                        par = np.add(result[i]*ref_patch_size, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.])
+                        #kmeans.fit(result[i,:,:2])
+                        #par = np.append(kmeans.cluster_centers_, np.zeros((10,1)), axis=1)
+                        par = result[i]#,:10]
 
                         if [t,i] in samples:
-                            size = np.arange(20.0,0.0,-20.0/len(par))
+                            size = np.arange(20.0,0.0,-20.0/len(result[i]))
                             plt.scatter(result[i,:,0],result[i,:,1],s=size)
                             plt.xlim([-1,1])
                             plt.ylim([-1,1])
                             plt.savefig((r_scr+"_i%03d_patch.png")%(t,i))
                             plt.clf()
+
+                            size = np.arange(20.0,0.0,-20.0/len(par))
+                            plt.scatter(par[:,0],par[:,1],s=size)
+                            plt.xlim([-1,1])
+                            plt.ylim([-1,1])
+                            plt.savefig((r_scr+"_i%03d_patch_.png")%(t,i))
+                            plt.clf()
+                        
+                        par = np.add(par*ref_patch_size, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.])
                         img = np.append(img, par, axis=0)
 
                     plt.scatter(img[:,0],img[:,1],s=0.1)
