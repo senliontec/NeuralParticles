@@ -154,14 +154,14 @@ if t_end < 0:
 samples = [[random.randint(t_start, t_end-1), random.randint(0, 20)] for i in range(patch_sample_cnt)]
 print(samples)
 
-patch_size = 5#pre_config['patch_size']
+patch_size = 10#pre_config['patch_size']
 fac = 9
 fac_2d = 3
-ref_patch_size = patch_size * fac_2d
+ref_patch_size = patch_size# * fac_2d
 stride = 1
 surface = 1.0
-particle_cnt_src = 100 #pre_config['par_cnt']
-particle_cnt_dst = 100
+particle_cnt_src = 200 #pre_config['par_cnt']
+particle_cnt_dst = 200
 
 h_dim = dim * fac_2d
 
@@ -462,7 +462,7 @@ model = Model(inputs=inputs, outputs=out)#[inputs, aux_input], outputs=out)
 if use_sdf:
     model.compile(loss='mse', optimizer=keras.optimizers.adam(lr=0.001))
 else:
-    model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=lambda x,y: (density_loss(x,y) + 0.5*HungarianLoss(batch_size).hungarian_loss(x,y)))#HungarianLoss(batch_size).hungarian_loss)
+    model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=lambda x,y: HungarianLoss(batch_size).hungarian_loss(x,y))#HungarianLoss(batch_size).hungarian_loss)
         
 #model.summary()
 #[src,aux_src['vel']]
