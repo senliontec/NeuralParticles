@@ -154,14 +154,14 @@ if t_end < 0:
 samples = [[random.randint(t_start, t_end-1), random.randint(0, 20)] for i in range(patch_sample_cnt)]
 print(samples)
 
-patch_size = 10#pre_config['patch_size']
+patch_size = 5#pre_config['patch_size']
 fac = 9
 fac_2d = 3
-ref_patch_size = patch_size# * fac_2d
+ref_patch_size = patch_size * fac_2d
 stride = 1
 surface = 1.0
-particle_cnt_src = 200 #pre_config['par_cnt']
-particle_cnt_dst = 200
+particle_cnt_src = 100 #pre_config['par_cnt']
+particle_cnt_dst = 100
 
 h_dim = dim * fac_2d
 
@@ -222,6 +222,12 @@ class RandomParticles:
 def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
     result = np.empty((0,par_cnt,3))
     particle_data_nb = grid.particles[in_bound(grid.particles[:,:2], bnd, grid.dimX-bnd)]
+
+    plt.scatter(particle_data_nb[:,0],particle_data_nb[:,1],s=0.1)
+    plt.xlim([0,grid.dimX])
+    plt.ylim([0,grid.dimY])
+    plt.savefig((scr+"_not_accum.png")%(t))
+    plt.clf()
 
     sdf_f, nor_f = sdf_func(np.squeeze(grid.cells))
 
@@ -385,8 +391,8 @@ for v in range(var):
                 else:
                     dst = np.append(dst, res, axis=0)
 
-fac = 64
-k = 1024
+fac = 16
+k = 256
 dropout = 1.0
 batch_size = train_config['batch_size']
 epochs = 3 # train_config['epochs']
@@ -448,6 +454,15 @@ else:
     x = Reshape((particle_cnt_dst,3))(x)
     out = InverseTransform(stn)(x)
 
+    '''print(x.get_shape())
+    x = Reshape((4,4,64))(x)
+    print(x.get_shape())
+    x = Conv2DTranspose(filters=16,kernel_size=3,strides=2, activation='tanh', padding='same')(x)
+    print(x.get_shape())
+    x = Conv2DTranspose(filters=3, kernel_size=3,strides=2, activation='tanh', padding='same')(x)
+    print(x.get_shape())
+    out = x'''
+
 '''side = int(math.sqrt(particle_cnt_src))
 x = Reshape((side, side, fac))(x)
 
@@ -464,7 +479,7 @@ if use_sdf:
 else:
     model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=lambda x,y: HungarianLoss(batch_size).hungarian_loss(x,y))#HungarianLoss(batch_size).hungarian_loss)
         
-#model.summary()
+model.summary()
 #[src,aux_src['vel']]
 #history=model.fit(x=src,y=dst,epochs=epochs,batch_size=batch_size)
 history=model.fit(x=src,y=(sdf_dst if use_sdf else dst),epochs=epochs,batch_size=batch_size)
@@ -482,7 +497,6 @@ plt.savefig("%s/loss.png"%prefix)
 plt.clf()'''
 
 interm = Model(inputs=inputs, outputs=intermediate)
-
 data_cnt = (t_end-t_start)*repetitions
 #kmeans = KMeans(n_clusters=10)
 for v in range(1):
