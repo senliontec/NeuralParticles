@@ -3,7 +3,7 @@ sys.path.append("manta/scenes/tools")
 sys.path.append("hungarian/")
 
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import json
@@ -457,7 +457,10 @@ x = add(x)
 if use_sdf:
     x = Flatten()(x)
     x = Dropout(dropout)(x)
-    x = Dense(ref_patch_size*ref_patch_size*2, activation='tanh')(x)
+
+    b = np.zeros(ref_patch_size*ref_patch_size*2, dtype='float32')
+    W = np.zeros((k, ref_patch_size*ref_patch_size*2), dtype='float32')
+    x = Dense(ref_patch_size*ref_patch_size*2, activation='tanh', weights=[W,b])(x)
 
     out = Reshape((ref_patch_size, ref_patch_size, 2))(x)
 
