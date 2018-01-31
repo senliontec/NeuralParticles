@@ -3,7 +3,7 @@ sys.path.append("manta/scenes/tools")
 sys.path.append("hungarian/")
 
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import json
@@ -77,7 +77,7 @@ def sdf_func(sdf):
             v = sdf_f([i,j])
             if v < 0.0:
                 n = nor_f([i,j])
-                plt.plot(i,j,'bo')
+                #plt.plot(i,j,'bo')
                 plt.plot([i,i+n[0]],[j,j+n[1]], '.-')
     plt.xlim([0,sdf.shape[0]])
     plt.ylim([0,sdf.shape[1]])
@@ -192,6 +192,8 @@ circular_filter = np.reshape(filter2D(ref_patch_size, ref_patch_size*0.2, 500), 
 
 elem_min = np.vectorize(lambda x,y: min(x,y))
 
+elem_avg = np.vectorize(lambda x,y: y)
+
 class RandomParticles:
     def __init__(self, dimX, dimY, fac_2d, max_size, cnt, cube_prob):
         self.dimX = dimX
@@ -262,21 +264,24 @@ def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
     return result, positions
 
 def sdf_patches(sdf, positions, patch_size, scr, t):
-    res = np.empty((0,ref_patch_size, ref_patch_size))
+    res = np.empty((0,patch_size, patch_size, 2))
     ps_half = patch_size // 2
 
     sdf_f, nor_f = sdf_func(np.squeeze(sdf))
     i=0
-    img = np.ones((1,h_dim,h_dim))
+    img = np.zeros((1,h_dim,h_dim,2))
     for pos in positions:
-        tmp = np.array([[[np.tanh(4.0*sdf_f(pos[:2]-ps_half+np.array([x,y]))[0]) for y in range(patch_size)] for x in range(patch_size)]])
+        tmp = np.array([[[nor_f(pos[:2]-ps_half+np.array([x,y])) for x in range(patch_size)] for y in range(patch_size)]])
+        #np.array([[[np.tanh(4.0*sdf_f(pos[:2]-ps_half+np.array([x,y]))[0]) for y in range(patch_size)] for x in range(patch_size)]])
         res = np.append(res, tmp, axis=0)
-        if [t,i] in samples:
+
+        if [t,i] in samples:# or True:
             for x in range(patch_size):
                 for y in range(patch_size):
-                    v = tmp[0,x,y]
-                    if v <= 0.0:
-                        plt.plot(x,y,'bo')
+                    v = tmp[0,y,x]
+                    plt.plot([x,x+v[0]],[y,y+v[1]], '.-')
+                    #if v <= 0.0:
+                    #    plt.plot(x,y,'bo')
             plt.xlim([0,patch_size])
             plt.ylim([0,patch_size])
             plt.savefig((scr+"_i%03d_patch.png")%(t,i))
@@ -284,14 +289,27 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
         i+=1
 
         if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
-            tmp = np.transpose(tmp[0], (1,0)) * circular_filter
-            insert_patch(img, tmp, pos.astype(int), elem_min)
+            #tmp = np.transpose(tmp[0], (1,0)) * circular_filter
+            #insert_patch(img, tmp, pos.astype(int), elem_min)
+            insert_patch(img, tmp[0], pos.astype(int), elem_avg)
 
-    for x in range(h_dim):
-        for y in range(h_dim):
+        '''for x in range(0,h_dim,2):
+            for y in range(0,h_dim,2):
+                v = img[0,y,x]
+                plt.plot([x,x+v[0]],[y,y+v[1]], '-')
+                #if v <= 0.0:
+                #    plt.plot(x,y,'b.')
+        plt.xlim([0,h_dim])
+        plt.ylim([0,h_dim])
+        plt.savefig((scr+"_i%03d.png")%(t,i-1))
+        plt.clf()'''
+
+    for x in range(0,h_dim,2):
+        for y in range(0,h_dim,2):
             v = img[0,y,x]
-            if v <= 0.0:
-                plt.plot(x,y,'b.')
+            plt.plot([x,x+v[0]],[y,y+v[1]], '-')
+            #if v <= 0.0:
+            #    plt.plot(x,y,'b.')
     plt.xlim([0,h_dim])
     plt.ylim([0,h_dim])
     plt.savefig((scr+".png")%t)
@@ -351,7 +369,7 @@ dst_file = "%s_%s"%(data_config['prefix'], data_config['id']) + "_d%03d_%03d"
 src = np.empty((0,particle_cnt_src,3))
 dst = np.empty((0,particle_cnt_dst,3))
 
-sdf_dst = np.empty((0,ref_patch_size, ref_patch_size))
+sdf_dst = np.empty((0,ref_patch_size, ref_patch_size,2))
 
 aux_postfix = {
     #"vel":"v"
@@ -439,9 +457,10 @@ x = add(x)
 if use_sdf:
     x = Flatten()(x)
     x = Dropout(dropout)(x)
-    x = Dense(ref_patch_size*ref_patch_size, activation='tanh')(x)
+    x = Dense(ref_patch_size*ref_patch_size*2, activation='tanh')(x)
 
-    out = Reshape((ref_patch_size, ref_patch_size))(x)
+    out = Reshape((ref_patch_size, ref_patch_size, 2))(x)
+
 else:
     x = Flatten()(x)
     x = Dropout(dropout)(x)
@@ -526,16 +545,17 @@ for v in range(1):
 
                 if use_sdf:
                     ps_half = ref_patch_size//2
-                    img = np.ones((1,h_dim,h_dim))
+                    img = np.zeros((1,h_dim,h_dim,2))
                     for i in range(len(result)):
-                        tmp = np.arctanh(np.clip(result[i],-.999999,.999999))
+                        tmp = result[i]#np.arctanh(np.clip(result[i],-.999999,.999999))
                         pos = positions[i]*fac_2d
                         if [t,i] in samples:
                             for x in range(ref_patch_size):
                                 for y in range(ref_patch_size):
-                                    v = tmp[x,y]
-                                    if v <= 0.0:
-                                        plt.plot(x,y,'bo')
+                                    v = tmp[y,x]
+                                    plt.plot([x,x+v[0]],[y,y+v[1]], '.-')
+                                    #if v <= 0.0:
+                                    #    plt.plot(x,y,'bo')
                             plt.xlim([0,ref_patch_size])
                             plt.ylim([0,ref_patch_size])
                             plt.savefig((r_scr+"_i%03d_patch.png")%(t,i))
@@ -543,14 +563,16 @@ for v in range(1):
                         i+=1
 
                         if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
-                            tmp = np.transpose(tmp, (1,0)) * circular_filter
-                            insert_patch(img, tmp, pos.astype(int), elem_min)
+                            #tmp = np.transpose(tmp, (1,0)) * circular_filter
+                            #insert_patch(img, tmp, pos.astype(int), elem_min)
+                            insert_patch(img, tmp[0], pos.astype(int), elem_avg)
 
-                    for x in range(h_dim):
-                        for y in range(h_dim):
+                    for x in range(0,h_dim,2):
+                        for y in range(0,h_dim,2):
                             v = img[0,y,x]
-                            if v <= 0.0:
-                                plt.plot(x,y,'b.')
+                            plt.plot([x,x+v[0]],[y,y+v[1]], '-')
+                            #if v <= 0.0:
+                            #    plt.plot(x,y,'b.')
                     plt.xlim([0,h_dim])
                     plt.ylim([0,h_dim])
                     plt.savefig((r_scr+"_r%03d.png")%(t,r))
