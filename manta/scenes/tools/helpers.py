@@ -53,10 +53,8 @@ def backupSources(name):
 	callfile.close();
 
 
-def particle_range(arr, start, end):
-	for i in range(len(start)):
-		arr = arr[np.where((arr[:,i]>=start[i])&(arr[:,i]<=end[i]))]
-	return arr
+def particle_range(arr, pos, r):
+	return np.where(np.all(np.abs(np.subtract(arr,pos)) < r, axis=-1))
 
 def particle_radius(arr, pos, radius):
 	return np.where(np.linalg.norm(np.subtract(arr,pos), axis=1) < radius)

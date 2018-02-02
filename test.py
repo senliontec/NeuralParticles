@@ -160,8 +160,8 @@ fac_2d = 3
 ref_patch_size = patch_size * fac_2d
 stride = 1
 surface = 1.0
-particle_cnt_src = 100 #pre_config['par_cnt']
-particle_cnt_dst = 100
+particle_cnt_src = 50 #pre_config['par_cnt']
+particle_cnt_dst = 200
 
 h_dim = dim * fac_2d
 
@@ -275,7 +275,7 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
         #np.array([[[np.tanh(4.0*sdf_f(pos[:2]-ps_half+np.array([x,y]))[0]) for y in range(patch_size)] for x in range(patch_size)]])
         res = np.append(res, tmp, axis=0)
 
-        if [t,i] in samples:# or True:
+        if [t,i] in samples:
             for x in range(patch_size):
                 for y in range(patch_size):
                     v = tmp[0,y,x]
@@ -501,7 +501,7 @@ if use_sdf:
 else:
     model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=lambda x,y: HungarianLoss(batch_size).hungarian_loss(x,y))#HungarianLoss(batch_size).hungarian_loss)
         
-model.summary()
+#model.summary()
 #[src,aux_src['vel']]
 #history=model.fit(x=src,y=dst,epochs=epochs,batch_size=batch_size)
 history=model.fit(x=src,y=(sdf_dst if use_sdf else dst),epochs=epochs,batch_size=batch_size)
@@ -588,7 +588,7 @@ for v in range(1):
                         #par = np.append(kmeans.cluster_centers_, np.zeros((10,1)), axis=1)
                         par = result[i]#,:10]
 
-                        if [t,i] in samples:
+                        if [t,i] in samples or True:
                             size = np.arange(20.0,0.0,-20.0/len(result[i]))
                             plt.scatter(result[i,:,0],result[i,:,1],s=size)
                             plt.xlim([-1,1])
@@ -596,12 +596,12 @@ for v in range(1):
                             plt.savefig((r_scr+"_i%03d_patch.png")%(t,i))
                             plt.clf()
 
-                            size = np.arange(20.0,0.0,-20.0/len(par))
+                            '''size = np.arange(20.0,0.0,-20.0/len(par))
                             plt.scatter(par[:,0],par[:,1],s=size)
                             plt.xlim([-1,1])
                             plt.ylim([-1,1])
                             plt.savefig((r_scr+"_i%03d_patch_.png")%(t,i))
-                            plt.clf()
+                            plt.clf()'''
                         
                         par = np.add(par*ref_patch_size, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.])
                         img = np.append(img, par, axis=0)
