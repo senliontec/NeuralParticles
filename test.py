@@ -160,8 +160,8 @@ fac_2d = 3
 ref_patch_size = patch_size * fac_2d
 stride = 1
 surface = 1.0
-particle_cnt_src = 50 #pre_config['par_cnt']
-particle_cnt_dst = 200
+particle_cnt_src = 100 #pre_config['par_cnt']
+particle_cnt_dst = 100
 
 h_dim = dim * fac_2d
 
