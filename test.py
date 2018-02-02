@@ -588,7 +588,7 @@ for v in range(1):
                         #par = np.append(kmeans.cluster_centers_, np.zeros((10,1)), axis=1)
                         par = result[i]#,:10]
 
-                        if [t,i] in samples or True:
+                        if [t,i] in samples:# or True:
                             size = np.arange(20.0,0.0,-20.0/len(result[i]))
                             plt.scatter(result[i,:,0],result[i,:,1],s=size)
                             plt.xlim([-1,1])
