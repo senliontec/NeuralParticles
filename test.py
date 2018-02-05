@@ -204,9 +204,9 @@ class RandomParticles:
         self.cube_prob = cube_prob
     
     def gen_random(self, pos=None, cube=None, a=None):
-        self.pos = np.random.random((self.cnt,2))*np.array([self.dimX, self.dimY]) if pos is None else pos
+        self.pos = np.random.random((self.cnt,2))*np.array([self.dimX+1, self.dimY+1]) if pos is None else pos
         self.cube = np.random.random((self.cnt,)) > self.cube_prob if cube is None else cube
-        self.a = 1+np.random.random((self.cnt,2))*(self.max_size-1) if a is None else a
+        self.a = 10+np.random.random((self.cnt,2))*(self.max_size-1) if a is None else a
 
     def get_grid(self):
         src_grid = ParticleGrid(self.dimX, self.dimY, 2)
@@ -235,6 +235,12 @@ def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
 
     if positions is None:
         positions = particle_data_nb[in_surface(np.array([sdf_f(p) for p in particle_data_nb]))[0]]
+
+    plt.scatter(positions[:,0],positions[:,1],s=0.1)
+    plt.xlim([0,grid.dimX])
+    plt.ylim([0,grid.dimY])
+    plt.savefig((scr + "_pos.png") % t)
+    plt.clf()
 
     img = np.empty((0,3))
     i = 0
@@ -385,7 +391,7 @@ data_cnt = var*dataset*(t_end-t_start)*repetitions
 for v in range(var):
     for d in range(dataset):
         for t in range(t_start, t_end):
-            src_gen.gen_random(pos=np.array([dim/2,dim/2]) if fixed else None)
+            src_gen.gen_random(pos=np.array([dim/2+0.5,dim/2+0.5]) if fixed else None)
             for r in range(repetitions):
                 act_d = r+repetitions*((t-t_start)+(t_end-t_start)*(d+v*dataset))
                 print("Generate Data: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   

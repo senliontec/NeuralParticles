@@ -14,12 +14,14 @@ class ParticleGrid:
     def sample_cell(self, pos, sd):
         res = False
         if pos[0] < self.dimX and pos[1] < self.dimY:
-            if self.cells[int(pos[1]),int(pos[0])] > 0.0:
+            c_y = int(pos[1])
+            c_x = int(pos[0])
+            if self.cells[c_y,c_x] > 0.0:
                 res = True
                 for i in range(self.sub_dim):
                     r_p = pos + np.random.random((2,))
                     self.particles = np.append(self.particles, np.array([[r_p[0], r_p[1], 0]]), axis=0)
-            self.cells[int(pos[1]),int(pos[0])] = min(sd, self.cells[int(pos[1]),int(pos[0])])
+            self.cells[c_y,c_x] = min(sd, self.cells[c_y,c_x])
         return res
 
     def sample_sphere(self, center, radius):
