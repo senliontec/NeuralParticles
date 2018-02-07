@@ -288,7 +288,7 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
                 for y in range(patch_size):
                     v = tmp[0,y,x]
                     if nor_out:
-                        plt.plot([x,x+v[0]],[y,y+v[1]], '.-')
+                        plt.plot([x,x+v[0]],[y,y+v[1]], '-')
                     elif v <= 0.0:
                         plt.plot(x,y,'bo')
             plt.xlim([0,patch_size])
@@ -316,7 +316,7 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
         for y in range(0,h_dim,2):
             v = img[0,y,x]
             if nor_out:
-                plt.plot([x,x+v[0]],[y,y+v[1]], '.-')
+                plt.plot([x,x+v[0]],[y,y+v[1]], '-')
             elif v <= 0.0:
                 plt.plot(x,y,'bo')
     plt.xlim([0,h_dim])
@@ -560,7 +560,7 @@ else:
             sdf = K.reshape(x[:,particle_cnt_dst*3:], (batch_size, ref_patch_size, ref_patch_size))
             y = K.reshape(y, (batch_size, particle_cnt_dst, 3))
 
-            return HungarianLoss(batch_size).hungarian_loss(pos,y) + 0.2*sdf_particle_loss(sdf,y)
+            return HungarianLoss(batch_size).hungarian_loss(pos,y) #+ sdf_particle_loss(sdf,y)
 
         train_model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=comb_loss)
         history=train_model.fit(x=src,y=g_tr,epochs=epochs,batch_size=batch_size)
@@ -583,7 +583,7 @@ plt.savefig("%s/loss.png"%prefix)
 plt.clf()'''
 
 interm = Model(inputs=inputs, outputs=intermediate)
-invm = Model(inputs=inputs, outputs=inv_trans)
+#invm = Model(inputs=inputs, outputs=inv_trans)
 data_cnt = (t_end-t_start)*repetitions
 #kmeans = KMeans(n_clusters=10)
 for v in range(1):
@@ -603,28 +603,29 @@ for v in range(1):
 
                 ref = load_test(ref_data, 4, particle_cnt_dst, ref_patch_size, h_t_scr, t, positions*fac_2d)[0]
 
-                sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_t_scr, t)
+                sdf_ref = sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_t_scr, t)
                 
                 #src, aux_src, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, t_scr+"_patch.png", "test/test_%03d.png", t, aux_postfix)
 
                 result = model.predict(x=src,batch_size=batch_size)
                 inter_result = interm.predict(x=src,batch_size=batch_size)
-                inv_result = invm.predict(x=src,batch_size=batch_size)
+                #inv_result = invm.predict(x=src,batch_size=batch_size)
                 print(stn.locnet.predict(x=src,batch_size=batch_size))
 
                 if use_sdf:
                     ps_half = ref_patch_size//2
                     img = np.zeros((1,h_dim,h_dim,2)) if nor_out else np.ones((1,h_dim,h_dim))
+                    ref_img = np.zeros((1,h_dim,h_dim,2)) if nor_out else np.ones((1,h_dim,h_dim))
+
                     for i in range(len(result)):
-                        tmp = result[i]#np.arctanh(np.clip(result[i],-.999999,.999999))
-                        inter_tmp = inter_result[i]
+                        tmp = result[i] if nor_out else np.arctanh(np.clip(result[i],-.999999,.999999))
                         pos = positions[i]*fac_2d
                         if [t,i] in samples:
                             for x in range(ref_patch_size):
                                 for y in range(ref_patch_size):
                                     v = tmp[y,x]
                                     if nor_out:
-                                        plt.plot([x,x+v[0]],[y,y+v[1]], '.-')
+                                        plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
                                     elif v <= 0.0:
                                         plt.plot(x,y,'bo')
                             plt.xlim([0,ref_patch_size])
@@ -632,31 +633,30 @@ for v in range(1):
                             plt.savefig((r_scr+"_i%03d_patch.png")%(t,i))
                             plt.clf()
 
-                            for x in range(ref_patch_size):
-                                for y in range(ref_patch_size):
-                                    v = inter_tmp[y,x]
-                                    if nor_out:
-                                        plt.plot([x,x+v[0]],[y,y+v[1]], '.-')
-                                    elif v <= 0.0:
-                                        plt.plot(x,y,'bo')
-                            plt.xlim([0,ref_patch_size])
-                            plt.ylim([0,ref_patch_size])
+                            plt.scatter(inter_result[i,:,0],inter_result[i,:,1],s=5)
+                            plt.xlim([-1,1])
+                            plt.ylim([-1,1])
                             plt.savefig((r_scr+"_i%03d_inter_patch.png")%(t,i))
                             plt.clf()
-                        i+=1
 
                         if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
-                            #tmp = np.transpose(tmp, (1,0)) * circular_filter
-                            #insert_patch(img, tmp, pos.astype(int), elem_min)
-                            insert_patch(img, tmp[0], pos.astype(int), elem_avg)
+                            tmp = tmp[0] if nor_out else np.transpose(tmp[0], (1,0)) * circular_filter
+                            insert_patch(img, tmp, pos.astype(int), elem_avg if nor_out else elem_min)
+                            insert_patch(ref_img, sdf_ref[i], pos.astype(int), elem_avg if nor_out else elem_min)
 
                     for x in range(0,h_dim,2):
                         for y in range(0,h_dim,2):
                             v = img[0,y,x]
                             if nor_out:
-                                plt.plot([x,x+v[0]],[y,y+v[1]], '.-')
+                                plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
                             elif v <= 0.0:
                                 plt.plot(x,y,'bo')
+                            v = ref_img[0,y,x]
+                            #if nor_out:
+                            #    plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
+                            #elif v <= 0.0:
+                            #    plt.plot(x,y,'ro')
+
                     plt.xlim([0,h_dim])
                     plt.ylim([0,h_dim])
                     plt.savefig((r_scr+"_r%03d.png")%(t,r))
@@ -684,11 +684,11 @@ for v in range(1):
                             plt.savefig((r_scr+"_i%03d_inter_patch.png")%(t,i))
                             plt.clf()
 
-                            plt.scatter(inv_result[i,:,0],inv_result[i,:,1],s=5)
+                            '''plt.scatter(inv_result[i,:,0],inv_result[i,:,1],s=5)
                             plt.xlim([-1,1])
                             plt.ylim([-1,1])
                             plt.savefig((r_scr+"_i%03d_inv_patch.png")%(t,i))
-                            plt.clf()
+                            plt.clf()'''
                         
                         par = np.add(par*ref_patch_size, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.])
                         img = np.append(img, par, axis=0)
