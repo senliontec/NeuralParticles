@@ -28,7 +28,7 @@ class ParticleGrid:
         for x in range(int(-radius), int(radius)+1):
             for y in range(int(-radius), int(radius)+1):
                 l = math.sqrt(x**2 + y**2)
-                if l <= (radius+0.7071067812):
+                if l <= (radius+1):
                     if self.sample_cell(np.array([x,y])+center, min(l-radius,0.0)):
                         del_i = []
                         for i in range(len(self.particles)-self.sub_dim, len(self.particles)):
