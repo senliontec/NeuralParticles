@@ -132,8 +132,8 @@ patch_sample_cnt = int(getParam("samples", 3, paramUsed))
 t_start = int(getParam("t_start", -1, paramUsed))
 t_end = int(getParam("t_end", -1, paramUsed))
 
-nor_out = True
-sdf_loss = True
+nor_out = int(getParam("nor_out", 0, paramUsed)) != 0
+sdf_loss = int(getParam("sdf_loss", 0, paramUsed)) != 0
 
 checkUnusedParam(paramUsed)
 
@@ -472,7 +472,7 @@ inputs = Input((particle_cnt_src,3), name="main")
 
 x = Dropout(dropout)(inputs)
 stn = SpatialTransformer(particle_cnt_src,quat=True)
-intermediate = stn(x)
+intermediate = x#stn(x)
 
 x = intermediate
 #x = concatenate([intermediate, stn([x,aux_input])],axis=-1)
@@ -521,7 +521,7 @@ if not use_sdf:
 
     x = Reshape((particle_cnt_dst,3))(x)
     inv_trans = x
-    out = InverseTransform(stn)(x)
+    out = x#InverseTransform(stn)(x)
 
     '''print(x.get_shape())
     x = Reshape((4,4,64))(x)
