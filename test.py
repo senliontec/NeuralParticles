@@ -132,8 +132,8 @@ patch_sample_cnt = int(getParam("samples", 3, paramUsed))
 t_start = int(getParam("t_start", -1, paramUsed))
 t_end = int(getParam("t_end", -1, paramUsed))
 
-nor_out = False
-sdf_loss = False
+nor_out = True
+sdf_loss = True
 
 checkUnusedParam(paramUsed)
 
@@ -298,7 +298,7 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
         i+=1
 
         if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
-            tmp = tmp[0] if nor_out else np.transpose(tmp[0], (1,0)) * circular_filter
+            tmp = tmp[0] if nor_out else tmp[0] * circular_filter
             insert_patch(img, tmp, pos.astype(int), elem_avg if nor_out else elem_min)
 
         '''for x in range(0,h_dim,2):
@@ -496,10 +496,10 @@ x = SplitLayer(Dense(fac*2, activation='tanh'))(x)
 x = SplitLayer(Dropout(dropout))(x)
 x = SplitLayer(Dense(k, activation='tanh'))(x)
 
-x = add(x)
+features = add(x)
 
-if use_sdf:
-    x = Flatten()(x)
+if use_sdf or sdf_loss:
+    x = Flatten()(features)
     x = Dropout(dropout)(x)
 
     c = 2 if nor_out else 1
@@ -508,10 +508,10 @@ if use_sdf:
     W = np.zeros((k, ref_patch_size*ref_patch_size*c), dtype='float32')
     x = Dense(ref_patch_size*ref_patch_size*c, activation='tanh', weights=[W,b])(x)
 
-    out = Reshape((ref_patch_size, ref_patch_size, c) if nor_out else (ref_patch_size, ref_patch_size))(x)
+    out_sdf = Reshape((ref_patch_size, ref_patch_size, c) if nor_out else (ref_patch_size, ref_patch_size))(x)
 
-else:
-    x = Flatten()(x)
+if not use_sdf:
+    x = Flatten()(features)
     x = Dropout(dropout)(x)
     x = Dense(fac*8, activation='tanh')(x)
     x = Dropout(dropout)(x)
@@ -541,14 +541,18 @@ x = Conv2DTranspose(filters=16, kernel_size=3,
 x = Conv2DTranspose(filters=9, kernel_size=3, 
                     strides=1, activation='tanh', padding='same')(x)'''
 
-model = Model(inputs=inputs, outputs=out)#[inputs, aux_input], outputs=out)
-
 if use_sdf:
+    model = Model(inputs=inputs, outputs=out_sdf)#[inputs, aux_input], outputs=out)
     model.compile(loss='mse', optimizer=keras.optimizers.adam(lr=0.001))
     history=model.fit(x=src,y=sdf_dst,epochs=epochs,batch_size=batch_size)
 else:
     if sdf_loss:
-        train_model = Model(inputs=inputs, outputs=Flatten()(out))
+        model = Model(inputs=inputs, output=[out, out_sdf])
+        model.compile(loss=[HungarianLoss(batch_size).hungarian_loss, 'mse'], optimizer=keras.optimizers.adam(lr=0.001))
+
+        history=model.fit(x=src,y=[dst, sdf_dst],epochs=epochs,batch_size=batch_size)
+
+        '''train_model = Model(inputs=inputs, outputs=Flatten()(out))
 
         g_tr = np.concatenate([np.reshape(dst, (dst.shape[0], particle_cnt_dst*3)), np.reshape(sdf_dst, (sdf_dst.shape[0], ref_patch_size*ref_patch_size))], axis=-1)
 
@@ -563,7 +567,7 @@ else:
             return HungarianLoss(batch_size).hungarian_loss(pos,y) #+ sdf_particle_loss(sdf,y)
 
         train_model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=comb_loss)
-        history=train_model.fit(x=src,y=g_tr,epochs=epochs,batch_size=batch_size)
+        history=train_model.fit(x=src,y=g_tr,epochs=epochs,batch_size=batch_size)'''
     else:
         model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=HungarianLoss(batch_size).hungarian_loss)
         history=model.fit(x=src,y=dst,epochs=epochs,batch_size=batch_size)
@@ -640,7 +644,7 @@ for v in range(1):
                             plt.clf()
 
                         if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
-                            tmp = tmp[0] if nor_out else np.transpose(tmp[0], (1,0)) * circular_filter
+                            tmp = tmp if nor_out else tmp * circular_filter
                             insert_patch(img, tmp, pos.astype(int), elem_avg if nor_out else elem_min)
                             insert_patch(ref_img, sdf_ref[i], pos.astype(int), elem_avg if nor_out else elem_min)
 
@@ -662,6 +666,51 @@ for v in range(1):
                     plt.savefig((r_scr+"_r%03d.png")%(t,r))
                     plt.clf()
                 else:
+                    if sdf_loss:
+                        ps_half = ref_patch_size//2
+                        img = np.zeros((1,h_dim,h_dim,2)) if nor_out else np.ones((1,h_dim,h_dim))
+                        ref_img = np.zeros((1,h_dim,h_dim,2)) if nor_out else np.ones((1,h_dim,h_dim))
+                        sdf_res = result[1]
+                        result = result[0]
+                        for i in range(len(sdf_res)):
+                            tmp = sdf_res[i] if nor_out else np.arctanh(np.clip(sdf_res[i],-.999999,.999999))
+                            pos = positions[i]*fac_2d
+                            if [t,i] in samples:
+                                for x in range(ref_patch_size):
+                                    for y in range(ref_patch_size):
+                                        v = tmp[y,x]
+                                        if nor_out:
+                                            plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
+                                        elif v <= 0.0:
+                                            plt.plot(x,y,'bo')
+                                plt.xlim([0,ref_patch_size])
+                                plt.ylim([0,ref_patch_size])
+                                plt.savefig((r_scr+"_i%03d_sdf_patch.png")%(t,i))
+                                plt.clf()
+
+                            if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
+                                tmp = tmp if nor_out else tmp * circular_filter
+                                insert_patch(img, tmp, pos.astype(int), elem_avg if nor_out else elem_min)
+                                insert_patch(ref_img, sdf_ref[i], pos.astype(int), elem_avg if nor_out else elem_min)
+
+                            for x in range(0,h_dim,2):
+                                for y in range(0,h_dim,2):
+                                    v = img[0,y,x]
+                                    if nor_out:
+                                        plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
+                                    elif v <= 0.0:
+                                        plt.plot(x,y,'bo')
+                                    v = ref_img[0,y,x]
+                                    #if nor_out:
+                                    #    plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
+                                    #elif v <= 0.0:
+                                    #    plt.plot(x,y,'ro')
+
+                            plt.xlim([0,h_dim])
+                            plt.ylim([0,h_dim])
+                            plt.savefig((r_scr+"_r%03d_sdf.png")%(t,r))
+                            plt.clf()
+
                     img = np.empty((0,3))
                     ref_img = np.empty((0,3))
 
