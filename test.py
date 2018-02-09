@@ -569,7 +569,7 @@ else:
         train_model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=comb_loss)
         history=train_model.fit(x=src,y=g_tr,epochs=epochs,batch_size=batch_size)'''
     else:
-        model = Model(inputs=inputs, outputs=out_sdf)
+        model = Model(inputs=inputs, outputs=out)
         model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=HungarianLoss(batch_size).hungarian_loss)
         history=model.fit(x=src,y=dst,epochs=epochs,batch_size=batch_size)
         
