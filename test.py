@@ -569,6 +569,7 @@ else:
         train_model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=comb_loss)
         history=train_model.fit(x=src,y=g_tr,epochs=epochs,batch_size=batch_size)'''
     else:
+        model = Model(inputs=inputs, outputs=out_sdf)
         model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=HungarianLoss(batch_size).hungarian_loss)
         history=model.fit(x=src,y=dst,epochs=epochs,batch_size=batch_size)
         
@@ -656,10 +657,10 @@ for v in range(1):
                             elif v <= 0.0:
                                 plt.plot(x,y,'bo')
                             v = ref_img[0,y,x]
-                            #if nor_out:
-                            #    plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
-                            #elif v <= 0.0:
-                            #    plt.plot(x,y,'ro')
+                            if nor_out:
+                                plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
+                            elif v <= 0.0:
+                                plt.plot(x,y,'ro')
 
                     plt.xlim([0,h_dim])
                     plt.ylim([0,h_dim])
@@ -701,10 +702,10 @@ for v in range(1):
                                     elif v <= 0.0:
                                         plt.plot(x,y,'bo')
                                     v = ref_img[0,y,x]
-                                    #if nor_out:
-                                    #    plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
-                                    #elif v <= 0.0:
-                                    #    plt.plot(x,y,'ro')
+                                    if nor_out:
+                                        plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
+                                    elif v <= 0.0:
+                                        plt.plot(x,y,'ro')
 
                             plt.xlim([0,h_dim])
                             plt.ylim([0,h_dim])
