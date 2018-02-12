@@ -5,6 +5,8 @@ import sys
 import shutil
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 # ======================================================================================================================
 # duplicated from main "helpers", not to require manta
 
@@ -126,3 +128,54 @@ def get_patches(sdf_data, patch_size, dimX, dimY, stride, surface):
 
 				pos.append([x,y,z])
 	return np.array(pos)
+
+def plot_particles(data, xlim, ylim, s, path=None, ref=None):
+	plt.scatter(data[:,0],data[:,1],s=s,c='b')
+	if not ref is None:
+		plt.scatter(ref[:,0],ref[:,1],s=s,c='r')
+	plt.xlim(xlim)
+	plt.ylim(ylim)
+	if path is None:
+		plt.show()
+	else:
+		plt.savefig(path)
+	plt.clf()
+
+def plot_sdf(data, xlim, ylim, path=None, ref=None):
+	plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), data)
+	plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), data, np.array([0]), linewidths=3, colors='b')
+	'''for x in range(xlim[0],xlim[1],2):
+		for y in range(ylim[0],ylim[1],2):
+			v = data[y,x]
+			if nor_out:
+				plt.plot([x,x+v[0]],[y,y+v[1]], '-')
+			elif v <= 0.0:
+				plt.plot(x,y,'bo')
+	plt.xlim(xlim)
+	plt.ylim(ylim)'''
+	if not ref is None:
+		plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), ref, cmap=plt.get_cmap('coolwarm'))
+		plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), ref, np.array([0]), linewidths=3, colors='r')
+	if path is None:
+		plt.show()
+	else:
+		plt.savefig(path)
+	plt.clf()
+
+def plot_vec(data, xlim, ylim, path=None, ref=None):
+	for x in range(xlim[0],xlim[1],2):
+		for y in range(ylim[0],ylim[1],2):
+			v = data[y,x]
+			plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
+			if not ref is None:
+				v = ref[y,x]
+				plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
+	
+	plt.xlim(xlim)
+	plt.ylim(ylim)
+	if path is None:
+		plt.show()
+	else:
+		plt.savefig(path)
+	plt.clf()
+

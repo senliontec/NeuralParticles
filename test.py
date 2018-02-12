@@ -101,6 +101,8 @@ def min_avg(old_avg, new_val):
 
 paramUsed = []
 
+gpu = getParam("gpu", "", paramUsed)
+
 data_path = getParam("data", "data/", paramUsed)
 manta_path = getParam("manta", "manta/", paramUsed)
 config_path = getParam("config", "config/version_00.txt", paramUsed)
@@ -136,6 +138,9 @@ nor_out = int(getParam("nor_out", 0, paramUsed)) != 0
 sdf_loss = int(getParam("sdf_loss", 0, paramUsed)) != 0
 
 checkUnusedParam(paramUsed)
+
+if not gpu is "":
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu
 
 with open(config_path, 'r') as f:
     config = json.loads(f.read())
@@ -229,22 +234,14 @@ def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
     result = np.empty((0,par_cnt,3))
     particle_data_nb = grid.particles[in_bound(grid.particles[:,:2], bnd, grid.dimX-bnd)]
 
-    plt.scatter(particle_data_nb[:,0],particle_data_nb[:,1],s=0.1)
-    plt.xlim([0,grid.dimX])
-    plt.ylim([0,grid.dimY])
-    plt.savefig((scr+"_not_accum.png")%(t))
-    plt.clf()
+    plot_particles(particle_data_nb, [0,grid.dimX], [0,grid.dimY], 0.1, (scr+"_not_accum.png")%t)
 
     sdf_f, nor_f = sdf_func(np.squeeze(grid.cells))
 
     if positions is None:
         positions = particle_data_nb[in_surface(np.array([sdf_f(p) for p in particle_data_nb]))[0]]
 
-    plt.scatter(positions[:,0],positions[:,1],s=0.1)
-    plt.xlim([0,grid.dimX])
-    plt.ylim([0,grid.dimY])
-    plt.savefig((scr + "_pos.png") % t)
-    plt.clf()
+    plot_particles(positions, [0,grid.dimX], [0,grid.dimY], 0.1, (scr + "_pos.png") % t)
 
     img = np.empty((0,3))
     i = 0
@@ -254,22 +251,13 @@ def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
         #par = par[sort_idx]
 
         if [t,i] in samples:
-            plt.scatter(par[:,0],par[:,1],s=5)
-            plt.xlim([-1,1])
-            plt.ylim([-1,1])
-            plt.savefig((scr+"_i%03d_patch.png")%(t,i))
-            plt.clf()
+            plot_particles(par, [-1,1], [-1,1], 5, (scr+"_i%03d_patch.png")%(t,i))
         i+=1
 
         result = np.append(result, [par], axis=0)
         img = np.append(img, np.add(par*patch_size, [pos[0], pos[1], 0.]), axis=0)
 
-    plt.scatter(img[:,0],img[:,1],s=0.1)
-    plt.xlim([0,grid.dimX])
-    plt.ylim([0,grid.dimY])
-    plt.savefig((scr + ".png") % t)
-    plt.clf()
-
+    plot_particles(img, [0,grid.dimX], [0,grid.dimY], 0.1, (scr + ".png") % t)
     return result, positions
 
 def sdf_patches(sdf, positions, patch_size, scr, t):
@@ -284,17 +272,10 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
         res = np.append(res, tmp, axis=0)
 
         if [t,i] in samples:
-            for x in range(patch_size):
-                for y in range(patch_size):
-                    v = tmp[0,y,x]
-                    if nor_out:
-                        plt.plot([x,x+v[0]],[y,y+v[1]], '-')
-                    elif v <= 0.0:
-                        plt.plot(x,y,'bo')
-            plt.xlim([0,patch_size])
-            plt.ylim([0,patch_size])
-            plt.savefig((scr+"_i%03d_patch.png")%(t,i))
-            plt.clf()
+            if nor_out:
+                plot_vec(tmp[0], [0,patch_size], [0,patch_size], (scr+"_i%03d_patch.png")%(t,i))
+            else:
+                plot_sdf(tmp[0], [0,patch_size], [0,patch_size], (scr+"_i%03d_patch.png")%(t,i))
         i+=1
 
         if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
@@ -312,17 +293,11 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
         plt.savefig((scr+"_i%03d.png")%(t,i-1))
         plt.clf()'''
 
-    for x in range(0,h_dim,2):
-        for y in range(0,h_dim,2):
-            v = img[0,y,x]
-            if nor_out:
-                plt.plot([x,x+v[0]],[y,y+v[1]], '-')
-            elif v <= 0.0:
-                plt.plot(x,y,'bo')
-    plt.xlim([0,h_dim])
-    plt.ylim([0,h_dim])
-    plt.savefig((scr+".png")%t)
-    plt.clf()
+    if nor_out:
+        plot_vec(img[0], [0,h_dim], [0,h_dim], (scr+".png")%t)
+    else:
+        plot_sdf(img[0], [0,h_dim], [0,h_dim], (scr+".png")%t)
+
     return res
 
 def load_src(prefix, bnd, par_cnt, patch_size, scr, t, aux={}, positions=None):
@@ -351,11 +326,7 @@ def load_src(prefix, bnd, par_cnt, patch_size, scr, t, aux={}, positions=None):
         par = par[sort_idx]
 
         if [t,i] in samples:
-            plt.scatter(par[:,0],par[:,1],s=5)
-            plt.xlim([-1,1])
-            plt.ylim([-1,1])
-            plt.savefig((scr+"_i%03d_patch.png")%(t,i))
-            plt.clf()
+            plot_particles(par, [-1,1], [-1,1], 5, (scr+"_i%03d_patch.png")%(t,i))
         i+=1
 
         result = np.append(result, [par], axis=0)
@@ -363,11 +334,7 @@ def load_src(prefix, bnd, par_cnt, patch_size, scr, t, aux={}, positions=None):
             aux_res[k] = np.append(aux_res[k], [v[sort_idx]], axis=0)
         img = np.append(img, np.add(par*patch_size, [pos[0], pos[1], 0.]), axis=0)
 
-    plt.scatter(img[:,0],img[:,1],s=0.1)
-    plt.xlim([0,header['dimX']])
-    plt.ylim([0,header['dimY']])
-    plt.savefig((scr+".png") % t)
-    plt.clf()
+    plot_particles(img, [0,header['dimX']], [0,header['dimY']], 0.1, (scr+".png") % t)
 
     return result, aux_res, positions
 
@@ -626,46 +593,22 @@ for v in range(1):
                         tmp = result[i] if nor_out else np.arctanh(np.clip(result[i],-.999999,.999999))
                         pos = positions[i]*fac_2d
                         if [t,i] in samples:
-                            for x in range(ref_patch_size):
-                                for y in range(ref_patch_size):
-                                    v = tmp[y,x]
-                                    if nor_out:
-                                        plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
-                                    elif v <= 0.0:
-                                        plt.plot(x,y,'bo')
-                            plt.xlim([0,ref_patch_size])
-                            plt.ylim([0,ref_patch_size])
-                            plt.savefig((r_scr+"_i%03d_patch.png")%(t,i))
-                            plt.clf()
+                            if nor_out:
+                                plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_patch.png")%(t,i), sdf_ref[i])
+                            else:
+                                plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_patch.png")%(t,i), sdf_ref[i])
 
-                            plt.scatter(inter_result[i,:,0],inter_result[i,:,1],s=5)
-                            plt.xlim([-1,1])
-                            plt.ylim([-1,1])
-                            plt.savefig((r_scr+"_i%03d_inter_patch.png")%(t,i))
-                            plt.clf()
+                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (r_scr+"_i%03d_inter_patch.png")%(t,i))
 
                         if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
                             tmp = tmp if nor_out else tmp * circular_filter
                             insert_patch(img, tmp, pos.astype(int), elem_avg if nor_out else elem_min)
                             insert_patch(ref_img, sdf_ref[i], pos.astype(int), elem_avg if nor_out else elem_min)
-
-                    for x in range(0,h_dim,2):
-                        for y in range(0,h_dim,2):
-                            v = img[0,y,x]
-                            if nor_out:
-                                plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
-                            elif v <= 0.0:
-                                plt.plot(x,y,'bo')
-                            v = ref_img[0,y,x]
-                            if nor_out:
-                                plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
-                            elif v <= 0.0:
-                                plt.plot(x,y,'ro')
-
-                    plt.xlim([0,h_dim])
-                    plt.ylim([0,h_dim])
-                    plt.savefig((r_scr+"_r%03d.png")%(t,r))
-                    plt.clf()
+                    
+                    if nor_out:
+                        plot_vec(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d.png")%(t,r), ref_img[0])
+                    else:
+                        plot_sdf(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d.png")%(t,r), ref_img[0])
                 else:
                     if sdf_loss:
                         ps_half = ref_patch_size//2
@@ -677,40 +620,20 @@ for v in range(1):
                             tmp = sdf_res[i] if nor_out else np.arctanh(np.clip(sdf_res[i],-.999999,.999999))
                             pos = positions[i]*fac_2d
                             if [t,i] in samples:
-                                for x in range(ref_patch_size):
-                                    for y in range(ref_patch_size):
-                                        v = tmp[y,x]
-                                        if nor_out:
-                                            plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
-                                        elif v <= 0.0:
-                                            plt.plot(x,y,'bo')
-                                plt.xlim([0,ref_patch_size])
-                                plt.ylim([0,ref_patch_size])
-                                plt.savefig((r_scr+"_i%03d_sdf_patch.png")%(t,i))
-                                plt.clf()
+                                if nor_out:
+                                    plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_sdf_patch.png")%(t,i), sdf_ref[i])
+                                else:
+                                    plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_sdf_patch.png")%(t,i), sdf_ref[i])
 
                             if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
                                 tmp = tmp if nor_out else tmp * circular_filter
                                 insert_patch(img, tmp, pos.astype(int), elem_avg if nor_out else elem_min)
                                 insert_patch(ref_img, sdf_ref[i], pos.astype(int), elem_avg if nor_out else elem_min)
 
-                            for x in range(0,h_dim,2):
-                                for y in range(0,h_dim,2):
-                                    v = img[0,y,x]
-                                    if nor_out:
-                                        plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
-                                    elif v <= 0.0:
-                                        plt.plot(x,y,'bo')
-                                    v = ref_img[0,y,x]
-                                    if nor_out:
-                                        plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
-                                    elif v <= 0.0:
-                                        plt.plot(x,y,'ro')
-
-                            plt.xlim([0,h_dim])
-                            plt.ylim([0,h_dim])
-                            plt.savefig((r_scr+"_r%03d_sdf.png")%(t,r))
-                            plt.clf()
+                        if nor_out:
+                            plot_vec(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d_sdf.png")%(t,r), ref_img[0])
+                        else:
+                            plot_sdf(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d_sdf.png")%(t,r), ref_img[0])
 
                     img = np.empty((0,3))
                     ref_img = np.empty((0,3))
@@ -721,18 +644,8 @@ for v in range(1):
                         par = result[i]#,:10]
 
                         if [t,i] in samples:# or True:
-                            plt.scatter(result[i,:,0],result[i,:,1],s=5)
-                            plt.scatter(ref[i,:,0],ref[i,:,1],c='r',s=5)
-                            plt.xlim([-1,1])
-                            plt.ylim([-1,1])
-                            plt.savefig((r_scr+"_i%03d_patch.png")%(t,i))
-                            plt.clf()
-
-                            plt.scatter(inter_result[i,:,0],inter_result[i,:,1],s=5)
-                            plt.xlim([-1,1])
-                            plt.ylim([-1,1])
-                            plt.savefig((r_scr+"_i%03d_inter_patch.png")%(t,i))
-                            plt.clf()
+                            plot_particles(result[i], [-1,1], [-1,1], 5, (r_scr+"_i%03d_patch.png")%(t,i), ref[i])
+                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (r_scr+"_i%03d_inter_patch.png")%(t,i))
 
                             '''plt.scatter(inv_result[i,:,0],inv_result[i,:,1],s=5)
                             plt.xlim([-1,1])
@@ -744,11 +657,6 @@ for v in range(1):
                         img = np.append(img, par, axis=0)
                         ref_img = np.append(ref_img, np.add(ref[i]*ref_patch_size, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
 
-                    plt.scatter(img[:,0],img[:,1],s=0.1)
-                    plt.scatter(ref_img[:,0],ref_img[:,1],c='r',s=0.01)
-                    plt.xlim([0,h_dim])
-                    plt.ylim([0,h_dim])
-                    plt.savefig((r_scr+"_r%03d.png")%(t,r))
-                    plt.clf()
+                    plot_particles(img, [0,h_dim], [0,h_dim], 0.1, (r_scr+"_r%03d.png")%(t,r), ref_img)
 
             
