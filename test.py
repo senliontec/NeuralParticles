@@ -268,8 +268,8 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
     i=0
     img = np.zeros((1,h_dim,h_dim,2)) if nor_out else np.ones((1,h_dim,h_dim))
     for pos in positions:
-        tmp = np.array([[[nor_f(pos[:2]-ps_half+np.array([x,y])) for x in range(patch_size)] for y in range(patch_size)]]) if nor_out else np.array([[[np.tanh(4.0*sdf_f(pos[:2]-ps_half+np.array([x,y]))[0]) for x in range(patch_size)] for y in range(patch_size)]])
-        res = np.append(res, tmp, axis=0)
+        tmp = np.array([[[nor_f(pos[:2]-ps_half+np.array([x,y])) for x in range(patch_size)] for y in range(patch_size)]]) if nor_out else np.array([[[sdf_f(pos[:2]-ps_half+np.array([x,y]))[0] for x in range(patch_size)] for y in range(patch_size)]])
+        res = np.append(res, np.tanh(12.0*tmp), axis=0)
 
         if [t,i] in samples:
             if nor_out:
@@ -438,8 +438,8 @@ inputs = Input((particle_cnt_src,3), name="main")
 #aux_input = Input((particle_cnt_src,3))
 
 x = Dropout(dropout)(inputs)
-stn = SpatialTransformer(particle_cnt_src,quat=True)
-intermediate = x#stn(x)
+stn = SpatialTransformer(particle_cnt_src,quat=True,norm=True)
+intermediate = stn(x)
 
 x = intermediate
 #x = concatenate([intermediate, stn([x,aux_input])],axis=-1)
@@ -471,9 +471,26 @@ if use_sdf or sdf_loss:
 
     c = 2 if nor_out else 1
 
+    '''
     b = np.zeros(ref_patch_size*ref_patch_size*c, dtype='float32')
     W = np.zeros((k, ref_patch_size*ref_patch_size*c), dtype='float32')
-    x = Dense(ref_patch_size*ref_patch_size*c, activation='tanh', weights=[W,b])(x)
+    x = Dense(ref_patch_size*ref_patch_size*c, activation='tanh', weights=[W,b])(x)'''
+
+    x = Dense(3600, activation='tanh')(x)
+    x = Reshape((15,15,16))(x)
+    
+    x = Conv2DTranspose(filters=8, kernel_size=3, 
+                        strides=1, activation='tanh', padding='same')(x)
+    print(x.get_shape())
+
+    x = Conv2DTranspose(filters=4, kernel_size=3, 
+                        strides=1, activation='tanh', padding='same')(x)
+    print(x.get_shape())
+
+    x = Conv2DTranspose(filters=c, kernel_size=3, 
+                        strides=1, activation='tanh', padding='same')(x)
+
+    print(x.get_shape())
 
     out_sdf = Reshape((ref_patch_size, ref_patch_size, c) if nor_out else (ref_patch_size, ref_patch_size))(x)
 
@@ -488,7 +505,7 @@ if not use_sdf:
 
     x = Reshape((particle_cnt_dst,3))(x)
     inv_trans = x
-    out = x#InverseTransform(stn)(x)
+    out = InverseTransform(stn)(x)
 
     '''print(x.get_shape())
     x = Reshape((4,4,64))(x)
@@ -591,19 +608,20 @@ for v in range(1):
 
                     for i in range(len(result)):
                         tmp = result[i] if nor_out else np.arctanh(np.clip(result[i],-.999999,.999999))
+                        tmp_ref = sdf_ref[i] if nor_out else np.arctanh(np.clip(sdf_ref[i],-.999999,.999999))
                         pos = positions[i]*fac_2d
                         if [t,i] in samples:
                             if nor_out:
-                                plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_patch.png")%(t,i), sdf_ref[i])
+                                plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_patch.png")%(t,i), tmp_ref)
                             else:
-                                plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_patch.png")%(t,i), sdf_ref[i])
+                                plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_patch.png")%(t,i), tmp_ref)
 
                             plot_particles(inter_result[i], [-1,1], [-1,1], 5, (r_scr+"_i%03d_inter_patch.png")%(t,i))
 
                         if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
                             tmp = tmp if nor_out else tmp * circular_filter
                             insert_patch(img, tmp, pos.astype(int), elem_avg if nor_out else elem_min)
-                            insert_patch(ref_img, sdf_ref[i], pos.astype(int), elem_avg if nor_out else elem_min)
+                            insert_patch(ref_img, tmp_ref, pos.astype(int), elem_avg if nor_out else elem_min)
                     
                     if nor_out:
                         plot_vec(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d.png")%(t,r), ref_img[0])
@@ -618,17 +636,18 @@ for v in range(1):
                         result = result[0]
                         for i in range(len(sdf_res)):
                             tmp = sdf_res[i] if nor_out else np.arctanh(np.clip(sdf_res[i],-.999999,.999999))
+                            tmp_ref = sdf_ref[i] if nor_out else np.arctanh(np.clip(sdf_ref[i],-.999999,.999999))
                             pos = positions[i]*fac_2d
                             if [t,i] in samples:
                                 if nor_out:
-                                    plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_sdf_patch.png")%(t,i), sdf_ref[i])
+                                    plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_sdf_patch.png")%(t,i), tmp_ref)
                                 else:
-                                    plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_sdf_patch.png")%(t,i), sdf_ref[i])
+                                    plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_sdf_patch.png")%(t,i), tmp_ref)
 
                             if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
                                 tmp = tmp if nor_out else tmp * circular_filter
                                 insert_patch(img, tmp, pos.astype(int), elem_avg if nor_out else elem_min)
-                                insert_patch(ref_img, sdf_ref[i], pos.astype(int), elem_avg if nor_out else elem_min)
+                                insert_patch(ref_img, tmp_ref, pos.astype(int), elem_avg if nor_out else elem_min)
 
                         if nor_out:
                             plot_vec(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d_sdf.png")%(t,r), ref_img[0])

@@ -8,8 +8,11 @@ from keras import backend as K
 import tensorflow as tf
 
 def quaternion_conj(quat):
-    return quat * np.array([1,-1,-1,-1])
+    return quat * np.array([1,-1,-1,-1])/K.expand_dims(K.sum(quat*quat, axis=1), axis=1)
 
+def quaternion_norm(quat):
+    return quat/K.expand_dims(tf.norm(quat,axis=1),axis=1)
+    
 def quaternion_rot(vec, quat):
     def quat_mul(q0,q1):
         w0, x0, y0, z0 = q0
@@ -33,10 +36,12 @@ def quaternion_rot(vec, quat):
     v = tf.unstack(vec,axis=-1)
     q = tf.unstack(quat,axis=-1)
 
+    q_inv = quaternion_conj(quat)
+    q_inv = tf.unstack(q_inv,axis=-1)
+
     for i in range(dim_diff):
         q = list(map(lambda x: K.expand_dims(x,axis=-1), q))
-
-    q_inv = q * np.array([1,-1,-1,-1])
+        q_inv = list(map(lambda x: K.expand_dims(x,axis=-1), q_inv))
 
     v = quat_vec_mul(q, v)
     v = quat_mul(v, q_inv)
@@ -66,5 +71,11 @@ if __name__ == "__main__":
     quat_inputs = Input((4,))
     x = QuaternionMul()([inputs,quat_inputs])
     m = Model(inputs=[inputs,quat_inputs], outputs=x)
+    
+    qi = Lambda(quaternion_conj)(quat_inputs)
+    x = QuaternionMul()([x,qi])
+    m2 = Model(inputs=[inputs,quat_inputs], outputs=x)
     m.summary()
     print(m.predict(x=[pos,quat]))
+    print(m2.predict(x=[pos,quat]))
+    print(Model(inputs=[inputs,quat_inputs], outputs=qi).predict(x=[pos,quat]))

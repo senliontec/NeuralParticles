@@ -8,7 +8,7 @@ import tensorflow as tf
 
 import sys
 sys.path.append("manta/scenes/tools/")
-from quaternion_mul import quaternion_rot, quaternion_conj
+from quaternion_mul import quaternion_rot, quaternion_conj, quaternion_norm
 
 def locnet(cnt,features,kernel,quat=False):
     m = Sequential()
@@ -39,12 +39,14 @@ class SpatialTransformer(Layer):
                  features=3,
                  kernel=(1,3),
                  quat=False,
+                 norm=False,
                  **kwargs):
         self.cnt = cnt
         self.features=features
         self.kernel = kernel
         self.locnet = locnet(cnt,features,kernel,quat)      
         self.quat = quat  
+        self.norm = norm
         super(SpatialTransformer, self).__init__(**kwargs)
     
     def build(self, input_shape):
@@ -62,6 +64,8 @@ class SpatialTransformer(Layer):
         
         self.transform = self.locnet.call(x)
         if self.quat:
+            if self.norm:
+                self.transform = quaternion_norm(self.transform)
             return quaternion_rot(y,self.transform)
         else:
             return keras.backend.batch_dot(y, self.transform)

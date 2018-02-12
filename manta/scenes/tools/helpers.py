@@ -142,7 +142,7 @@ def plot_particles(data, xlim, ylim, s, path=None, ref=None):
 	plt.clf()
 
 def plot_sdf(data, xlim, ylim, path=None, ref=None):
-	plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), data)
+	plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), data, np.arange(-1,1.1,0.2))
 	plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), data, np.array([0]), linewidths=3, colors='b')
 	'''for x in range(xlim[0],xlim[1],2):
 		for y in range(ylim[0],ylim[1],2):
@@ -154,7 +154,7 @@ def plot_sdf(data, xlim, ylim, path=None, ref=None):
 	plt.xlim(xlim)
 	plt.ylim(ylim)'''
 	if not ref is None:
-		plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), ref, cmap=plt.get_cmap('coolwarm'))
+		plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), ref, np.arange(-1,1.1,0.2), cmap=plt.get_cmap('coolwarm'))
 		plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), ref, np.array([0]), linewidths=3, colors='r')
 	if path is None:
 		plt.show()
