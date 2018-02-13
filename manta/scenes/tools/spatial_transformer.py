@@ -1,7 +1,7 @@
 import keras
 from keras.layers.core import Layer
 from keras.models import Sequential, Model
-from keras.layers import Reshape, Conv2D, MaxPooling2D, Flatten, Dense, Input
+from keras.layers import Reshape, Conv2D, MaxPooling2D, Flatten, Dense, Input, Dropout, Lambda
 import numpy as np
 
 import tensorflow as tf
@@ -10,24 +10,30 @@ import sys
 sys.path.append("manta/scenes/tools/")
 from quaternion_mul import quaternion_rot, quaternion_conj, quaternion_norm
 
-def locnet(cnt,features,kernel,quat=False):
+fac = 64 #256
+def locnet(cnt,features,kernel,dropout,quat=False,norm=False):
     m = Sequential()
     m.add(Reshape((cnt,features,1), input_shape=(cnt,features)))
     m.add(Conv2D(64, kernel))
     m.add(Conv2D(128, 1))
-    m.add(Conv2D(1024, 1))
+    m.add(Conv2D(fac*4, 1))
     m.add(MaxPooling2D((cnt,1)))
     m.add(Flatten())
-    m.add(Dense(512, activation='tanh'))
-    m.add(Dense(256, activation='tanh'))
+    m.add(Dropout(dropout))
+    m.add(Dense(fac*2, activation='tanh'))
+    m.add(Dropout(dropout))
+    m.add(Dense(fac, activation='tanh'))
+    m.add(Dropout(dropout))
 
     if quat:
         b = np.array([1,0,0,0], dtype='float32')
-        W = np.zeros((256, 4), dtype='float32')
+        W = np.zeros((fac, 4), dtype='float32')
         m.add(Dense(4,weights=[W,b]))
+        if norm:
+            m.add(Lambda(quaternion_norm))
     else:
         b = np.eye(features, dtype='float32').flatten()
-        W = np.zeros((256, features*features), dtype='float32')
+        W = np.zeros((fac, features*features), dtype='float32')
         m.add(Dense(features*features, weights=[W,b]))
         m.add(Reshape((features,features)))
 
@@ -38,13 +44,15 @@ class SpatialTransformer(Layer):
                  cnt,
                  features=3,
                  kernel=(1,3),
+                 dropout=0.2,
                  quat=False,
                  norm=False,
                  **kwargs):
         self.cnt = cnt
         self.features=features
         self.kernel = kernel
-        self.locnet = locnet(cnt,features,kernel,quat)      
+        self.locnet = locnet(cnt,features,kernel,dropout,quat,norm)      
+        self.dropout = dropout
         self.quat = quat  
         self.norm = norm
         super(SpatialTransformer, self).__init__(**kwargs)
@@ -64,8 +72,6 @@ class SpatialTransformer(Layer):
         
         self.transform = self.locnet.call(x)
         if self.quat:
-            if self.norm:
-                self.transform = quaternion_norm(self.transform)
             return quaternion_rot(y,self.transform)
         else:
             return keras.backend.batch_dot(y, self.transform)
@@ -74,6 +80,8 @@ class SpatialTransformer(Layer):
         config = {'cnt':self.cnt,
                   'features':self.features,
                   'kernel':self.kernel,
+                  'dropout':self.dropout,
+                  'norm':self.norm,
                   'quat':self.quat }        
         return config
 

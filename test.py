@@ -438,7 +438,7 @@ inputs = Input((particle_cnt_src,3), name="main")
 #aux_input = Input((particle_cnt_src,3))
 
 x = Dropout(dropout)(inputs)
-stn = SpatialTransformer(particle_cnt_src,quat=True,norm=True)
+stn = SpatialTransformer(particle_cnt_src,dropout=dropout,quat=True,norm=True)
 intermediate = stn(x)
 
 x = intermediate
@@ -599,7 +599,10 @@ for v in range(1):
                 result = model.predict(x=src,batch_size=batch_size)
                 inter_result = interm.predict(x=src,batch_size=batch_size)
                 #inv_result = invm.predict(x=src,batch_size=batch_size)
-                print(stn.locnet.predict(x=src,batch_size=batch_size))
+
+                for sample in samples:
+                    if sample[0] == t and sample[1] < len(src):
+                        print(stn.locnet.predict(x=src[sample[1]:sample[1]+1],batch_size=1))
 
                 if use_sdf:
                     ps_half = ref_patch_size//2
