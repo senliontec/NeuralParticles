@@ -386,7 +386,7 @@ for v in range(var):
 
 fac = 16
 k = 256
-dropout = 0.5
+dropout = 0.2
 batch_size = train_config['batch_size']
 epochs = 3 # train_config['epochs']
 
