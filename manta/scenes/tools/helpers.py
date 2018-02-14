@@ -163,10 +163,10 @@ def plot_sdf(data, xlim, ylim, path=None, ref=None):
 	plt.clf()
 
 def plot_vec(data, xlim, ylim, path=None, ref=None):
-	for x in range(xlim[0],xlim[1],2):
-		for y in range(ylim[0],ylim[1],2):
+	for x in range(xlim[0],xlim[1],1):
+		for y in range(ylim[0],ylim[1],1):
 			v = data[y,x]
-			plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
+			plt.plot([x,x+v[0]],[y,y+v[1]], 'bo-')
 			if not ref is None:
 				v = ref[y,x]
 				plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
