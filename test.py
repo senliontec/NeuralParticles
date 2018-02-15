@@ -119,13 +119,14 @@ repetitions = int(getParam("rep", 10, paramUsed))
 obj_cnt = int(getParam("obj_cnt", 10, paramUsed))
 fixed = int(getParam("fixed", 0, paramUsed)) != 0
 
-l_scr = getParam("l_scr", "test/source_t%03d", paramUsed)
-h_scr = getParam("h_scr", "test/reference_t%03d", paramUsed)
-t_scr = getParam("t_scr", "test/test_src_t%03d", paramUsed)
-h_t_scr = getParam("h_t_scr", "test/test_ref_t%03d", paramUsed)
-r_scr = getParam("r_scr", "test/result_t%03d", paramUsed)
-sdf_scr = getParam("sdf_scr", "test/sdf_t%03d", paramUsed)
-sdf_t_scr = getParam("sdf_t_scr", "test/test_sdf_t%03d", paramUsed)
+prefix = getParam("prefix", "test", paramUsed)
+l_scr = prefix + "/" + getParam("l_scr", "source_t%03d", paramUsed)
+h_scr = prefix + "/" + getParam("h_scr", "reference_t%03d", paramUsed)
+t_scr = prefix + "/" + getParam("t_scr", "test_src_t%03d", paramUsed)
+h_t_scr = prefix + "/" + getParam("h_t_scr", "test_ref_t%03d", paramUsed)
+r_scr = prefix + "/" + getParam("r_scr", "result_t%03d", paramUsed)
+sdf_scr = prefix + "/" + getParam("sdf_scr", "sdf_t%03d", paramUsed)
+sdf_t_scr = prefix + "/" + getParam("sdf_t_scr", "test_sdf_t%03d", paramUsed)
 
 dim = int(getParam("dim", 50, paramUsed))
 
