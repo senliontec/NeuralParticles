@@ -57,6 +57,16 @@ class QuaternionMul(Layer):
     def call(self, X, mask=None):
         return quaternion_rot(X[0],X[1])
 
+class MatrixMul(Layer):
+    def __init__(self, **kwargs): 
+        super(QuaternionMul, self).__init__(**kwargs)
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
+    def call(self, X, mask=None):
+        return K.batch_dot(X[0],X[1])
+
 if __name__ == "__main__":
     pos = np.array([[[1,0,0],[0,1,0],[0,0,1]],[[-1,0,0],[0,-1,0],[0,-1,0]]])
     quat = np.array([[0,1,0,0],[0,0,1,0]])

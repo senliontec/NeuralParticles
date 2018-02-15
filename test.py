@@ -26,7 +26,7 @@ from split_layer import *
 import random
 import math
 
-from hungarian_loss import HungarianLoss
+from hungarian_loss import hungarian_loss
 
 from particle_grid import ParticleGrid
 
@@ -438,8 +438,8 @@ inputs = Input((particle_cnt_src,3), name="main")
 #aux_input = Input((particle_cnt_src,3))
 
 x = Dropout(dropout)(inputs)
-stn = SpatialTransformer(particle_cnt_src,dropout=dropout,quat=True,norm=True)
-intermediate = stn(x)
+stn = SpatialTransformer(x,particle_cnt_src,dropout=dropout,quat=True,norm=True)
+intermediate = stn_transform(stn,x,quat=True)
 
 x = intermediate
 #x = concatenate([intermediate, stn([x,aux_input])],axis=-1)
@@ -452,7 +452,7 @@ x = SplitLayer(Dropout(dropout))(x)
 x = SplitLayer(Dense(fac, activation='tanh'))(x)
 
 x = concatenate(x, axis=1)
-x = SpatialTransformer(particle_cnt_src,fac,1)(x)
+x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x)
 
 x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
 
@@ -481,18 +481,15 @@ if use_sdf or sdf_loss:
     
     x = Conv2DTranspose(filters=8, kernel_size=3, 
                         strides=1, activation='tanh', padding='same')(x)
-    print(x.get_shape())
-
     x = Conv2DTranspose(filters=4, kernel_size=3, 
                         strides=1, activation='tanh', padding='same')(x)
-    print(x.get_shape())
-
     x = Conv2DTranspose(filters=c, kernel_size=3, 
                         strides=1, activation='tanh', padding='same')(x)
 
-    print(x.get_shape())
+    x = Reshape((ref_patch_size, ref_patch_size, c) if nor_out else (ref_patch_size, ref_patch_size))(x)
 
-    out_sdf = Reshape((ref_patch_size, ref_patch_size, c) if nor_out else (ref_patch_size, ref_patch_size))(x)
+    inv_trans = x
+    out_sdf = stn_grid_transform_inv(stn, x, quat=True)
 
 if not use_sdf:
     x = Flatten()(features)
@@ -505,7 +502,7 @@ if not use_sdf:
 
     x = Reshape((particle_cnt_dst,3))(x)
     inv_trans = x
-    out = InverseTransform(stn)(x)
+    out = stn_transform_inv(stn,x,quat=True)
 
     '''print(x.get_shape())
     x = Reshape((4,4,64))(x)
@@ -532,7 +529,7 @@ if use_sdf:
 else:
     if sdf_loss:
         model = Model(inputs=inputs, output=[out, out_sdf])
-        model.compile(loss=[HungarianLoss(batch_size).hungarian_loss, 'mse'], optimizer=keras.optimizers.adam(lr=0.001))
+        model.compile(loss=[hungarian_loss, 'mse'], optimizer=keras.optimizers.adam(lr=0.001))
 
         history=model.fit(x=src,y=[dst, sdf_dst],epochs=epochs,batch_size=batch_size)
 
@@ -548,13 +545,13 @@ else:
             sdf = K.reshape(x[:,particle_cnt_dst*3:], (batch_size, ref_patch_size, ref_patch_size))
             y = K.reshape(y, (batch_size, particle_cnt_dst, 3))
 
-            return HungarianLoss(batch_size).hungarian_loss(pos,y) #+ sdf_particle_loss(sdf,y)
+            return hungarian_loss(pos,y) #+ sdf_particle_loss(sdf,y)
 
         train_model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=comb_loss)
         history=train_model.fit(x=src,y=g_tr,epochs=epochs,batch_size=batch_size)'''
     else:
         model = Model(inputs=inputs, outputs=out)
-        model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=HungarianLoss(batch_size).hungarian_loss)
+        model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=hungarian_loss)
         history=model.fit(x=src,y=dst,epochs=epochs,batch_size=batch_size)
         
 #model.summary()
@@ -602,7 +599,7 @@ for v in range(1):
 
                 for sample in samples:
                     if sample[0] == t and sample[1] < len(src):
-                        print(stn.locnet.predict(x=src[sample[1]:sample[1]+1],batch_size=1))
+                        print(Model(inputs=inputs, outputs=stn).predict(x=src[sample[1]:sample[1]+1],batch_size=1))
 
                 if use_sdf:
                     ps_half = ref_patch_size//2

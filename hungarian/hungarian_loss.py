@@ -6,33 +6,26 @@ from keras import losses
 
 import os
 
-class HungarianLoss:
-    def __init__(self, batch_size):
-        self.batch_size = batch_size
-        self.hungarian_module = tf.load_op_library(os.path.dirname(os.path.abspath(__file__)) + '/hungarian.so')
+hungarian_module = tf.load_op_library(os.path.dirname(os.path.abspath(__file__)) + '/hungarian.so')
+def hungarian_loss(y_true, y_pred):
+    m_pred = K.expand_dims(y_pred,axis=2)
+    m_true = K.expand_dims(y_true,axis=2)
 
-    def hungarian_loss(self, y_true, y_pred):
-        sh = [s for s in y_pred.get_shape()]
-        sh[0] = self.batch_size
+    m_true = K.permute_dimensions(m_true,(0,2,1,3))
 
-        y_pred.set_shape(sh)
-        y_true.set_shape(sh)
+    cost = K.sum(K.square(m_pred - m_true),axis=-1)
 
-        m_pred = K.expand_dims(y_pred,axis=2)
-        m_true = K.expand_dims(y_true,axis=2)
+    idx = hungarian_module.hungarian(cost)
 
-        cnt = y_pred.get_shape()[1]
+    bs = tf.shape(y_pred)[0]
+    l = tf.shape(y_pred)[1]
 
-        m_true = K.permute_dimensions(m_true,(0,2,1,3))
+    batch_idx = tf.range(0, bs)
+    batch_idx = tf.reshape(batch_idx, (bs, 1))
+    b = tf.tile(batch_idx, (1, l))
 
-        cost = K.sum(K.square(m_pred - m_true),axis=-1)
+    idx = tf.stack([b,idx],2)
 
-        idx = tf.unstack(self.hungarian_module.hungarian(cost))
-        y_true = tf.unstack(y_true)
-        res = []
-        for i in range(len(idx)):
-            res.append(K.gather(y_true[i],idx[i]))
+    y_true = tf.gather_nd(y_true,idx)
 
-        y_true = tf.stack(res)
-
-        return losses.mean_squared_error(y_true, y_pred)
+    return losses.mean_squared_error(y_true, y_pred)

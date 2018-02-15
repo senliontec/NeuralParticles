@@ -9,63 +9,88 @@ import tensorflow as tf
 from quaternion_mul import quaternion_rot, quaternion_conj, quaternion_norm
 from helpers import *
 
-def interpol(sdf, pos, batch_size, bnd):
-    pos_wx = int(sdf.get_shape()[1])
-    pos_wy = int(sdf.get_shape()[2])
-    pos = K.reshape(pos, (batch_size, pos_wx*pos_wy, 2))+bnd-0.5
-    sdf = tf.pad(sdf, tf.constant([[0,0],[bnd,bnd],[bnd,bnd]]), 'constant', constant_values=1)
+def get_cell(grid, x, y):
+    sh = tf.shape(x)
+    bs = sh[0]
+    h = sh[1]
+    w = sh[2]
 
-    w = int(sdf.get_shape()[1])
+    batch_idx = tf.range(0, bs)
+    batch_idx = tf.reshape(batch_idx, (bs, 1, 1))
+    b = tf.tile(batch_idx, (1, h, w))
 
-    x = K.cast(pos[:,:,0], 'int32')
-    y = K.cast(pos[:,:,1], 'int32')
-    idx = tf.unstack(x + y * w)
+    idx = tf.stack([b, y, x], 3)
 
-    facX = pos[:,:,0]-K.cast(x, 'float32')
-    facY = pos[:,:,1]-K.cast(y, 'float32')
+    return tf.gather_nd(grid, idx)
 
-    sdf = tf.unstack(K.reshape(sdf, (batch_size, w*w)))
+def interpol(sdf, pos):
+    pos -= 0.5
+    max_x = tf.cast(tf.shape(pos)[1] - 1, 'int32')
+    max_y = tf.cast(tf.shape(pos)[2] - 1, 'int32')
+    zero = tf.zeros([], dtype='int32')
+    
+    x0 = K.cast(pos[:,:,:,0], 'int32')
+    y0 = K.cast(pos[:,:,:,1], 'int32')
+    x1 = x0+1
+    y1 = y0+1
 
-    v  = tf.stack([K.gather(sdf[i], idx[i]) for i in range(batch_size)]) * (1-facX) * (1-facY)
-    v += tf.stack([K.gather(sdf[i], idx[i]+1) for i in range(batch_size)]) * facX * (1-facY)
-    v += tf.stack([K.gather(sdf[i], idx[i]+w) for i in range(batch_size)]) * (1-facX) * facY
-    v += tf.stack([K.gather(sdf[i], idx[i]+w+1) for i in range(batch_size)]) * facX * facY
+    x0 = tf.clip_by_value(x0, zero, max_x)
+    y0 = tf.clip_by_value(y0, zero, max_y)
+    x1 = tf.clip_by_value(x1, zero, max_x)
+    y1 = tf.clip_by_value(y1, zero, max_y)
 
-    return K.reshape(v, (batch_size,pos_wx, pos_wy))
+    facX = pos[:,:,:,0]-tf.floor(pos[:,:,:,0])
+    facY = pos[:,:,:,1]-tf.floor(pos[:,:,:,1])
 
-def advection(grid, vec, batch_size, bnd):
+    v  = get_cell(sdf, x0, y0) * (1-facX) * (1-facY)
+    v += get_cell(sdf, x1, y0) * facX * (1-facY)
+    v += get_cell(sdf, x0, y1) * (1-facX) * facY
+    v += get_cell(sdf, x1, y1) * facX * facY
+
+    return v
+
+def advection(grid, vec):
     idx = K.constant(np.array([[[[x,y] for x in range(grid.get_shape()[1])] for y in range(grid.get_shape()[2])]], dtype='float32') + 0.5) - vec
-    return interpol(grid, idx, batch_size, bnd)
+    return interpol(grid, idx)
 
-def rotation_vec(quat, size):
-    bs = int(quat.get_shape()[0])
-    res = np.empty((bs,size,size,3))
-    for y in range(size):
-        for x in range(size):
-            v = np.array([[x-size/2+0.5,y-size/2+0.5,0]]*bs)
-            res[:,y,x] = v
-    res = K.reshape(K.constant(res), (bs, size*size, 3))
-    print(K.eval(res))
-    print(K.eval(quaternion_rot(res, quat)))
-    return K.reshape(res - quaternion_rot(res, quat), (bs, size, size, 3))[:,:,:,:2]
+def linear_grid_like(bs, size):
+    x = tf.linspace(-size/2+0.5,size/2-0.5,size)
+    y = tf.linspace(-size/2+0.5,size/2-0.5,size)
+    x, y = tf.meshgrid(x, y)
+    z = tf.zeros_like(x)
 
-class Advection(Layer):
-    def __init__(self, batch_size, bnd, **kwargs): 
-        self.batch_size = batch_size
-        self.bnd = bnd
-        super(Advection, self).__init__(**kwargs)
+    sg = tf.stack([K.flatten(x),K.flatten(y),K.flatten(z)],axis=-1)
 
-    def compute_output_shape(self, input_shape):
-        return input_shape
+    sg = tf.expand_dims(sg, axis=0)
+    sg = tf.tile(sg, tf.stack([bs, 1, 1]))
 
-    def call(self, X, mask=None):
-        return advection(X[0],X[1], self.batch_size, self.bnd)
+    return sg
 
-    def get_config(self):
-        config = {'batch_size':self.batch_size,
-                  'bnd':self.bnd }        
-        return config
+def rotate_grid(grid, quat):
+    bs = tf.shape(grid)[0]
+    size = int(grid.get_shape()[1])
 
+    sg = linear_grid_like(bs,size)
+    sg = quaternion_rot(sg,quaternion_conj(quat)) + size/2
+
+    return interpol(grid, tf.reshape(sg,(-1,size,size,3)))
+
+def transform_grid(grid, mt):
+    bs = tf.shape(grid)[0]
+    size = int(grid.get_shape()[1])
+
+    sg = linear_grid_like(bs,size)
+    sg = K.batch_dot(sg, tf.matrix_inverse(mt)) + size/2
+
+    return interpol(grid, tf.reshape(sg,(-1,size,size,3)))
+
+def rotation_grid(quat, size):
+    bs = tf.shape(quat)[0]
+
+    sg = linear_grid_like(bs, size)
+    trans_sg = quaternion_rot(sg, quaternion_conj(quat))
+
+    return K.reshape(sg-trans_sg, (-1,size,size,3))[:,:,:,:2]
 
 if __name__ == "__main__":
     batch_size = 32
@@ -86,13 +111,15 @@ if __name__ == "__main__":
         insert_square(src[i],x,y)
         insert_square(dst[i],x+(2/7),y+(2/7))
 
-    vec = rotation_vec(K.constant(np.array([[-0.7071068,0,0,0.7071068]]*batch_size), dtype="float32"), 10)# K.reshape(np.array([2,0]*100*batch_size, dtype='float32'), (batch_size,10,10,2))
+    vec = rotation_grid(K.constant(np.array([[0.7,0,0,0.7]]*2), dtype="float32"), 10)# K.reshape(np.array([2,0]*100*batch_size, dtype='float32'), (batch_size,10,10,2))
 
     #plot_vec(K.eval(vec[0]*0.1), [0,10], [0,10])
     print(K.eval(K.constant(src[0:1])))
-    print(K.eval(advection(K.constant(src[:batch_size]),vec, batch_size, bnd))[0:1])
+    print((K.eval(advection(K.constant(src[:2]),vec[:2]))[0]*10).astype('int32'))
 
-    #print(K.eval(rotation_vec(K.constant(np.array([[0.7071068,0,0,0.7071068]]*2), dtype="float32"), 5)))
+    print((K.eval(rotate_grid(K.constant(src[:1]),K.constant(np.array([[0.7,0,0,0.7]]))))*10).astype('int32'))
+
+    #print(K.eval(rotation_grid(K.constant(np.array([[0.7071068,0,0,0.7071068]]*2), dtype="float32"), 5, batch_size)))
 
     inputs = Input((10,10))
     x = Flatten()(inputs)
@@ -102,7 +129,7 @@ if __name__ == "__main__":
     x = Dense(200, activation='tanh', weights=[W,b])(x)
 
     vec = Reshape((10,10,2))(x)
-    x = Advection(batch_size, bnd)([inputs,vec])
+    x = Lambda(advection)([inputs,vec])
 
     m = Model(inputs=inputs, outputs=x)
     
