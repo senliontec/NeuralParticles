@@ -566,7 +566,7 @@ if not grid_out and gen_grid:
     history = train_model.fit(x=[src,sdf_dst],y=[dst,np.empty((dst.shape[0],dst.shape[1]))],epochs=epochs,batch_size=batch_size)
 else:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=0.001))
-    #history = model.fit(x=src,y=y,epochs=epochs,batch_size=batch_size)
+    history = model.fit(x=src,y=y,epochs=epochs,batch_size=batch_size)
 
 '''train_model = Model(inputs=inputs, outputs=Flatten()(out))
 
