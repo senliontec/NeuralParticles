@@ -39,7 +39,6 @@ class ParticleGrid:
                                 #self.particles[i,:2] = p * radius/dis + center
                         self.particles = np.delete(self.particles, del_i, axis=0)
 
-
     def sample_quad(self, center, a, b):
         for x in range(int(-a), int(a)):
             for y in range(int(-b), int(b)):

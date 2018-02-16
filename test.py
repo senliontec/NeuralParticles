@@ -26,6 +26,8 @@ from split_layer import *
 import random
 import math
 
+from advection import interpol
+
 from hungarian_loss import hungarian_loss
 
 from particle_grid import ParticleGrid
@@ -136,6 +138,7 @@ t_start = int(getParam("t_start", -1, paramUsed))
 t_end = int(getParam("t_end", -1, paramUsed))
 
 nor_out = int(getParam("nor_out", 0, paramUsed)) != 0
+residual = int(getParam("residual", 0, paramUsed)) != 0
 sdf_loss = int(getParam("sdf_loss", 0, paramUsed)) != 0
 
 checkUnusedParam(paramUsed)
@@ -466,33 +469,37 @@ x = SplitLayer(Dense(k, activation='tanh'))(x)
 
 features = add(x)
 
-if use_sdf or sdf_loss:
+if use_sdf or sdf_loss or residual:
     x = Flatten()(features)
     x = Dropout(dropout)(x)
 
-    c = 2 if nor_out else 1
+    c = 2 if nor_out or residual else 1
 
-    '''
-    b = np.zeros(ref_patch_size*ref_patch_size*c, dtype='float32')
-    W = np.zeros((k, ref_patch_size*ref_patch_size*c), dtype='float32')
-    x = Dense(ref_patch_size*ref_patch_size*c, activation='tanh', weights=[W,b])(x)'''
-
-    x = Dense(3600, activation='tanh')(x)
+    x = Dense(3600)(x)
     x = Reshape((15,15,16))(x)
     
-    x = Conv2DTranspose(filters=8, kernel_size=3, 
-                        strides=1, activation='tanh', padding='same')(x)
-    x = Conv2DTranspose(filters=4, kernel_size=3, 
-                        strides=1, activation='tanh', padding='same')(x)
-    x = Conv2DTranspose(filters=c, kernel_size=3, 
-                        strides=1, activation='tanh', padding='same')(x)
+    x = Conv2DTranspose(filters=8, kernel_size=3, strides=1, activation='tanh', padding='same')(x)
+    x = Conv2DTranspose(filters=4, kernel_size=3, strides=1, activation='tanh', padding='same')(x)
 
-    x = Reshape((ref_patch_size, ref_patch_size, c) if nor_out else (ref_patch_size, ref_patch_size))(x)
+    w = [np.zeros((3,3,2,4)),np.zeros((2,))]
+    x = Conv2DTranspose(filters=c, kernel_size=3, strides=1, activation='tanh', padding='same', weights=w)(x)
 
-    inv_trans = x
-    out_sdf = stn_grid_transform_inv(stn, x, quat=True)
+    if nor_out or residual:
+        out_sdf = Reshape((ref_patch_size, ref_patch_size, c))(x)
+        if residual:
+            def tmp(v):
+                sh = tf.shape(v[1])
+                zero = tf.zeros((sh[0],sh[1],1))
+                return K.concatenate([interpol(v[0],v[1]),zero],axis=-1)
+            x = Lambda(tmp)([out_sdf,inputs])
+            x = add([inputs, x])
+            out = stn_transform_inv(stn, x, quat=True)
+    else:
+        x = Reshape((ref_patch_size, ref_patch_size))(x)
+        inv_trans = x
+        out_sdf = stn_grid_transform_inv(stn, x, quat=True)
 
-if not use_sdf:
+if not (use_sdf or residual):
     x = Flatten()(features)
     x = Dropout(dropout)(x)
     x = Dense(fac*8, activation='tanh')(x)
@@ -504,24 +511,6 @@ if not use_sdf:
     x = Reshape((particle_cnt_dst,3))(x)
     inv_trans = x
     out = stn_transform_inv(stn,x,quat=True)
-
-    '''print(x.get_shape())
-    x = Reshape((4,4,64))(x)
-    print(x.get_shape())
-    x = Conv2DTranspose(filters=16,kernel_size=3,strides=2, activation='tanh', padding='same')(x)
-    print(x.get_shape())
-    x = Conv2DTranspose(filters=3, kernel_size=3,strides=2, activation='tanh', padding='same')(x)
-    print(x.get_shape())
-    out = x'''
-
-'''side = int(math.sqrt(particle_cnt_src))
-x = Reshape((side, side, fac))(x)
-
-x = Conv2DTranspose(filters=16, kernel_size=3, 
-                    strides=1, activation='tanh', padding='same')(x)
-
-x = Conv2DTranspose(filters=9, kernel_size=3, 
-                    strides=1, activation='tanh', padding='same')(x)'''
 
 if use_sdf:
     model = Model(inputs=inputs, outputs=out_sdf)#[inputs, aux_input], outputs=out)
@@ -552,11 +541,11 @@ else:
         history=train_model.fit(x=src,y=g_tr,epochs=epochs,batch_size=batch_size)'''
     else:
         model = Model(inputs=inputs, outputs=out)
+        vec_model = Model(inputs=inputs, output=out_sdf)
         model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=hungarian_loss)
-        history=model.fit(x=src,y=dst,epochs=epochs,batch_size=batch_size)
-        
-#model.summary()
+        history=model.fit(x=src,y=dst,epochs=epochs,batch_size=batch_size)  
 
+#model.summary()
 '''plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
 plt.title('model loss')
@@ -629,7 +618,19 @@ for v in range(1):
                     else:
                         plot_sdf(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d.png")%(t,r), ref_img[0])
                 else:
-                    if sdf_loss:
+                    if residual:
+                        ps_half = ref_patch_size//2
+                        img = np.zeros((1,h_dim,h_dim,2))
+                        sdf_res = vec_model.predict(x=src,batch_size=batch_size)
+                        for i in range(len(sdf_res)):
+                            tmp = sdf_res[i]
+                            pos = positions[i]*fac_2d
+                            if [t,i] in samples:
+                                plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_vec_patch.png")%(t,i))
+                            if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
+                                insert_patch(img, tmp, pos.astype(int), elem_avg)
+                        plot_vec(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d_vec.png")%(t,r))
+                    elif sdf_loss:
                         ps_half = ref_patch_size//2
                         img = np.zeros((1,h_dim,h_dim,2)) if nor_out else np.ones((1,h_dim,h_dim))
                         ref_img = np.zeros((1,h_dim,h_dim,2)) if nor_out else np.ones((1,h_dim,h_dim))
@@ -641,7 +642,7 @@ for v in range(1):
                             pos = positions[i]*fac_2d
                             if [t,i] in samples:
                                 if nor_out:
-                                    plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_sdf_patch.png")%(t,i), tmp_ref)
+                                    plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_vec_patch.png")%(t,i), tmp_ref)
                                 else:
                                     plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_sdf_patch.png")%(t,i), tmp_ref)
 
@@ -651,7 +652,7 @@ for v in range(1):
                                 insert_patch(ref_img, tmp_ref, pos.astype(int), elem_avg if nor_out else elem_min)
 
                         if nor_out:
-                            plot_vec(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d_sdf.png")%(t,r), ref_img[0])
+                            plot_vec(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d_vec.png")%(t,r), ref_img[0])
                         else:
                             plot_sdf(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d_sdf.png")%(t,r), ref_img[0])
 

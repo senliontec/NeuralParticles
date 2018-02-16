@@ -12,50 +12,57 @@ from helpers import *
 def get_cell(grid, x, y):
     sh = tf.shape(x)
     bs = sh[0]
-    h = sh[1]
-    w = sh[2]
+    s = sh[1]
+    #w = sh[2]
+    b = tf.range(0, bs)
+    b = tf.reshape(b, (bs, 1))
+    b = tf.tile(b, (1, s))
+    idx = tf.stack([b, y, x], 2)
 
-    batch_idx = tf.range(0, bs)
-    batch_idx = tf.reshape(batch_idx, (bs, 1, 1))
-    b = tf.tile(batch_idx, (1, h, w))
+    if len(grid.get_shape()) > 3:
+        vs = int(grid.get_shape()[3])
 
-    idx = tf.stack([b, y, x], 3)
+        v = tf.range(0, vs)
+        v = tf.reshape(v, (1, 1, vs, 1))
+        v = tf.tile(v, (bs, s, 1, 1))
+
+        idx = K.expand_dims(idx,axis=2)
+        idx = tf.tile(idx, (1, 1, vs, 1))
+
+        idx = tf.concat([idx,v],axis=-1)
 
     return tf.gather_nd(grid, idx)
 
-def interpol(sdf, pos):
-    pos -= 0.5
-    max_x = tf.cast(tf.shape(pos)[1] - 1, 'int32')
-    max_y = tf.cast(tf.shape(pos)[2] - 1, 'int32')
-    zero = tf.zeros([], dtype='int32')
+def interpol(grid, pos):
+    max_x = tf.cast(tf.shape(grid)[1] - 1, 'int32')
+    max_y = tf.cast(tf.shape(grid)[2] - 1, 'int32')
+    zero = tf.zeros([], dtype='float32')
+
+    pos = tf.maximum(zero,pos-0.5)
     
-    x0 = K.cast(pos[:,:,:,0], 'int32')
-    y0 = K.cast(pos[:,:,:,1], 'int32')
-    x1 = x0+1
-    y1 = y0+1
+    x0 = tf.minimum(K.cast(pos[:,:,0], 'int32'), max_x)
+    y0 = tf.minimum(K.cast(pos[:,:,1], 'int32'), max_y)
+    x1 = tf.minimum(x0+1, max_x)
+    y1 = tf.minimum(y0+1, max_y)
 
-    x0 = tf.clip_by_value(x0, zero, max_x)
-    y0 = tf.clip_by_value(y0, zero, max_y)
-    x1 = tf.clip_by_value(x1, zero, max_x)
-    y1 = tf.clip_by_value(y1, zero, max_y)
+    facX = pos[:,:,0]-tf.floor(pos[:,:,0])
+    facY = pos[:,:,1]-tf.floor(pos[:,:,1])
 
-    facX = pos[:,:,:,0]-tf.floor(pos[:,:,:,0])
-    facY = pos[:,:,:,1]-tf.floor(pos[:,:,:,1])
+    while len(facX.get_shape()) < len(grid.get_shape())-1:
+        facX = K.expand_dims(facX)
+        facY = K.expand_dims(facY)
 
-    v  = get_cell(sdf, x0, y0) * (1-facX) * (1-facY)
-    v += get_cell(sdf, x1, y0) * facX * (1-facY)
-    v += get_cell(sdf, x0, y1) * (1-facX) * facY
-    v += get_cell(sdf, x1, y1) * facX * facY
-
+    v  = get_cell(grid, x0, y0) * (1-facX) * (1-facY)
+    v += get_cell(grid, x1, y0) * facX * (1-facY)
+    v += get_cell(grid, x0, y1) * (1-facX) * facY
+    v += get_cell(grid, x1, y1) * facX * facY
     return v
 
-def advection(grid, vec):
-    idx = K.constant(np.array([[[[x,y] for x in range(grid.get_shape()[1])] for y in range(grid.get_shape()[2])]], dtype='float32') + 0.5) - vec
-    return interpol(grid, idx)
-
-def linear_grid_like(bs, size):
-    x = tf.linspace(-size/2+0.5,size/2-0.5,size)
-    y = tf.linspace(-size/2+0.5,size/2-0.5,size)
+def grid_centers(bs, size):
+    num = tf.cast(size, "int32")
+    size = tf.cast(size,"float32")
+    x = tf.linspace(0.5,size-0.5,num)
+    y = tf.linspace(0.5,size-0.5,num)
     x, y = tf.meshgrid(x, y)
     z = tf.zeros_like(x)
 
@@ -66,33 +73,46 @@ def linear_grid_like(bs, size):
 
     return sg
 
+def advection(grid, vec):
+    sh = tf.shape(grid)
+    idx = grid_centers(sh[0], sh[1])[:,:,:2] - K.reshape(vec, (-1,sh[1]*sh[2],2))
+    return K.reshape(interpol(grid, idx), (-1,sh[1],sh[2]))
+
 def rotate_grid(grid, quat):
     bs = tf.shape(grid)[0]
-    size = int(grid.get_shape()[1])
+    si = tf.shape(grid)[1]
+    size = tf.cast(si, 'float32')
 
-    sg = linear_grid_like(bs,size)
+    sg = grid_centers(bs,si) - size/2
     sg = quaternion_rot(sg,quaternion_conj(quat)) + size/2
 
-    return interpol(grid, tf.reshape(sg,(-1,size,size,3)))
+    return K.reshape(interpol(grid, sg),(-1,si,si))
 
 def transform_grid(grid, mt):
     bs = tf.shape(grid)[0]
-    size = int(grid.get_shape()[1])
+    si = tf.shape(grid)[1]
+    size = tf.cast(si, 'float32')
 
-    sg = linear_grid_like(bs,size)
+    sg = grid_centers(bs,si) - size/2
     sg = K.batch_dot(sg, tf.matrix_inverse(mt)) + size/2
 
-    return interpol(grid, tf.reshape(sg,(-1,size,size,3)))
+    return K.reshape(interpol(grid, sg),(-1,si,si))
 
 def rotation_grid(quat, size):
     bs = tf.shape(quat)[0]
 
-    sg = linear_grid_like(bs, size)
+    sg = grid_centers(bs, size) - size/2
     trans_sg = quaternion_rot(sg, quaternion_conj(quat))
 
     return K.reshape(sg-trans_sg, (-1,size,size,3))[:,:,:,:2]
 
 if __name__ == "__main__":
+    a = K.constant(np.array([[[[0,1],[2,3]],[[4,5],[6,7]]]]))
+    print(a.get_shape())
+    idx = K.constant(np.array([[[0,0],[2,2]]]))
+    print(idx.get_shape())
+    print(K.eval(interpol(a,idx)))
+    exit()
     batch_size = 32
     bnd = 5
     def insert_square(src,x,y):
@@ -129,7 +149,9 @@ if __name__ == "__main__":
     x = Dense(200, activation='tanh', weights=[W,b])(x)
 
     vec = Reshape((10,10,2))(x)
-    x = Lambda(advection)([inputs,vec])
+    def tmp(v):
+        return advection(v[0],v[1])
+    x = Lambda(tmp)([inputs,vec])
 
     m = Model(inputs=inputs, outputs=x)
     
