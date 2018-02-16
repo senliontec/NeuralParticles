@@ -419,7 +419,7 @@ fac = 16
 k = 256
 dropout = 0.2
 batch_size = train_config['batch_size']
-epochs = 1#3 # train_config['epochs']
+epochs = 3 # train_config['epochs']
 
 def sdf_particle_loss(y_true, y_pred):
     sh = [s for s in y_pred.get_shape()]
@@ -597,7 +597,7 @@ prefix = "test"
 
 plt.savefig("%s/loss.png"%prefix)
 plt.clf()'''
-
+#src_gen = RandomParticles(dim,dim,fac_2d,dim/3,10,1.0)
 data_cnt = (t_end-t_start)*repetitions
 #kmeans = KMeans(n_clusters=10)
 for v in range(1):
