@@ -34,6 +34,8 @@ from particle_grid import ParticleGrid
 
 import scipy.ndimage.filters as fi
 
+import numpy as np
+
 random.seed(235)
 np.random.seed(694)
 
@@ -121,13 +123,25 @@ obj_cnt = int(getParam("obj_cnt", 10, paramUsed))
 fixed = int(getParam("fixed", 0, paramUsed)) != 0
 
 prefix = getParam("prefix", "test", paramUsed)
-l_scr = prefix + "/" + getParam("l_scr", "source_t%03d", paramUsed)
-h_scr = prefix + "/" + getParam("h_scr", "reference_t%03d", paramUsed)
-t_scr = prefix + "/" + getParam("t_scr", "test_src_t%03d", paramUsed)
-h_t_scr = prefix + "/" + getParam("h_t_scr", "test_ref_t%03d", paramUsed)
-r_scr = prefix + "/" + getParam("r_scr", "result_t%03d", paramUsed)
-sdf_scr = prefix + "/" + getParam("sdf_scr", "sdf_t%03d", paramUsed)
-sdf_t_scr = prefix + "/" + getParam("sdf_t_scr", "test_sdf_t%03d", paramUsed)
+source = getParam("l_scr", "source", paramUsed)
+reference = getParam("h_scr", "reference", paramUsed)
+result = getParam("r_scr", "result", paramUsed)
+#sdf_scr = prefix + "/" + getParam("sdf_scr", "sdf_t%03d", paramUsed)
+#sdf_t_scr = prefix + "/" + getParam("sdf_t_scr", "test_sdf_t%03d", paramUsed)
+
+source_scr = prefix + "/" + source + "_t%03d"
+reference_scr = prefix + "/" + reference + "_t%03d"
+test_source_scr = prefix + "/test_" + source + "_t%03d"
+test_reference_scr = prefix + "/test_" + reference + "_t%03d"
+test_result_scr = prefix + "/test_" + result + "_t%03d"
+
+sdf_reference_scr = prefix + "/sdf_" + reference + "_t%03d"
+sdf_test_reference_scr = prefix + "/test_sdf_" + reference + "_t%03d"
+sdf_test_result_scr = prefix + "/test_sdf_" + result + "_t%03d"
+
+vec_reference_scr = prefix + "/vec_" + reference + "_t%03d"
+vec_test_reference_scr = prefix + "/test_vec_" + reference + "_t%03d"
+vec_test_result_scr = prefix + "/test_vec_" + result + "_t%03d"
 
 dim = int(getParam("dim", 50, paramUsed))
 
@@ -384,21 +398,22 @@ for v in range(var):
                 if trans_mode > 0:
                     ref_data.particles = translation(ref_data.particles, normals(np.squeeze(ref_data.cells)), trans_fac if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
 
-                res, positions = load_test(src_data, 4/fac_2d, particle_cnt_src, patch_size, l_scr, t)
+                res, positions = load_test(src_data, 4/fac_2d, particle_cnt_src, patch_size, source_scr, t)
                 #res, aux_res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, l_scr+"_patch.png", "test/source_%03d.png", t, aux_postfix)
 
                 src = np.append(src, res, axis=0)
                 #for k, val in aux_res.items():
                 #    aux_src[k] = np.append(aux_src[k], val, axis=0)
                     
-                res = load_test(ref_data, 4, particle_cnt_dst, ref_patch_size, h_scr, t, positions*fac_2d)[0]
+                res = load_test(ref_data, 4, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
                 #res = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, h_scr+"_patch.png", "test/reference_%03d.png", t, positions=positions*fac_2d)[0]
 
+                dst = np.append(dst, res, axis=0)
+
                 if gen_grid:
-                    patch = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_scr, t)
+                    patch = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_reference_scr, t)
                     sdf_dst = np.append(sdf_dst, patch, axis=0)
 
-                dst = np.append(dst, res, axis=0)
 
 fac = 16
 k = 256
@@ -598,12 +613,12 @@ for v in range(1):
                 if trans_mode > 0:
                     ref_data.particles = translation(ref_data.particles, normals(np.squeeze(ref_data.cells)), trans_fac if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
             
-                src, positions = load_test(src_data, 4/fac_2d, particle_cnt_src, patch_size, t_scr, t)
+                src, positions = load_test(src_data, 4/fac_2d, particle_cnt_src, patch_size, test_source_scr, t)
 
-                ref = load_test(ref_data, 4, particle_cnt_dst, ref_patch_size, h_t_scr, t, positions*fac_2d)[0]
+                ref = load_test(ref_data, 4, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions*fac_2d)[0]
 
                 if gen_grid:
-                    sdf_ref = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_t_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_t_scr, t)
+                    sdf_ref = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_test_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_test_reference_scr, t)
                 
                 #src, aux_src, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, t_scr+"_patch.png", "test/test_%03d.png", t, aux_postfix)
 
@@ -630,13 +645,13 @@ for v in range(1):
                         tmp_ref = sdf_ref[i] if gen_grid else None
                         pos = positions[i]*fac_2d
                         if [t,i] in samples:
-                            plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_vec_patch.png")%(t,i), tmp_ref)
-                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (r_scr+"_i%03d_inter_patch.png")%(t,i))
+                            plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (vec_test_result_scr+"_i%03d_patch.png")%(t,i), tmp_ref)
+                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
 
                         if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
                             insert_patch(img, tmp, pos.astype(int), elem_avg)
                             if gen_grid: insert_patch(ref_img, tmp_ref, pos.astype(int), elem_avg)
-                    plot_vec(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d_vec.png")%(t,r), ref_img[0] if gen_grid else None)
+                    plot_vec(img[0], [0,h_dim], [0,h_dim], (vec_test_result_scr+"_r%03d.png")%(t,r), ref_img[0] if gen_grid else None)
                 elif grid_out:
                     ps_half = ref_patch_size//2
                     img = np.ones((1,h_dim,h_dim))
@@ -647,13 +662,13 @@ for v in range(1):
                         tmp_ref = np.arctanh(np.clip(sdf_ref[i],-.999999,.999999))
                         pos = positions[i]*fac_2d
                         if [t,i] in samples:
-                            plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (r_scr+"_i%03d_sdf_patch.png")%(t,i), tmp_ref)
-                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (r_scr+"_i%03d_inter_patch.png")%(t,i))
+                            plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (sdf_test_result_scr+"_i%03d_patch.png")%(t,i), tmp_ref)
+                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
 
                         if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
                             insert_patch(img, tmp * circular_filter, pos.astype(int), elem_min)
                             insert_patch(ref_img, tmp_ref, pos.astype(int), elem_min)
-                    plot_sdf(img[0], [0,h_dim], [0,h_dim], (r_scr+"_r%03d_sdf.png")%(t,r), ref_img[0])
+                    plot_sdf(img[0], [0,h_dim], [0,h_dim], (sdf_test_result_scr+"_r%03d.png")%(t,r), ref_img[0])
                 
                 if par_out:
                     img = np.empty((0,3))
@@ -664,12 +679,12 @@ for v in range(1):
                         #par = np.append(kmeans.cluster_centers_, np.zeros((10,1)), axis=1)
                         par = result[i]#,:10]
                         if [t,i] in samples:# or True:
-                            plot_particles(par, [-1,1], [-1,1], 5, (r_scr+"_i%03d_patch.png")%(t,i), ref[i])
-                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (r_scr+"_i%03d_inter_patch.png")%(t,i))
+                            plot_particles(par, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_patch.png")%(t,i), ref[i])
+                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
                         
                         par = np.add(par*ref_patch_size, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.])
                         img = np.append(img, par, axis=0)
                         ref_img = np.append(ref_img, np.add(ref[i]*ref_patch_size, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                    plot_particles(img, [0,h_dim], [0,h_dim], 0.1, (r_scr+"_r%03d.png")%(t,r), ref_img)
+                    plot_particles(img, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_r%03d.png")%(t,r), ref_img)
 
             
