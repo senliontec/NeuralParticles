@@ -559,10 +559,10 @@ interm = Model(inputs=inputs, outputs=intermediate)
 
 if not grid_out and gen_grid:
     sdf_in = Input((ref_patch_size, ref_patch_size))
-    sample_out = Lambda(lambda v: interpol(v[0],v[1]))([sdf_in, out])
+    sample_out = Lambda(lambda v: K.relu(interpol(v[0],(v[1]+1)*ref_patch_size*0.5)))([sdf_in, out])
 
     train_model = Model(inputs=[inputs, sdf_in], output=[out,sample_out])
-    train_model.compile(loss=[hungarian_loss, lambda x,y: K.sum(y,axis=-1)], optimizer=keras.optimizers.adam(lr=0.001))
+    train_model.compile(loss=[hungarian_loss, lambda x,y: K.mean(y,axis=-1)], optimizer=keras.optimizers.adam(lr=0.001))
     history = train_model.fit(x=[src,sdf_dst],y=[dst,np.empty((dst.shape[0],dst.shape[1]))],epochs=epochs,batch_size=batch_size)
 else:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=0.001))
