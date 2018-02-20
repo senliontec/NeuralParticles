@@ -421,42 +421,6 @@ dropout = 0.2
 batch_size = train_config['batch_size']
 epochs = 3 # train_config['epochs']
 
-def sdf_particle_loss(y_true, y_pred):
-    sh = [s for s in y_pred.get_shape()]
-    sh[0] = batch_size
-    y_pred.set_shape(sh)
-
-    sh = [s for s in y_true.get_shape()]
-    sh[0] = batch_size
-    sh[1] = ref_patch_size
-    sh[2] = ref_patch_size
-    y_true.set_shape(sh)
-
-    def interpol(sdf, pos):
-        pos = (pos+1) * 0.5 * ref_patch_size + 0.5
-        sdf = tf.pad(sdf, tf.constant([[1,1],[1,1]]), "SYMMETRIC")
-        w = sdf.get_shape()[0]
-        x = K.cast(pos[:,0], 'int32')
-        y = K.cast(pos[:,1], 'int32')
-        idx = x + y * w
-        facX = pos[:,0]-K.cast(x, 'float32')
-        facY = pos[:,1]-K.cast(y, 'float32')
-        
-        l = x.get_shape()[0]
-
-        sdf = K.flatten(K.relu(sdf))
-
-        v  = K.gather(sdf, idx) * (1-facX) * (1-facY)
-        v += K.gather(sdf, idx+1) * facX * (1-facY)
-        v += K.gather(sdf, idx+w) * (1-facX) * facY
-        v += K.gather(sdf, idx+w+1) * facX * facY
-
-        return v
-
-    y_true = tf.unstack(y_true)
-    y_pred = tf.unstack(y_pred)
-    return tf.stack([interpol(y_true[i],y_pred[i]) for i in range(batch_size)])
-
 src = src[:len(src)//batch_size*batch_size]
 dst = dst[:len(src)//batch_size*batch_size]
 
@@ -468,7 +432,7 @@ for k, v in aux_src.items():
 inputs = Input((particle_cnt_src,3), name="main")
 #aux_input = Input((particle_cnt_src,3))
 
-x = Dropout(dropout)(inputs)
+x = inputs#Dropout(dropout)(inputs)
 stn = SpatialTransformer(x,particle_cnt_src,dropout=dropout,quat=True,norm=True)
 intermediate = stn_transform(stn,x,quat=True)
 
@@ -562,28 +526,11 @@ if not grid_out and gen_grid:
     sample_out = Lambda(lambda v: K.relu(interpol(v[0],(v[1]+1)*ref_patch_size*0.5)))([sdf_in, out])
 
     train_model = Model(inputs=[inputs, sdf_in], output=[out,sample_out])
-    train_model.compile(loss=[hungarian_loss, lambda x,y: K.mean(y,axis=-1)], optimizer=keras.optimizers.adam(lr=0.001))
+    train_model.compile(loss=[hungarian_loss, lambda x,y: K.mean(y,axis=-1)], optimizer=keras.optimizers.adam(lr=0.001), loss_weights=[1., 1.])
     history = train_model.fit(x=[src,sdf_dst],y=[dst,np.empty((dst.shape[0],dst.shape[1]))],epochs=epochs,batch_size=batch_size)
 else:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=0.001))
     history = model.fit(x=src,y=y,epochs=epochs,batch_size=batch_size)
-
-'''train_model = Model(inputs=inputs, outputs=Flatten()(out))
-
-g_tr = np.concatenate([np.reshape(dst, (dst.shape[0], particle_cnt_dst*3)), np.reshape(sdf_dst, (sdf_dst.shape[0], ref_patch_size*ref_patch_size))], axis=-1)
-
-def comb_loss(x,y):
-    x.set_shape((batch_size, ref_patch_size * ref_patch_size + particle_cnt_dst * 3))
-    y.set_shape((batch_size, particle_cnt_dst * 3))    
-    
-    pos = K.reshape(x[:,:particle_cnt_dst*3], (batch_size, particle_cnt_dst, 3))
-    sdf = K.reshape(x[:,particle_cnt_dst*3:], (batch_size, ref_patch_size, ref_patch_size))
-    y = K.reshape(y, (batch_size, particle_cnt_dst, 3))
-
-    return hungarian_loss(pos,y) #+ sdf_particle_loss(sdf,y)
-
-train_model.compile(optimizer=keras.optimizers.adam(lr=0.001), loss=comb_loss)
-history=train_model.fit(x=src,y=g_tr,epochs=epochs,batch_size=batch_size)'''
 
 #model.summary()
 '''plt.plot(history.history['loss'])
@@ -603,7 +550,7 @@ data_cnt = (t_end-t_start)*repetitions
 for v in range(1):
     for d in range(5,6):
         for t in range(t_start, t_end): 
-            src_gen.gen_random(pos=np.array([[dim/2+0.5,dim/2+0.5]]) if fixed else None, a=np.array([[t+1,t+1]]) if fixed else None)
+            src_gen.gen_random(pos=np.array([[dim/2+0.5,dim/2+0.5]]) if fixed else None, a=np.array([[t+1,t+1]])+10 if fixed else None)
             for r in range(repetitions):
                 act_d = r+repetitions*(t-t_start)
                 print("Run Test: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
