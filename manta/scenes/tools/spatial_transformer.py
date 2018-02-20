@@ -30,7 +30,6 @@ def SpatialTransformer(inputs, cnt,features=3,kernel=(1,3),dropout=0.2,fac=64,qu
     x = Dropout(dropout)(x)
 
     if quat:
-        #b = np.array([1,0,0,0], dtype='float32')
         b = np.array([1,0,0,0], dtype='float32')
         W = np.zeros((fac, 4), dtype='float32')
         x = Dense(4,weights=[W,b])(x)

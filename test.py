@@ -434,7 +434,7 @@ inputs = Input((particle_cnt_src,3), name="main")
 
 x = inputs#Dropout(dropout)(inputs)
 stn = SpatialTransformer(x,particle_cnt_src,dropout=dropout,quat=True,norm=True)
-intermediate = stn_transform(stn,x,quat=True)
+intermediate = x#stn_transform(stn,x,quat=True)
 
 x = intermediate
 #x = concatenate([intermediate, stn([x,aux_input])],axis=-1)
@@ -484,11 +484,11 @@ if gen_grid or use_vec:
                 return K.concatenate([interpol(v[0],v[1]),zero],axis=-1)
             x = Lambda(tmp)([out_sdf,inputs])
             x = add([inputs, x])
-            out = stn_transform_inv(stn, x, quat=True)
+            out = x#stn_transform_inv(stn, x, quat=True)
     else:
         x = Reshape((ref_patch_size, ref_patch_size))(x)
         inv_trans = x
-        out_sdf = stn_grid_transform_inv(stn, x, quat=True)
+        out_sdf = x#stn_grid_transform_inv(stn, x, quat=True)
 
 if par_out and not use_vec:
     x = Flatten()(features)
@@ -550,7 +550,7 @@ data_cnt = (t_end-t_start)*repetitions
 for v in range(1):
     for d in range(5,6):
         for t in range(t_start, t_end): 
-            src_gen.gen_random(pos=np.array([[dim/2+0.5,dim/2+0.5]]) if fixed else None, a=np.array([[t+1,t+1]])+10 if fixed else None)
+            src_gen.gen_random(pos=np.array([[dim/2+0.5,dim/2+0.5]]) if fixed else None, a=np.array([[t+1,t+1]]) if fixed else None)
             for r in range(repetitions):
                 act_d = r+repetitions*(t-t_start)
                 print("Run Test: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
