@@ -130,9 +130,9 @@ def get_patches(sdf_data, patch_size, dimX, dimY, stride, surface):
 	return np.array(pos)
 
 def plot_particles(data, xlim, ylim, s, path=None, ref=None):
-	plt.scatter(data[:,0],data[:,1],s=s,c='b')
 	if not ref is None:
 		plt.scatter(ref[:,0],ref[:,1],s=s,c='r')
+	plt.scatter(data[:,0],data[:,1],s=s,c='b')
 	plt.xlim(xlim)
 	plt.ylim(ylim)
 	if path is None:

@@ -42,6 +42,13 @@ np.random.seed(694)
 import keras.backend as K
 import tensorflow as tf
 
+from sklearn.decomposition import PCA
+
+def eigenvector(data):
+    pca = PCA()
+    pca.fit(data)
+    return pca.components_
+
 def density_loss(y_true, y_pred):
     sh = [s for s in y_pred.get_shape()]
     sh[0] = 32
@@ -287,6 +294,16 @@ def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
     plot_particles(img, [0,grid.dimX], [0,grid.dimY], 0.1, (scr + ".png") % t)
     return result, positions
 
+def mean_nor(sdf, positions, t):
+    res = np.empty((len(positions),2))
+    sdf_f, nor_f = sdf_func(np.squeeze(sdf))
+    for i in range(len(positions)):
+        res[i] = nor_f(positions[i,:2])
+        if [t,i] in samples:
+            print(res[i])
+
+    return res
+
 def nor_patches(sdf, positions, patch_size, scr, t):
     res = np.empty((0,patch_size, patch_size, 2))
     ps_half = patch_size // 2
@@ -373,6 +390,8 @@ dst_file = "%s_%s"%(data_config['prefix'], data_config['id']) + "_d%03d_%03d"
 src = np.empty((0,particle_cnt_src,3))
 dst = np.empty((0,particle_cnt_dst,3))
 
+rotated_src = np.empty((0,particle_cnt_src,3))
+
 sdf_dst = np.empty((0,ref_patch_size, ref_patch_size, 2) if use_vec else (0,ref_patch_size, ref_patch_size))
 
 aux_postfix = {
@@ -404,6 +423,17 @@ for v in range(var):
                 src = np.append(src, res, axis=0)
                 #for k, val in aux_res.items():
                 #    aux_src[k] = np.append(aux_src[k], val, axis=0)
+
+                nor = mean_nor(ref_data.cells, positions*fac_2d, t)
+                theta = np.arctan2(nor[:,0],nor[:,1])# / math.pi * 180
+
+                for i in range(len(res)):
+                    c, s = np.cos(-theta[i]), np.sin(-theta[i])
+                    mat = np.matrix([[c,-s,0],[s,c,0],[0,0,1]])
+                    res[i] = res[i] * mat
+                    if [t,i] in samples:
+                        plot_particles(res[i],[-1,1],[-1,1],5,(source_scr+"_i%03d_rotated_patch.png")%(t,i))
+                rotated_src = np.append(rotated_src, res, axis=0)
                     
                 res = load_test(ref_data, 4, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
                 #res = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, h_scr+"_patch.png", "test/reference_%03d.png", t, positions=positions*fac_2d)[0]
@@ -423,6 +453,7 @@ epochs = 3 # train_config['epochs']
 
 src = src[:len(src)//batch_size*batch_size]
 dst = dst[:len(src)//batch_size*batch_size]
+rotated_src = rotated_src[:len(src)//batch_size*batch_size]
 
 sdf_dst = sdf_dst[:len(src)//batch_size*batch_size]
 
@@ -432,11 +463,22 @@ for k, v in aux_src.items():
 inputs = Input((particle_cnt_src,3), name="main")
 #aux_input = Input((particle_cnt_src,3))
 
-x = inputs#Dropout(dropout)(inputs)
-stn = SpatialTransformer(x,particle_cnt_src,dropout=dropout,quat=True,norm=True)
-intermediate = x#stn_transform(stn,x,quat=True)
+stn_input = Input((particle_cnt_src,3))
+stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
+stn_model = Model(inputs=stn_input, outputs=stn)
+stn = stn_model(inputs)
 
-x = intermediate
+x = stn_transform(stn,inputs,quat=True)
+inter_model = Model(inputs=inputs, outputs=x)
+inter_model.compile(loss=hungarian_loss, optimizer=keras.optimizers.adam(lr=0.001))
+history = inter_model.fit(x=src,y=rotated_src,epochs=epochs,batch_size=batch_size)
+
+stn_model.trainable = False
+
+#x = inputs#Dropout(dropout)(inputs)
+#stn = SpatialTransformer(x,particle_cnt_src,dropout=dropout,quat=True,norm=True)
+#intermediate = stn_transform(stn,x,quat=True)
+
 #x = concatenate([intermediate, stn([x,aux_input])],axis=-1)
 
 x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
@@ -484,11 +526,11 @@ if gen_grid or use_vec:
                 return K.concatenate([interpol(v[0],v[1]),zero],axis=-1)
             x = Lambda(tmp)([out_sdf,inputs])
             x = add([inputs, x])
-            out = x#stn_transform_inv(stn, x, quat=True)
+            out = stn_transform_inv(stn, x, quat=True)
     else:
         x = Reshape((ref_patch_size, ref_patch_size))(x)
         inv_trans = x
-        out_sdf = x#stn_grid_transform_inv(stn, x, quat=True)
+        out_sdf = stn_grid_transform_inv(stn, x, quat=True)
 
 if par_out and not use_vec:
     x = Flatten()(features)
@@ -519,7 +561,7 @@ elif use_vec:
     vec_model = Model(inputs=inputs, output=out_sdf)
 
 model = Model(inputs=inputs, outputs=m_out)
-interm = Model(inputs=inputs, outputs=intermediate)
+#interm = Model(inputs=inputs, outputs=intermediate)
 
 if not grid_out and gen_grid:
     sdf_in = Input((ref_patch_size, ref_patch_size))
@@ -574,7 +616,7 @@ for v in range(1):
                 if grid_out and par_out:
                     grid_result = result[1]
                     result = result[0]
-                inter_result = interm.predict(x=src,batch_size=batch_size)
+                inter_result = inter_model.predict(x=src,batch_size=batch_size)
                 #inv_result = invm.predict(x=src,batch_size=batch_size)
 
                 for sample in samples:

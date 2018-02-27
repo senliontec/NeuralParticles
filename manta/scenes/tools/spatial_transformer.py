@@ -5,6 +5,7 @@ from keras.layers.core import Layer
 from keras.models import Sequential, Model
 from keras.layers import Reshape, Conv2D, MaxPooling2D, Flatten, Dense, Input, Dropout, Lambda
 import numpy as np
+import math
 
 import tensorflow as tf
 
@@ -71,7 +72,7 @@ if __name__ == "__main__":
     src = np.empty((cnt,par,3))
     grid_src = np.ones((cnt,grid_size,grid_size))
     for i in range(cnt):
-        theta = 360 * np.random.rand()
+        theta = math.pi * np.random.rand()
         c, s = np.cos(theta), np.sin(theta)
         mat = np.matrix([[c,-s,0],[s,c,0],[0,0,1]])
         src[i] = pos[i] * mat
