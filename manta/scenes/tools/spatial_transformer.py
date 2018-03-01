@@ -1,6 +1,6 @@
 import keras
 import keras.backend as K
-K.set_learning_phase(1)
+#K.set_learning_phase(1)
 from keras.layers.core import Layer
 from keras.models import Sequential, Model
 from keras.layers import Reshape, Conv2D, MaxPooling2D, Flatten, Dense, Input, Dropout, Lambda
