@@ -66,10 +66,10 @@ def density_loss(y_true, y_pred):
     return tf.reciprocal(dens)#tf.stack([K.sum(K.map_fn(kernel,K.flatten(c))) for c in tf.unstack(cost)])
 
 def normals(sdf):
-    x,y = np.gradient(sdf)
+    y,x = np.gradient(sdf)
     x = np.expand_dims(x,axis=-1)
     y = np.expand_dims(y,axis=-1)
-    g = np.concatenate([y,x],axis=-1)
+    g = np.concatenate([x,y],axis=-1)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return np.nan_to_num(g/np.linalg.norm(g,axis=-1,keepdims=True))
@@ -83,7 +83,7 @@ def sdf_func(sdf):
     y_v = np.arange(0.5, sdf.shape[0]+0.5)
     sdf_f = lambda x: interpolate.interp2d(x_v, y_v, sdf)(x[0],x[1])
     nor = normals(sdf)
-    nor_f = lambda x: np.concatenate([interpolate.interp2d(x_v, y_v, nor[:,:,1])(x[0],x[1]), interpolate.interp2d(x_v, y_v, nor[:,:,0])(x[0],x[1])])
+    nor_f = lambda x: np.concatenate([interpolate.interp2d(x_v, y_v, nor[:,:,0])(x[0],x[1]), interpolate.interp2d(x_v, y_v, nor[:,:,1])(x[0],x[1])])
     '''for i in np.arange(sdf.shape[0],step=2.0):
         for j in np.arange(sdf.shape[1],step=2.0):
             v = sdf_f([i,j])
@@ -426,7 +426,7 @@ for v in range(var):
                 #    aux_src[k] = np.append(aux_src[k], val, axis=0)
 
                 nor = mean_nor(ref_data.cells, positions*fac_2d, t)
-                theta = np.arctan2(nor[:,1],nor[:,0])# / math.pi * 180
+                theta = np.arctan2(nor[:,0],nor[:,1])# / math.pi * 180
 
                 for i in range(len(res)):
                     c, s = np.cos(-theta[i]), np.sin(-theta[i])

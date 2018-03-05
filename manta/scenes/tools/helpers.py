@@ -150,13 +150,13 @@ def plot_sdf(data, xlim, ylim, path=None, ref=None, src=None, s=1):
 	plt.clf()
 
 def plot_vec(data, xlim, ylim, path=None, ref=None, src=None, s=1):
-	for x in range(xlim[0],xlim[1],2):
-		for y in range(ylim[0],ylim[1],2):
+	for y in range(ylim[0],ylim[1],2):
+		for x in range(xlim[0],xlim[1],2):
 			v = data[y,x]
-			plt.plot([x,x+v[0]],[y,y+v[1]], 'b-')
+			plt.plot([x+0.5,x+0.5+v[0]],[y+0.5,y+0.5+v[1]], 'b-')
 			if not ref is None:
 				v = ref[y,x]
-				plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
+				plt.plot([x+0.5,x+0.5+v[0]],[y+0.5,y+0.5+v[1]], 'r-')
 	
 	if not src is None:
 		plt.scatter(src[:,0],src[:,1],s=s,c='g')
