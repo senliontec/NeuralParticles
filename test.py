@@ -194,7 +194,7 @@ if t_start < 0:
 if t_end < 0:
     t_end = train_config['t_end']
 
-samples = [[random.randint(t_start, t_end-1), random.randint(0, 20)] for i in range(patch_sample_cnt)]
+samples = [[random.randint(t_start, t_end-1), random.randint(0, 200)] for i in range(patch_sample_cnt)]
 print(samples)
 
 patch_size = 9#pre_config['patch_size']
@@ -303,7 +303,6 @@ def mean_nor(sdf, positions, t):
         res[i] = nor_f(positions[i,:2])
         if [t,i] in samples:
             print(res[i])
-
     return res
 
 def nor_patches(sdf, positions, patch_size, scr, t):
@@ -427,7 +426,7 @@ for v in range(var):
                 #    aux_src[k] = np.append(aux_src[k], val, axis=0)
 
                 nor = mean_nor(ref_data.cells, positions*fac_2d, t)
-                theta = np.arctan2(nor[:,0],nor[:,1])# / math.pi * 180
+                theta = np.arctan2(nor[:,1],nor[:,0])# / math.pi * 180
 
                 for i in range(len(res)):
                     c, s = np.cos(-theta[i]), np.sin(-theta[i])
