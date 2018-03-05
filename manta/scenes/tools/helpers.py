@@ -71,16 +71,6 @@ def insert_patch(data, patch, pos, func):
 	data[0,y0:y1,x0:x1] = func(data[0,y0:y1,x0:x1], patch)
 
 def extract_particles(data, pos, cnt, constraint, aux_data={}):
-	# select the 'cnt'th nearest particles to pos 
-	#if constraint != None:
-	'''constraint = constraint//2
-	x0 = pos[0]-constraint
-	x1 = pos[0]+constraint+1
-	y0 = pos[1]-constraint
-	y1 = pos[1]+constraint+1
-	data = particle_range(data, [x0,y0], [x1,y1])
-	if len(data) < cnt:
-		return None'''
 	par_idx = particle_radius(data, pos, constraint)
 	par_pos = np.subtract(data[par_idx],pos)/constraint
 
@@ -101,10 +91,6 @@ def extract_particles(data, pos, cnt, constraint, aux_data={}):
 	for k, v in par_aux.items():
 		par_aux[k] = v[rnd_idx]
 	return par_pos, par_aux
-	
-	#par = data[np.argpartition(np.linalg.norm(np.subtract(data,pos), axis=1), cnt-1)[:cnt]]
-	#par = np.subtract(par,pos)
-	#return par[np.argsort(np.linalg.norm(par, axis=1))]
 
 def extract_patch(data, pos, patch_size):
 	patch_size = patch_size//2
@@ -129,10 +115,12 @@ def get_patches(sdf_data, patch_size, dimX, dimY, stride, surface):
 				pos.append([x,y,z])
 	return np.array(pos)
 
-def plot_particles(data, xlim, ylim, s, path=None, ref=None):
+def plot_particles(data, xlim, ylim, s, path=None, ref=None, src=None):
 	if not ref is None:
 		plt.scatter(ref[:,0],ref[:,1],s=s,c='r')
 	plt.scatter(data[:,0],data[:,1],s=s,c='b')
+	if not src is None:
+		plt.scatter(src[:,0],src[:,1],s=s,c='g')
 	plt.xlim(xlim)
 	plt.ylim(ylim)
 	if path is None:
@@ -141,28 +129,27 @@ def plot_particles(data, xlim, ylim, s, path=None, ref=None):
 		plt.savefig(path)
 	plt.clf()
 
-def plot_sdf(data, xlim, ylim, path=None, ref=None):
-	plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), data, np.arange(-1,1.1,0.2))
-	plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), data, np.array([0]), linewidths=3, colors='b')
-	'''for x in range(xlim[0],xlim[1],2):
-		for y in range(ylim[0],ylim[1],2):
-			v = data[y,x]
-			if nor_out:
-				plt.plot([x,x+v[0]],[y,y+v[1]], '-')
-			elif v <= 0.0:
-				plt.plot(x,y,'bo')
-	plt.xlim(xlim)
-	plt.ylim(ylim)'''
+def plot_sdf(data, xlim, ylim, path=None, ref=None, src=None, s=1):
+	plt.contour(np.arange(xlim[0],xlim[1])+0.5, np.arange(ylim[0],ylim[1])+0.5, data, np.arange(-1,1.1,0.2))
+	plt.contour(np.arange(xlim[0],xlim[1])+0.5, np.arange(ylim[0],ylim[1])+0.5, data, np.array([0]), linewidths=3, colors='b')
 	if not ref is None:
-		plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), ref, np.arange(-1,1.1,0.2), cmap=plt.get_cmap('coolwarm'))
-		plt.contour(np.arange(xlim[0],xlim[1]), np.arange(ylim[0],ylim[1]), ref, np.array([0]), linewidths=3, colors='r')
+		plt.contour(np.arange(xlim[0],xlim[1])+0.5, np.arange(ylim[0],ylim[1])+0.5, ref, np.arange(-1,1.1,0.2), cmap=plt.get_cmap('coolwarm'))
+		plt.contour(np.arange(xlim[0],xlim[1])+0.5, np.arange(ylim[0],ylim[1])+0.5, ref, np.array([0]), linewidths=3, colors='r')
+		'''for x in range(xlim[0],xlim[1],1):
+			for y in range(ylim[0],ylim[1],1):
+				if ref[y,x] <= 0:
+					plt.plot(x+0.5,y+0.5, 'ro')'''
+
+	if not src is None:
+		plt.scatter(src[:,0],src[:,1],s=s,c='g',zorder=10)
+	
 	if path is None:
 		plt.show()
 	else:
 		plt.savefig(path)
 	plt.clf()
 
-def plot_vec(data, xlim, ylim, path=None, ref=None):
+def plot_vec(data, xlim, ylim, path=None, ref=None, src=None, s=1):
 	for x in range(xlim[0],xlim[1],2):
 		for y in range(ylim[0],ylim[1],2):
 			v = data[y,x]
@@ -171,6 +158,8 @@ def plot_vec(data, xlim, ylim, path=None, ref=None):
 				v = ref[y,x]
 				plt.plot([x,x+v[0]],[y,y+v[1]], 'r-')
 	
+	if not src is None:
+		plt.scatter(src[:,0],src[:,1],s=s,c='g')
 	plt.xlim(xlim)
 	plt.ylim(ylim)
 	if path is None:
