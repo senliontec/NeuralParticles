@@ -130,8 +130,6 @@ def plot_particles(data, xlim, ylim, s, path=None, ref=None, src=None):
 	plt.clf()
 
 def plot_sdf(data, xlim, ylim, path=None, ref=None, src=None, s=1):
-	plt.contour(np.arange(xlim[0],xlim[1])+0.5, np.arange(ylim[0],ylim[1])+0.5, data, np.arange(-1,1.1,0.2))
-	plt.contour(np.arange(xlim[0],xlim[1])+0.5, np.arange(ylim[0],ylim[1])+0.5, data, np.array([0]), linewidths=3, colors='b')
 	if not ref is None:
 		plt.contour(np.arange(xlim[0],xlim[1])+0.5, np.arange(ylim[0],ylim[1])+0.5, ref, np.arange(-1,1.1,0.2), cmap=plt.get_cmap('coolwarm'))
 		plt.contour(np.arange(xlim[0],xlim[1])+0.5, np.arange(ylim[0],ylim[1])+0.5, ref, np.array([0]), linewidths=3, colors='r')
@@ -139,7 +137,8 @@ def plot_sdf(data, xlim, ylim, path=None, ref=None, src=None, s=1):
 			for y in range(ylim[0],ylim[1],1):
 				if ref[y,x] <= 0:
 					plt.plot(x+0.5,y+0.5, 'ro')'''
-
+	plt.contour(np.arange(xlim[0],xlim[1])+0.5, np.arange(ylim[0],ylim[1])+0.5, data, np.arange(-1,1.1,0.2))
+	plt.contour(np.arange(xlim[0],xlim[1])+0.5, np.arange(ylim[0],ylim[1])+0.5, data, np.array([0]), linewidths=3, colors='b')
 	if not src is None:
 		plt.scatter(src[:,0],src[:,1],s=s,c='g',zorder=10)
 	
@@ -152,11 +151,11 @@ def plot_sdf(data, xlim, ylim, path=None, ref=None, src=None, s=1):
 def plot_vec(data, xlim, ylim, path=None, ref=None, src=None, s=1):
 	for y in range(ylim[0],ylim[1],2):
 		for x in range(xlim[0],xlim[1],2):
-			v = data[y,x]
-			plt.plot([x+0.5,x+0.5+v[0]],[y+0.5,y+0.5+v[1]], 'b-')
 			if not ref is None:
 				v = ref[y,x]
 				plt.plot([x+0.5,x+0.5+v[0]],[y+0.5,y+0.5+v[1]], 'r-')
+			v = data[y,x]
+			plt.plot([x+0.5,x+0.5+v[0]],[y+0.5,y+0.5+v[1]], 'b-')
 	
 	if not src is None:
 		plt.scatter(src[:,0],src[:,1],s=s,c='g')

@@ -194,7 +194,7 @@ if t_start < 0:
 if t_end < 0:
     t_end = train_config['t_end']
 
-samples = [[random.randint(t_start, t_end-1), random.randint(0, 200)] for i in range(patch_sample_cnt)]
+samples = [[random.randint(t_start, t_end-1), random.randint(0, 20)] for i in range(patch_sample_cnt)]
 print(samples)
 
 patch_size = 9#pre_config['patch_size']
