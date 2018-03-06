@@ -79,14 +79,15 @@ def advection(grid, vec):
     return K.reshape(interpol(grid, idx), (-1,sh[1],sh[2]))
 
 def rotate_grid(grid, quat):
-    bs = tf.shape(grid)[0]
-    si = tf.shape(grid)[1]
+    sh = tf.shape(grid)
+    bs = sh[0]
+    si = sh[1]
     size = tf.cast(si, 'float32')
 
     sg = grid_centers(bs,si) - size/2
     sg = quaternion_rot(sg,quaternion_conj(quat)) + size/2
 
-    return K.reshape(interpol(grid, sg),(-1,si,si))
+    return K.reshape(interpol(grid, sg),(-1,si,si)) if len(grid.get_shape()) < 4 else K.reshape(interpol(grid, sg),(-1,si,si,sh[3]))
 
 def transform_grid(grid, mt):
     bs = tf.shape(grid)[0]

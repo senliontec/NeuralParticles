@@ -518,20 +518,18 @@ if gen_grid or use_vec:
     w = [np.zeros((3,3,c,4)),np.zeros((c,))]
     x = Conv2DTranspose(filters=c, kernel_size=3, strides=1, activation='tanh', padding='same', weights=w)(x)
 
-    if use_vec:
-        out_sdf = Reshape((ref_patch_size, ref_patch_size, c))(x)
-        if not gen_grid:
-            def tmp(v):
-                sh = tf.shape(v[1])
-                zero = tf.zeros((sh[0],sh[1],1))
-                return K.concatenate([interpol(v[0],v[1]),zero],axis=-1)
-            x = Lambda(tmp)([out_sdf,inputs])
-            x = add([inputs, x])
-            out = stn_transform_inv(stn, x, quat=True)
-    else:
-        x = Reshape((ref_patch_size, ref_patch_size))(x)
-        inv_trans = x
-        out_sdf = stn_grid_transform_inv(stn, x, quat=True)
+    x = Reshape((ref_patch_size, ref_patch_size, c))(x) if use_vec else Reshape((ref_patch_size, ref_patch_size))(x)
+    inv_trans = x
+    out_sdf = stn_grid_transform_inv(stn, x, quat=True)
+
+    if use_vec and not gen_grid:
+        def tmp(v):
+            sh = tf.shape(v[1])
+            zero = tf.zeros((sh[0],sh[1],1))
+            return K.concatenate([interpol(v[0],v[1]),zero],axis=-1)
+        x = Lambda(tmp)([out_sdf,inputs])
+        x = add([inputs, x])
+        out = stn_transform_inv(stn, x, quat=True)
 
 if par_out and not use_vec:
     x = Flatten()(features)
