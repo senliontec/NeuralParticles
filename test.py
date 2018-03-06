@@ -197,7 +197,7 @@ if t_end < 0:
 samples = [[random.randint(t_start, t_end-1), random.randint(0, 20)] for i in range(patch_sample_cnt)]
 print(samples)
 
-patch_size = 9#pre_config['patch_size']
+patch_size = 5#pre_config['patch_size']
 fac_1d = 9
 fac_2d = 3
 ref_patch_size = patch_size * fac_2d
