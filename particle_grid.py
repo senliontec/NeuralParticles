@@ -97,14 +97,21 @@ if __name__ == '__main__':
 
     def in_surface(sdf):
         return np.where(abs(sdf) < 1.0)
+
+    def in_bound(pos, bnd_min, bnd_max):
+        return np.where(np.all([np.all(bnd_min<=pos,axis=-1),np.all(pos<=bnd_max,axis=-1)],axis=0))
     
+    patch_size = 5
+
     sdf_f = sdf_func(src_grid.cells)
-    positions = src_grid.particles[in_surface(np.array([sdf_f(p) for p in src_grid.particles]))[0]]
+        
+    particle_data_bound = src_grid.particles[in_bound(src_grid.particles[:,:2], patch_size/2, src_grid.dimX-(patch_size/2))]
+
+    positions = particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]))[0]]
     positions = positions[np.random.randint(len(positions), size=10)]
     print(positions)
 
     i = 0
-    patch_size = 5
     for pos in positions:
         par = (extract_particles(src_grid.particles, pos, 1000, patch_size/2)[0] + 1) * patch_size/2
         tmp = np.array([[sdf_f(pos[:2]-patch_size/2+0.5+np.array([x,y]))[0] for x in range(patch_size)] for y in range(patch_size)])
