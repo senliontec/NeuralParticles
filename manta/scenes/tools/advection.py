@@ -87,17 +87,44 @@ def rotate_grid(grid, quat):
     sg = grid_centers(bs,si) - size/2
     sg = quaternion_rot(sg,quaternion_conj(quat)) + size/2
 
-    return K.reshape(interpol(grid, sg),(-1,si,si)) if len(grid.get_shape()) < 4 else K.reshape(interpol(grid, sg),(-1,si,si,sh[3]))
+    return K.reshape(interpol(grid, sg),(-1,si,si))
+
+def rotate_vec_grid(grid, quat):
+    sh = tf.shape(grid)
+    bs = sh[0]
+    si = sh[1]
+    size = tf.cast(si, 'float32')
+
+    grid = K.reshape(quaternion_rot(K.reshape(grid,(-1,si*si,3)), quat), (-1,si,si,3))
+
+    sg = grid_centers(bs,si) - size/2
+    sg = quaternion_rot(sg,quaternion_conj(quat)) + size/2
+
+    return K.reshape(interpol(grid, sg),(-1,si,si,3))
 
 def transform_grid(grid, mt):
-    bs = tf.shape(grid)[0]
-    si = tf.shape(grid)[1]
+    sh = tf.shape(grid)
+    bs = sh[0]
+    si = sh[1]
     size = tf.cast(si, 'float32')
 
     sg = grid_centers(bs,si) - size/2
     sg = K.batch_dot(sg, tf.matrix_inverse(mt)) + size/2
 
     return K.reshape(interpol(grid, sg),(-1,si,si))
+
+def transform_vec_grid(grid, mt):
+    sh = tf.shape(grid)
+    bs = sh[0]
+    si = sh[1]
+    size = tf.cast(si, 'float32')
+
+    grid = K.reshape(K.batch_dot(K.reshape(grid,(-1,si*si,3)), mt), (-1,si,si,3))
+
+    sg = grid_centers(bs,si) - size/2
+    sg = K.batch_dot(sg, tf.matrix_inverse(mt)) + size/2
+
+    return K.reshape(interpol(grid, sg),(-1,si,si, 3))
 
 def rotation_grid(quat, size):
     bs = tf.shape(quat)[0]

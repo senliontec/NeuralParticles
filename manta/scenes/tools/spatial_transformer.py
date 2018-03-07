@@ -12,7 +12,7 @@ import sys
 sys.path.append("manta/scenes/tools/")
 from quaternion_mul import quaternion_rot, quaternion_conj, quaternion_norm
 
-from advection import advection, rotate_grid, transform_grid
+from advection import advection, rotate_grid, transform_grid, rotate_vec_grid, transform_vec_grid
 
 from helpers import *
 
@@ -54,12 +54,19 @@ def stn_transform_inv(transform, x, quat=False):
 
 def stn_grid_transform(transform, x, quat=False):
     def tmp(v):
-        return rotate_grid(v[0],v[1]) if quat else transform_grid(v[0],v[1])
+        if len(v[0].get_shape()) < 4:
+            return rotate_grid(v[0],v[1]) if quat else transform_grid(v[0],v[1])
+        else:
+            return rotate_vec_grid(v[0],v[1]) if quat else transform_vec_grid(v[0],v[1])
     return Lambda(tmp)([x,transform])
 
 def stn_grid_transform_inv(transform, x, quat=False):
     def tmp(v):
-        return rotate_grid(v[0],quaternion_conj(v[1])) if quat else transform_grid(v[0],tf.matrix_inverse(v[1]))
+        if len(v[0].get_shape()) < 4:
+            return rotate_grid(v[0],quaternion_conj(v[1])) if quat else transform_grid(v[0],tf.matrix_inverse(v[1]))
+        else:
+            return rotate_vec_grid(v[0],quaternion_conj(v[1])) if quat else transform_vec_grid(v[0],tf.matrix_inverse(v[1]))
+
     return Lambda(tmp)([x,transform])
 
 if __name__ == "__main__":
