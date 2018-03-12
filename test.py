@@ -125,6 +125,7 @@ var = int(getParam("var", 0, paramUsed))
 # mode 0: none
 # mode 1: translation along normal
 # mode 2: translation along x
+# mode 3: cosinus waves on surface
 trans_mode = int(getParam("trans_mode", 0, paramUsed))
 
 # if smaller then 0 it will replaced by the curvature!
@@ -269,7 +270,7 @@ class RandomParticles:
                 ref_grid.sample_quad(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, self.a[i,1] * self.fac_2d)
             else:
                 src_grid.sample_sphere(self.pos[i], self.a[i,0])
-                if trans_mode == 2:
+                if trans_mode == 3:
                     ref_grid.sample_cos_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, 6, trans_fac)
                 else:
                     ref_grid.sample_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d)
@@ -425,7 +426,7 @@ for v in range(var):
                 print("Generate Data: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
                 src_data, ref_data = src_gen.get_grid()
 
-                if trans_mode == 0 or trans_mode == 1:
+                if trans_mode == 1 or trans_mode == 2:
                     ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
 
                 res, positions = load_test(src_data, 0, particle_cnt_src, patch_size, source_scr, t)
@@ -631,7 +632,7 @@ for v in range(1):
 
                 src_data, ref_data = src_gen.get_grid()
 
-                if trans_mode == 0 or trans_mode == 1:
+                if trans_mode == 1 or trans_mode == 2:
                     ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
             
                 src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
