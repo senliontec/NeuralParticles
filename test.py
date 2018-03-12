@@ -227,16 +227,18 @@ def filter2D(kernlen, s, fac):
     dirac[kernlen//2, kernlen//2] = 1
     return np.clip(fi.gaussian_filter(dirac, s) * fac, a_min=None, a_max=1.0)
 
-def translation(par, nor, fac):
+def translation(par, sdf, fac):
     res = np.empty((0,3))
-    x_v = np.arange(0.5, nor.shape[1]+0.5)
-    y_v = np.arange(0.5, nor.shape[0]+0.5)
-    nor = normals(sdf)
-    nor_f = lambda x: np.concatenate([interpolate.interp2d(x_v, y_v, nor[:,:,0])(x[0],x[1]), interpolate.interp2d(x_v, y_v, nor[:,:,1])(x[0],x[1])])
+    #x_v = np.arange(0.5, nor.shape[1]+0.5)
+    #y_v = np.arange(0.5, nor.shape[0]+0.5)
+    #nor_f = lambda x: np.concatenate([interpolate.interp2d(x_v, y_v, nor[:,:,0])(x[0],x[1]), interpolate.interp2d(x_v, y_v, nor[:,:,1])(x[0],x[1])])
+    sdf_f, nor_f = sdf_func(sdf)
     if fac <= 0:
-        curv = lambda x: interpolate.interp2d(x_v, y_v, curvature(nor))(x[0],x[1])
+        x_v = np.arange(0.5, sdf.shape[1]+0.5)
+        y_v = np.arange(0.5, sdf.shape[0]+0.5)
+        curv = lambda x: interpolate.interp2d(x_v, y_v, curvature(normals(sdf)))(x[0],x[1])
     for p in par:
-        n = (nor_f(p[:2]) if trans_mode == 1 else np.array([1,0])) * (fac if fac > 0 else ((-fac) * curv(p[:2])))
+        n = (nor_f(p[:2]) if trans_mode == 1 else np.array([1,0])) * (fac if fac > 0 else ((-fac) * curv(p[:2]) / (1 - sdf_f(p[:2]))))
         res = np.append(res,np.array([[p[0]+n[0],p[1]+n[1],p[2]]]), axis=0)
     return res
 
@@ -267,8 +269,10 @@ class RandomParticles:
                 ref_grid.sample_quad(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, self.a[i,1] * self.fac_2d)
             else:
                 src_grid.sample_sphere(self.pos[i], self.a[i,0])
-                ref_grid.sample_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d)
-                #ref_grid.sample_cos_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, 6, 3)
+                if trans_mode == 2:
+                    ref_grid.sample_cos_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d, 6, trans_fac)
+                else:
+                    ref_grid.sample_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d)
         src_grid.sample_sdf()
         ref_grid.sample_sdf()
         return src_grid, ref_grid
@@ -421,8 +425,8 @@ for v in range(var):
                 print("Generate Data: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
                 src_data, ref_data = src_gen.get_grid()
 
-                if trans_mode > 0:
-                    ref_data.particles = translation(ref_data.particles, normals(np.squeeze(ref_data.cells)), trans_fac if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
+                if trans_mode == 0 or trans_mode == 1:
+                    ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
 
                 res, positions = load_test(src_data, 0, particle_cnt_src, patch_size, source_scr, t)
                 #res, aux_res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, l_scr+"_patch.png", "test/source_%03d.png", t, aux_postfix)
@@ -556,6 +560,19 @@ if par_out and not use_vec:
     inv_par_out = Reshape((particle_cnt_dst,3))(x)
     out = stn_transform_inv(stn,inv_par_out,quat=True)
 
+    '''if adv_loss:
+        x = Flatten()(features)
+        x = Dropout(dropout)(x)
+        x = Dense(fac*8, activation='tanh')(x)
+        x = Dropout(dropout)(x)
+        x = Dense(fac*4, activation='tanh')(x)
+        x = Dropout(dropout)(x)
+        x = Dense(fac, activation='tanh')(x)
+        x = Dropout(dropout)(x)
+        x = Dense(1, activation='sigmoid')(x)
+        encoder = Model(inputs=inputs, outputs=features)
+        discriminator = Model(inputs=features, outputs=x)'''
+
 loss = []
 y = []
 m_out = []
@@ -614,8 +631,8 @@ for v in range(1):
 
                 src_data, ref_data = src_gen.get_grid()
 
-                if trans_mode > 0:
-                    ref_data.particles = translation(ref_data.particles, normals(np.squeeze(ref_data.cells)), trans_fac if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
+                if trans_mode == 0 or trans_mode == 1:
+                    ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
             
                 src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
 
