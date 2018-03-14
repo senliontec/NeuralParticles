@@ -14,6 +14,7 @@ class Dataset:
                     for t in range(t_start, t_end):
                         for r in range(par_var_cnt):
                             buf = NPZBuffer(path%(d,var,r,t))
+                            print(path%(d,var,r,t))
                             while True:
                                 v = buf.next()
                                 if v is None:

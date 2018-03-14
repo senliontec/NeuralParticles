@@ -8,7 +8,7 @@
     "use_tanh":       1,
     "factor":         9,
     "min_n":          3,
-    "var":            5,
+    "var":            1,
     "par_cnt":        100,
     "par_cnt_ref":    100,
     "par_var":        5

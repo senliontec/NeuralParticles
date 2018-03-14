@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import keras
 from keras.models import Model, load_model
 
-from gen_patches import load_patches
+from gen_patches import gen_patches
 
 from subpixel import *
 from spatial_transformer import *
@@ -115,11 +115,7 @@ else:
 model = load_model(model_path, custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
 
 for t in range(t_start, t_end):
-    sdf, sdf_aux, par, par_aux, par_rot, positions = load_patches(src_path%t, par_cnt, patch_size, pre_config['surf'], grid_aux=features if not use_particles else [], par_aux=features if use_particles else [])
-    data = [par]
-    if len(features) > 0:
-        data = [data[0], np.concatenate([(par_aux[f] if use_particles else sdf_aux[f]) for f in features], axis=-1)]
-
+    data, ref, positions = gen_patches(data_path, config_path, dataset+1, t+1, 1, 1, dataset, t)
     prediction = model.predict(x=data, batch_size=train_config['batch_size'])
     result = np.empty((0, 3)) if use_particles else np.ones((res, res, 1))
     for i in range(len(prediction)):

@@ -418,8 +418,8 @@ for v in range(var):
                 if trans_mode == 1 or trans_mode == 2:
                     ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
 
-                res, positions = load_test(src_data, 0, particle_cnt_src, patch_size, source_scr, t)
-                #res, aux_res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, l_scr+"_patch.png", "test/source_%03d.png", t, aux_postfix)
+                #res, positions = load_test(src_data, 0, particle_cnt_src, patch_size, source_scr, t)
+                res, aux_res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 0, particle_cnt_src, patch_size, source_scr, t)
 
                 src = np.append(src, res, axis=0)
                 #for k, val in aux_res.items():
@@ -436,8 +436,8 @@ for v in range(var):
                         plot_particles(res[i],[-1,1],[-1,1],5,(source_scr+"_i%03d_rotated_patch.png")%(t,i))
                 rotated_src = np.append(rotated_src, res, axis=0)
                     
-                res = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
-                #res = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, h_scr+"_patch.png", "test/reference_%03d.png", t, positions=positions*fac_2d)[0]
+                #res = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
+                res = load_src(data_path + "reference/" + dst_file%(d,t), 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions=positions*fac_2d)[0]
 
                 dst = np.append(dst, res, axis=0)
 

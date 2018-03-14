@@ -11,7 +11,8 @@ from helpers import *
 
 import math
 
-from dataset import Dataset
+#from dataset import Dataset
+from gen_patches import gen_patches
 
 import keras
 from keras.models import Model, Sequential, load_model
@@ -255,12 +256,15 @@ else:
 
 
 print("Load Training Data")
-train_data = Dataset(src_path, 
+src_data, ref_data = gen_patches(data_path, config_path, 
+    int(data_config['data_count']*train_config['train_split']), train_config['t_end'], 
+    pre_config['var'], pre_config['par_var'], t_start=train_config['t_start'])[:2]
+'''train_data = Dataset(src_path, 
                      0, int(data_config['data_count']*train_config['train_split']), train_config['t_start'], train_config['t_end'], 
-                     features, pre_config['var'], pre_config['par_var'], ref_path, [features[0]])
+                     features, pre_config['var'], pre_config['par_var'], ref_path, [features[0]])'''
 
-print("Source Data Shape: " + str(train_data.data[features[0]].shape))
-print("Reference Data Shape: " + str(train_data.ref_data[features[0]].shape))
+#print("Source Data Shape: " + str(train_data.data[features[0]].shape))
+#print("Reference Data Shape: " + str(train_data.ref_data[features[0]].shape))
 
 class NthLogger(keras.callbacks.Callback):
     def __init__(self,li=10,cpi=100,cpt_path="model", offset=0):
@@ -287,10 +291,9 @@ print("Start Training")
 '''
 
 if train_config["adv_fac"] <= 0.:
-    x, y = train_data.get_data_splitted()
     val_split = train_config['val_split']
 
-    history = model.fit(x=x,y=y, validation_split=val_split, 
+    history = model.fit(x=src_data,y=ref_data, validation_split=val_split, 
                         epochs=train_config['epochs'] - start_checkpoint*checkpoint_intervall, batch_size=train_config['batch_size'], 
                         verbose=1, callbacks=[NthLogger(log_intervall, checkpoint_intervall, checkpoint_path, start_checkpoint*checkpoint_intervall)])
 
@@ -331,9 +334,9 @@ else:
     batch_size = train_config['batch_size']
     half_batch = train_config['batch_size']//2
 
-    train_cnt = int(len(train_data.data[features[0]])*(1-train_config['val_split']))//batch_size*batch_size
+    train_cnt = int(len(src_data)*(1-train_config['val_split']))//batch_size*batch_size
     print('train count: %d' % train_cnt)
-    eval_cnt = int(len(train_data.data[features[0]])*train_config['val_split'])//batch_size*batch_size
+    eval_cnt = int(len(src_data)*train_config['val_split'])//batch_size*batch_size
     print('eval count: %d' % eval_cnt)
 
     cnt_inv = batch_size/train_cnt
@@ -357,15 +360,16 @@ else:
         d_loss = [0.,0.]
         
         for i in range(0,train_cnt,batch_size):
-            x = train_data.get_data_splitted(idx0[i:i+half_batch])[0]
-            y = train_data.get_data_splitted(idx0[i+half_batch:i+batch_size])[1]
+            x = src_data[idx0[i:i+half_batch]]
+            y = ref_data[idx0[i+half_batch:i+batch_size]]
             x = generator.predict(x)
 
             d_loss_fake = discriminator.train_on_batch(x, np.zeros((half_batch, 1)))
             d_loss_real = discriminator.train_on_batch(y, np.ones((half_batch, 1)))
             d_loss = np.add(d_loss, cnt_inv * 0.5 * np.add(d_loss_real, d_loss_fake) )
             
-            x, y = train_data.get_data_splitted(idx1[i:i+batch_size])
+            x = src_data[idx1[i:i+half_batch]]
+            y = ref_data[idx1[i+half_batch:i+batch_size]]
             g_loss = np.add(g_loss, cnt_inv * np.array(combined.train_on_batch(x, [y[0],np.ones((batch_size, 1))])))
         
         # eval
@@ -373,15 +377,17 @@ else:
         np.random.shuffle(val_idx1)
         g_val_loss = [0.,0.,0.]
         d_val_loss = [0.,0.]
-        
-        x, y = train_data.get_data_splitted(val_idx0)
+    
+        x = src_data[val_idx0]
+        y = ref_data[val_idx0]
         x = generator.predict(x)
         
         d_loss_fake = discriminator.evaluate(x, np.zeros((eval_cnt, 1)), batch_size=half_batch, verbose=0)
         d_loss_real = discriminator.evaluate(y, np.ones((eval_cnt, 1)), batch_size=half_batch, verbose=0)
         d_val_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
         
-        x, y = train_data.get_data_splitted(val_idx1)
+        x = src_data[val_idx1]
+        y = ref_data[val_idx1]
         g_val_loss = combined.evaluate(x, [y[0],np.ones((eval_cnt, 1))], batch_size=batch_size, verbose=0)
         
         history['d_loss'].append(d_loss[0])
