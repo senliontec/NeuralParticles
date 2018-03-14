@@ -1,6 +1,9 @@
+import sys, os
+sys.path.append("tools")
+
 from manta import *
 import math
-from tools.helpers import *
+from helpers import *
 paramUsed = []
 
 guion = int(getParam("gui", 1, paramUsed)) != 0
