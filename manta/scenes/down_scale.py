@@ -1,5 +1,5 @@
-import sys, os
-sys.path.append("tools")
+import sys
+sys.path.append("tools/")
 
 from manta import *
 import math
