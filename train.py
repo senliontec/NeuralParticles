@@ -2,6 +2,10 @@ import sys, os
 sys.path.append("manta/scenes/tools/")
 sys.path.append("hungarian/")
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 import json
 from helpers import *
 
@@ -12,19 +16,15 @@ from dataset import Dataset
 import keras
 from keras.models import Model, Sequential, load_model
 from keras.layers import Conv2D, Conv2DTranspose, BatchNormalization, Input, ZeroPadding2D, Dense, MaxPooling2D
-from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, Activation, Flatten, Lambda
+from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, Activation, Flatten, Lambda, Dropout
 from keras.layers.advanced_activations import LeakyReLU
 from subpixel import *
 from spatial_transformer import *
-from split_dense import *
+from split_layer import *
 from keras import regularizers
 import numpy as np
 
-from hungarian_loss import HungarianLoss
-
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+from hungarian_loss import hungarian_loss
 
 paramUsed = []
 
@@ -79,82 +79,105 @@ checkpoint_path = '%s%s_%s' % (checkpoint_path, data_config['prefix'], config['i
 print(model_path)
 fig_path = '%s_loss' % model_path
 
-src_path = "%s%s_%s-%s" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
-ref_path = "%s%s_%s-%s" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
+src_path = "%s%s_%s-%s" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_pvar%02d_%03d"
+ref_path = "%s%s_%s-%s" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_pvar%02d_%03d"
 print(src_path)
 print(ref_path)
 
 if start_checkpoint == 0:
     print("Generate Network")
     if train_config['explicit']:
-        hungarian = HungarianLoss(train_config['batch_size'])
 
-        k = 128
+        fac = 16
 
-        par_cnt = pre_config['par_cnt']
-        inputs = Input((par_cnt,3), name="main")
+        k = train_config['par_feature_cnt']
+        dropout = train_config['dropout']
+        batch_size = train_config['batch_size']
+        epochs = train_config['epochs']
+        pre_train_stn = train_config['pre_train_stn']
 
-        x = SpatialTransformer(par_cnt)(inputs)
-        '''x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(par_cnt)]
+        particle_cnt_src = pre_config['par_cnt']
+        particle_cnt_dst = pre_config['par_cnt_ref']
 
-        x = SplitDense(64, activation='tanh')(x)
-        x = SplitDense(64, activation='tanh')(x)
+        inputs = Input((particle_cnt_src,3), name="main")
+        #aux_input = Input((particle_cnt_src,3))
+
+        stn_input = Input((particle_cnt_src,3))
+        stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
+        stn_model = Model(inputs=stn_input, outputs=stn)
+        stn = stn_model(inputs)
+
+        trans_input = stn_transform(stn,inputs,quat=True)
+        inter_model = Model(inputs=inputs, outputs=trans_input)
+        inter_model.compile(loss=hungarian_loss, optimizer=keras.optimizers.adam(lr=0.001))
+
+        #x = concatenate([intermediate, stn([x,aux_input])],axis=-1)
+
+        x = [(Lambda(lambda v: v[:,i:i+1,:])(trans_input)) for i in range(particle_cnt_src)]
+
+        x = split_layer(Dropout(dropout),x)
+        x = split_layer(Dense(fac, activation='tanh'),x)
+        x = split_layer(Dropout(dropout),x)
+        x = split_layer(Dense(fac, activation='tanh'),x)
 
         x = concatenate(x, axis=1)
-        x = SpatialTransformer(par_cnt,64,1)(x)
+        x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x)
 
-        x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(par_cnt)]
+        x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
 
-        x = SplitDense(64, activation='tanh')(x)
-        x = SplitDense(128, activation='tanh')(x)
-        x = SplitDense(k, activation='tanh')(x)
+        x = split_layer(Dropout(dropout),x)
+        x = split_layer(Dense(fac, activation='tanh'),x)
+        x = split_layer(Dropout(dropout),x)
+        x = split_layer(Dense(fac*2, activation='tanh'),x)
+        x = split_layer(Dropout(dropout),x)
+        x = split_layer(Dense(k, activation='tanh'),x)
 
-        x = add(x)'''
+        x = add(x)
+
         x = Flatten()(x)
-        x = Dense(512, activation='tanh')(x)
-        x = Dense(256, activation='tanh')(x)
-        x = Dense(3*par_cnt, activation='tanh')(x)
+        x = Dropout(dropout)(x)
+        x = Dense(fac*8, activation='tanh')(x)
+        x = Dropout(dropout)(x)
+        x = Dense(fac*4, activation='tanh')(x)
+        x = Dropout(dropout)(x)
+        x = Dense(3*particle_cnt_dst, activation='tanh')(x)
 
-        out = Reshape((par_cnt,3))(x)
-
-        '''inputs = Input((pre_config['par_cnt'],3), name="main")
-        
-        base = Flatten()(inputs)
-        base = Dense(100, activation='tanh')(base)
-        
-        if feature_cnt > 1:
-            auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")  
-            x = Conv2D(filters=16, kernel_size=3, 
-                    strides=1, activation='tanh', padding='same', name="conv2D_0")(auxiliary_input)
-            x = BatchNormalization(name="normalize_0")(x)
-            x = Conv2D(filters=32, kernel_size=3,
-                    strides=1, activation='tanh', padding='same', name="conv2D_1")(x)    
-            x = BatchNormalization(name="normalize_1")(x)
-            x = Conv2DTranspose(filters=16, kernel_size=3, 
-                                strides=1, activation='tanh', padding='same', name="deconv2D_0")(x)
-            x = BatchNormalization(name="normalize_2")(x)
-            x = Conv2DTranspose(filters=4, kernel_size=3, 
-                                strides=1, activation='tanh', padding='same', name="deconv2D_1")(x)
-            x = BatchNormalization(name="normalize_3")(x)
-            
-            x = Reshape((pre_config['patch_size']*pre_config['patch_size']*4,))(x)
-            
-            base = concatenate([base, x], name="concatenate")
-        
-        base = Dense(100, activation='tanh')(base)
-        base = Dense(pre_config['par_cnt']*3, activation='tanh')(base)
-        out = Reshape((pre_config['par_cnt'],3))(base)'''
+        inv_par_out = Reshape((particle_cnt_dst,3))(x)
+        out = stn_transform_inv(stn,inv_par_out,quat=True)
 
         if feature_cnt > 1:
             auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")  
 
         model = Model(inputs=[inputs, auxiliary_input], outputs=out) if feature_cnt > 1 else Model(inputs=[inputs], outputs=out)
-        model.compile( loss=hungarian.hungarian_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
-        
+        model.compile(loss=hungarian_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
+
         model.save(model_path + '.h5')
         
         if verbose: 
             model.summary()
+            
+        if train_config["adv_fac"] > 0.:
+            generator = model
+
+            inputs = Input((particle_cnt_src,3), name="main")
+            x = Dropout(dropout)(inputs)
+            x = Dense(fac*32, activation='tanh')(x)
+            x = Dropout(dropout)(inputs)
+            x = Dense(fac*16, activation='tanh')(x)
+            x = Dropout(dropout)(inputs)
+            x = Dense(fac*8, activation='tanh')(x)
+            x = Dropout(dropout)(inputs)
+            x = Dense(fac*4, activation='tanh')(x)
+            x = Dropout(dropout)(inputs)
+            x = Dense(1, activation='sigmoid')(x)
+
+            discriminator = Model(inputs=inputs, outputs=x)
+            discriminator.compile(loss='binary_crossentropy', optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]), metrics=['accuracy'])
+
+            discriminator.save(model_path + '_dis.h5')
+
+            if verbose: 
+                discriminator.summary()
     else:   
         inputs = Input((pre_config['patch_size'], pre_config['patch_size'], 1), name="main_input")
         auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")
@@ -225,16 +248,16 @@ if start_checkpoint == 0:
                 discriminator.summary()
 else:
     if train_config["adv_fac"] <= 0.:
-        model = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel})
+        model = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
     else:
-        generator = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel})
+        generator = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
         discriminator = load_model("%s_dis_%04d.h5" % (checkpoint_path, start_checkpoint))
 
 
 print("Load Training Data")
 train_data = Dataset(src_path, 
                      0, int(data_config['data_count']*train_config['train_split']), train_config['t_start'], train_config['t_end'], 
-                     features, pre_config['var'], ref_path, [features[0]])
+                     features, pre_config['var'], pre_config['par_var'], ref_path, [features[0]])
 
 print("Source Data Shape: " + str(train_data.data[features[0]].shape))
 print("Reference Data Shape: " + str(train_data.ref_data[features[0]].shape))
@@ -257,16 +280,15 @@ class NthLogger(keras.callbacks.Callback):
 
 
 print("Start Training")
+
+'''if pre_train_stn:
+    history = inter_model.fit(x=src,y=rotated_src,epochs=epochs,batch_size=batch_size)
+    stn_model.trainable = False
+'''
+
 if train_config["adv_fac"] <= 0.:
     x, y = train_data.get_data_splitted()
     val_split = train_config['val_split']
-    if train_config["explicit"]:
-        new_size = len(x[0])//train_config['batch_size']*train_config['batch_size']
-        x = [xi[:new_size] for xi in x]
-        y = [yi[:new_size] for yi in y]
-
-        new_val_size = int(new_size * val_split) // train_config['batch_size']*train_config['batch_size']
-        val_split = new_val_size/new_size
 
     history = model.fit(x=x,y=y, validation_split=val_split, 
                         epochs=train_config['epochs'] - start_checkpoint*checkpoint_intervall, batch_size=train_config['batch_size'], 

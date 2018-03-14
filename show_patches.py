@@ -18,6 +18,7 @@ timestep = int(getParam("timestep", -1, paramUsed))
 
 dataset = int(getParam("dataset", 0, paramUsed))
 var = int(getParam("var", 0, paramUsed))
+pvar = int(getParam("pvar", 0, paramUsed))
 
 l_scr = getParam("l_scr", "", paramUsed)
 h_scr = getParam("h_scr", "", paramUsed)
@@ -41,10 +42,12 @@ if timestep < 0:
 
 param = {}
 
-param['src'] = data_path + "patches/source/%s_%s-%s_d%03d_var%02d_%03d_sdf"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, timestep)
-param['vel'] = data_path + "patches/source/%s_%s-%s_d%03d_var%02d_%03d_vel"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, timestep)
-param['ps'] =  data_path + "patches/source/%s_%s-%s_d%03d_var%02d_%03d_ps"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, timestep)
-param['ref'] = data_path + "patches/reference/%s_%s-%s_d%03d_var%02d_%03d_sdf"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, timestep)
+param['src'] = data_path + "patches/source/%s_%s-%s_d%03d_var%02d_pvar%02d_%03d_sdf"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, pvar, timestep)
+param['vel'] = data_path + "patches/source/%s_%s-%s_d%03d_var%02d_pvar%02d_%03d_vel"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, pvar, timestep)
+param['ps'] =  data_path + "patches/source/%s_%s-%s_d%03d_var%02d_pvar%02d_%03d_ps"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, pvar, timestep)
+param['ps_rot'] =  data_path + "patches/source/%s_%s-%s_d%03d_var%02d_pvar%02d_%03d_ps_rot"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, pvar, timestep)
+param['ref'] = data_path + "patches/reference/%s_%s-%s_d%03d_var%02d_pvar%02d_%03d_sdf"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, pvar, timestep)
+param['ps_ref'] =  data_path + "patches/reference/%s_%s-%s_d%03d_var%02d_pvar%02d_%03d_ps"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, pvar, timestep)
 param['psize'] = pre_config['patch_size']
 param['hpsize'] = int(pre_config['patch_size']*math.sqrt(pre_config['factor']))
 param['t'] = 1

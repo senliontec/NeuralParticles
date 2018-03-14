@@ -1,4 +1,4 @@
-from manta import *
+#from manta import *
 import math
 from tools.uniio import *
 from tools.helpers import *
@@ -29,15 +29,14 @@ high_patch_size = int(getParam("hpsize", patch_size, paramUsed))
 
 stride = int(getParam("stride", 1, paramUsed))
 
-particle_cnt = int(getParam("par_cnt", 0, paramUsed))
+particle_cnt_src = int(getParam("par_cnt", 0, paramUsed))
+particle_cnt_dst = int(getParam("par_cnt_ref", 0, paramUsed))
 
 seed = int(getParam("seed", 0, paramUsed))
 
 fac = float(high_patch_size)/patch_size
 
 border = int(math.ceil(high_patch_size//2-patch_size//2*fac))
-
-constraint = int(getParam("par_constraint", 0, paramUsed)) != 0
 
 print("fac: %f, patch size: %d, high patch size: %d" % (fac, patch_size, high_patch_size))
 
@@ -73,13 +72,13 @@ for i in range(t_start, t_end):
 	for pos in patch_pos:
 		path = (l_out_path%i) + "_"
 
-		if particle_cnt > 0:
-			par = extract_particles(l_particle_data, pos, particle_cnt, patch_size if constraint else None)
+		if particle_cnt_src > 0:
+			par = extract_particles(l_particle_data, pos, particle_cnt_src, patch_size/2)
 			if par is None:
 				continue
 
 			if h_in_path != "":
-				h_par = extract_particles(h_particle_data, pos, particle_cnt, high_patch_size if constraint else None)
+				h_par = extract_particles(h_particle_data, pos, particle_cnt_dst, high_patch_size/2)
 				if h_par is None:
 					continue
 		
@@ -87,7 +86,7 @@ for i in range(t_start, t_end):
 		writeNumpyBuf(path + "sdf", numpy.tanh(data) if use_tanh else data)
 		for p in props:
 			writeNumpyBuf(path + p, extract_patch(l_prop_data[p], pos, patch_size))
-		if particle_cnt > 0:
+		if particle_cnt_src > 0:
 			writeNumpyBuf(path + "ps", par)
 		
 		if h_in_path != "":
@@ -98,7 +97,7 @@ for i in range(t_start, t_end):
 			writeNumpyBuf(path + "sdf", numpy.tanh(data) if use_tanh else data)
 			for p in props:
 				writeNumpyBuf(path + p, extract_patch(h_prop_data[p], pos+border, high_patch_size))
-			if particle_cnt > 0:
+			if particle_cnt_src > 0:
 				writeNumpyBuf(path + "ps", h_par)
 
 finalizeNumpyBufs()

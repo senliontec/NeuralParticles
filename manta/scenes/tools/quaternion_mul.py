@@ -5,15 +5,15 @@ from keras.layers import Input, Lambda
 import numpy as np
 from keras import backend as K
 
-import tensorflow as tf
-
 def quaternion_conj(quat):
     return quat * np.array([1,-1,-1,-1])/K.expand_dims(K.sum(quat*quat, axis=1), axis=1)
 
 def quaternion_norm(quat):
+    import tensorflow as tf
     return quat/K.expand_dims(tf.norm(quat,axis=1),axis=1)
     
 def quaternion_rot(vec, quat):
+    import tensorflow as tf
     def quat_mul(q0,q1):
         w0, x0, y0, z0 = q0
         w1, x1, y1, z1 = q1

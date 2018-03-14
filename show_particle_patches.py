@@ -21,6 +21,7 @@ timestep = int(getParam("timestep", -1, paramUsed))
 
 dataset = int(getParam("dataset", 0, paramUsed))
 var = int(getParam("var", 0, paramUsed))
+pvar = int(getParam("pvar", 0, paramUsed))
 
 l_scr = getParam("l_scr", "low_patch_%03d.uni", paramUsed)
 h_scr = getParam("h_scr", "high_patch_%03d.uni", paramUsed)
@@ -47,7 +48,7 @@ stride = 1
 surface = 0.5
 particle_cnt = 50
 
-filename = "%s_%s-%s_d%03d_var%02d_%03d"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, timestep)
+filename = "%s_%s-%s_d%03d_var%02d_pvar%02d_%03d"%(data_config['prefix'], data_config['id'], pre_config['id'], dataset, var, pvar, timestep)
 
 patch_buffer = NPZBuffer(data_path + "patches/source/" + filename + "_ps")
 

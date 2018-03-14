@@ -84,17 +84,6 @@ def sdf_func(sdf):
     sdf_f = lambda x: interpolate.interp2d(x_v, y_v, sdf)(x[0],x[1])
     nor = normals(sdf)
     nor_f = lambda x: np.concatenate([interpolate.interp2d(x_v, y_v, nor[:,:,0])(x[0],x[1]), interpolate.interp2d(x_v, y_v, nor[:,:,1])(x[0],x[1])])
-    '''for i in np.arange(sdf.shape[0],step=2.0):
-        for j in np.arange(sdf.shape[1],step=2.0):
-            v = sdf_f([i,j])
-            if v < 0.0:
-                n = nor_f([i,j])
-                #plt.plot(i,j,'bo')
-                plt.plot([i,i+n[0]],[j,j+n[1]], '.-')
-    plt.xlim([0,sdf.shape[0]])
-    plt.ylim([0,sdf.shape[1]])
-    plt.show()
-    exit()'''
     return sdf_f, nor_f
 
 def sort_particles(par, nor, fac=1):
@@ -380,8 +369,8 @@ def load_src(prefix, bnd, par_cnt, patch_size, scr, t, aux={}, positions=None):
     i = 0
     for pos in positions:
         par, par_aux = extract_particles(particle_data, pos, par_cnt, patch_size/2, aux_data)
-        sort_idx = sort_particles(par, np.array([sdf_f(p) for p in par]))
-        par = par[sort_idx]
+        #sort_idx = sort_particles(par, np.array([sdf_f(p) for p in par]))
+        #par = par[sort_idx]
 
         if [t,i] in samples:
             plot_particles(par, [-1,1], [-1,1], 5, (scr+"_i%03d_patch.png")%(t,i))
@@ -436,8 +425,8 @@ for v in range(var):
                 #for k, val in aux_res.items():
                 #    aux_src[k] = np.append(aux_src[k], val, axis=0)
 
-                nor = mean_nor(ref_data.cells, positions*fac_2d, t)
-                theta = np.arctan2(nor[:,0],nor[:,1])# / math.pi * 180
+                nor = mean_nor(src_data.cells, positions, t)
+                theta = np.arctan2(nor[:,0],nor[:,1])
 
                 for i in range(len(res)):
                     c, s = np.cos(-theta[i]), np.sin(-theta[i])
@@ -463,14 +452,14 @@ dropout = 0.2
 batch_size = train_config['batch_size']
 epochs = 3 # train_config['epochs']
 
-src = src[:len(src)//batch_size*batch_size]
+'''src = src[:len(src)//batch_size*batch_size]
 dst = dst[:len(src)//batch_size*batch_size]
 rotated_src = rotated_src[:len(src)//batch_size*batch_size]
 
 sdf_dst = sdf_dst[:len(src)//batch_size*batch_size]
 
 for k, v in aux_src.items():
-    aux_src[k] = v[:len(src)//batch_size*batch_size]
+    aux_src[k] = v[:len(src)//batch_size*batch_size]'''
 
 inputs = Input((particle_cnt_src,3), name="main")
 #aux_input = Input((particle_cnt_src,3))
@@ -492,22 +481,22 @@ if pre_train_stn:
 
 x = [(Lambda(lambda v: v[:,i:i+1,:])(trans_input)) for i in range(particle_cnt_src)]
 
-x = SplitLayer(Dropout(dropout))(x)
-x = SplitLayer(Dense(fac, activation='tanh'))(x)
-x = SplitLayer(Dropout(dropout))(x)
-x = SplitLayer(Dense(fac, activation='tanh'))(x)
+x = split_layer(Dropout(dropout),x)
+x = split_layer(Dense(fac, activation='tanh'),x)
+x = split_layer(Dropout(dropout),x)
+x = split_layer(Dense(fac, activation='tanh'),x)
 
 x = concatenate(x, axis=1)
 x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x)
 
 x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
 
-x = SplitLayer(Dropout(dropout))(x)
-x = SplitLayer(Dense(fac, activation='tanh'))(x)
-x = SplitLayer(Dropout(dropout))(x)
-x = SplitLayer(Dense(fac*2, activation='tanh'))(x)
-x = SplitLayer(Dropout(dropout))(x)
-x = SplitLayer(Dense(k, activation='tanh'))(x)
+x = split_layer(Dropout(dropout),x)
+x = split_layer(Dense(fac, activation='tanh'),x)
+x = split_layer(Dropout(dropout),x)
+x = split_layer(Dense(fac*2, activation='tanh'),x)
+x = split_layer(Dropout(dropout),x)
+x = split_layer(Dense(k, activation='tanh'),x)
 
 features = add(x)
 

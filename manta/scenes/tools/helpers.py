@@ -1,7 +1,7 @@
 #
 # tool runs helpers
 #
-import sys
+import sys, warnings
 import shutil
 import numpy as np
 
@@ -63,10 +63,10 @@ def particle_radius(arr, pos, radius):
 
 def insert_patch(data, patch, pos, func):
 	patch_size = patch.shape[0]//2
-	x0=pos[0]-patch_size
-	x1=pos[0]+patch_size+1
-	y0=pos[1]-patch_size
-	y1=pos[1]+patch_size+1
+	x0=int(pos[0])-patch_size
+	x1=int(pos[0])+patch_size+1
+	y0=int(pos[1])-patch_size
+	y1=int(pos[1])+patch_size+1
 
 	data[0,y0:y1,x0:x1] = func(data[0,y0:y1,x0:x1], patch)
 
@@ -94,17 +94,17 @@ def extract_particles(data, pos, cnt, constraint, aux_data={}):
 
 def extract_patch(data, pos, patch_size):
 	patch_size = patch_size//2
-	x0 = pos[0]-patch_size
-	x1 = pos[0]+patch_size+1
-	y0 = pos[1]-patch_size
-	y1 = pos[1]+patch_size+1
+	x0 = int(pos[0])-patch_size
+	x1 = int(pos[0])+patch_size+1
+	y0 = int(pos[1])-patch_size
+	y1 = int(pos[1])+patch_size+1
 	return data[0,y0:y1,x0:x1]
 
-def get_patches(sdf_data, patch_size, dimX, dimY, stride, surface):
+def get_patches(sdf_data, patch_size, dimX, dimY, bnd, stride, surface):
 	pos = []
 	patch_size = patch_size//2
-	for y in range(patch_size,dimY-patch_size, stride):
-		for x in range(patch_size,dimX-patch_size, stride):
+	for y in range(patch_size+bnd,dimY-patch_size-bnd, stride):
+		for x in range(patch_size+bnd,dimX-patch_size-bnd, stride):
 			z = 0
 			if(abs(sdf_data[z,y,x,0]) < surface):
 				x0 = x-patch_size
@@ -113,7 +113,7 @@ def get_patches(sdf_data, patch_size, dimX, dimY, stride, surface):
 				y1 = y+patch_size+1
 
 				pos.append([x,y,z])
-	return np.array(pos)
+	return np.array(pos)+0.5
 
 def plot_particles(data, xlim, ylim, s, path=None, ref=None, src=None):
 	if not ref is None:
@@ -166,4 +166,3 @@ def plot_vec(data, xlim, ylim, path=None, ref=None, src=None, s=1):
 	else:
 		plt.savefig(path)
 	plt.clf()
-

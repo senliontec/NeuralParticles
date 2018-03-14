@@ -1,8 +1,12 @@
 import keras
-from keras.layers.core import Layer
-from keras.layers import Dense
+from keras.layers.core import Lambda
 
-class SplitLayer(Layer):
+def split_layer(layer, X):
+    Y = []
+    for x in X:
+        Y.append(layer(x))
+    return Y
+'''class SplitLayer(Layer):
     def __init__(self,
                  layer, 
                  **kwargs):
@@ -24,5 +28,5 @@ class SplitLayer(Layer):
         return Y
 
     def get_config(self):
-         config = {'layer':self.layer.get_config()}
-         return config
+         config = {'layer':self.layer}
+         return config'''

@@ -2,12 +2,20 @@ import sys, os
 sys.path.append("manta/scenes/tools")
 sys.path.append("hungarian/")
 
+import time
+from collections import OrderedDict
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 import keras
 from keras.models import Model, load_model
 
+from gen_patches import load_patches
+
 from subpixel import *
 from spatial_transformer import *
-from split_dense import *
 
 import json
 from helpers import *
@@ -17,11 +25,7 @@ import scipy.ndimage.filters as fi
 import math
 import numpy as np
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
-from hungarian_loss import HungarianLoss
+from hungarian_loss import hungarian_loss
 
 paramUsed = []
 
@@ -90,84 +94,63 @@ use_particles = train_config['explicit'] != 0
 factor_2D = math.sqrt(pre_config['factor'])
 patch_size = pre_config['patch_size']
 high_patch_size = int(patch_size*factor_2D)
+par_cnt = pre_config['par_cnt']
 
 res = data_config['res']
 low_res = int(res/factor_2D)
 
-if not use_particles:
-    result = np.ndarray(shape=(1,res,res,1), dtype=float)
+half_ps = high_patch_size//2
+#border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
 
-    half_ps = high_patch_size//2
-    border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
+elem_min = np.vectorize(lambda x,y: min(x,y))
+circular_filter = np.reshape(filter2D(high_patch_size, high_patch_size*0.2, 500), (high_patch_size, high_patch_size))
 
-    result=np.pad(result,((0,0),(border,border),(border,border),(0,0)),mode="edge")
-
-    elem_min = np.vectorize(lambda x,y: min(x,y))
-    circular_filter = np.reshape(filter2D(high_patch_size, high_patch_size*0.2, 500), (high_patch_size, high_patch_size,1))
+features = train_config['features'][1:]
 
 if checkpoint > 0:
     model_path = data_path + "models/checkpoints/%s_%s_%04d.h5" % (data_config['prefix'], config['id'], checkpoint)
 else:
-    model_path = data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id'])
+    model_path = data_path + "models/%s_%s.h5" % (data_config['prefix'], config['id'])
 
-model = load_model(model_path, custom_objects={'Subpixel': Subpixel, 'SpatialTransformer': SpatialTransformer, 'SplitDense': SplitDense, 'hungarian_loss': HungarianLoss(train_config['batch_size']).hungarian_loss})
+model = load_model(model_path, custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
 
 for t in range(t_start, t_end):
-    if use_particles:
-        result = None
-    else:
-        result.fill(1)
-        
-    hdr, sdf = readUni(src_path%t+"_sdf.uni")
-    if use_particles:
-        hdr, source = readParticles(src_path%t+"_ps.uni")
+    sdf, sdf_aux, par, par_aux, par_rot, positions = load_patches(src_path%t, par_cnt, patch_size, pre_config['surf'], grid_aux=features if not use_particles else [], par_aux=features if use_particles else [])
+    data = [par]
+    if len(features) > 0:
+        data = [data[0], np.concatenate([(par_aux[f] if use_particles else sdf_aux[f]) for f in features], axis=-1)]
 
-    aux = []
-    for f in train_config['features']:
-        if use_particles and f == "sdf":
-            aux.append(sdf)
-        elif f != "ps" and f != "sdf":
-            aux.append(readUni(src_path%t+"_"+f+".uni")[1])
-    
-    if len(aux) > 0:
-        aux = np.concatenate(aux, axis=3)
-    
-    # pre_param.stride instead of "1"?!
-    patch_pos = get_patches(sdf, patch_size, low_res, low_res, 1, pre_config['surf'])
-
-    for pos in patch_pos:
-        data = extract_particles(source, pos, pre_config['par_cnt'], patch_size) if use_particles else extract_patch(sdf, pos, patch_size)
-
-        if data is None:
-            continue
-        data = [np.array([data])]        
-
-        if not use_particles:
-            data[0] = data[0] * pre_config['l_fac']
-            if pre_config['use_tanh'] != 0:
-                data[0] = np.tanh(data[0])
-        if len(aux) > 0:
-            data.append(np.array([extract_patch(aux, pos, patch_size)]))
-
-        predict = model.predict(x=data, batch_size=1)
-
+    prediction = model.predict(x=data, batch_size=train_config['batch_size'])
+    result = np.empty((0, 3)) if use_particles else np.ones((res, res, 1))
+    for i in range(len(prediction)):
         if use_particles:
-            predict = np.add(np.reshape(predict*patch_size, (pre_config['par_cnt'],3)), [pos[0], pos[1], 0.])
-            if result is None:
-                result = predict
-            else:
-                result = np.append(result, predict, axis=0)
+            result = np.append(result, (prediction[i] * high_patch_size/2 + np.array([[positions[i,0]*factor_2D,positions[i,1]*factor_2D,0.0]])), axis=0)
         else:
+            tmp = prediction[i]
             if pre_config['use_tanh'] != 0:
-                predict = np.arctanh(np.clip(predict,-.999999,.999999))
-            predict = predict * circular_filter/pre_config['h_fac']
-            insert_patch(result, predict[0], (factor_2D*pos).astype(int)+border, elem_min)
+                tmp = np.arctanh(np.clip(tmp,-.999999,.999999))
+            tmp = tmp * circular_filter/pre_config['h_fac']
+            insert_patch(result, tmp, factor_2D*positions[i], elem_min)
 
     if use_particles:
-        hdr['dim'] = len(result)
+        hdr = OrderedDict([ ('dim',len(result)),
+                            ('dimX',res),
+                            ('dimY',res),
+                            ('dimZ',1),
+                            ('elementType',0),
+                            ('bytesPerElement',16),
+                            ('info',b'\0'*256),
+                            ('timestamp',(int)(time.time()*1e6))])
         writeParticles(dst_path%t, hdr, result)
     else:
-        hdr['dimX'] = res
-        hdr['dimY'] = res
-        writeUni(dst_path%t, hdr, result[0,border:res+border,border:res+border,0])
-
+        hdr = OrderedDict([	('dimX',res),
+                            ('dimY',res),
+                            ('dimZ',1),
+                            ('gridType',17),
+                            ('elementType',1),
+                            ('bytesPerElement',4),
+                            ('info',b'\0'*252),
+                            ('dimT',0),
+                            ('timestamp',(int)(time.time()*1e6))])
+        writeUni(dst_path%t, hdr, result)
+    
