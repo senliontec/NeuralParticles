@@ -52,6 +52,7 @@ def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0,
     print(path_ref)
 
     main = np.empty([0,par_cnt, 3]) if use_particles else np.empty([0, patch_size, patch_size, 1])
+    main_rot = np.empty([0,par_cnt, 3]) if use_particles else np.empty([0, patch_size, patch_size, 1])
     aux = None
     reference = np.empty([0,par_cnt_ref, 3]) if use_particles else np.empty([0, patch_size_ref, patch_size_ref, 1])
     pos = np.empty([0, 3])
@@ -62,6 +63,7 @@ def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0,
                 for r in range(par_var):
                     sdf, aux_sdf, par, aux_par, par_rot, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, grid_aux=features if not use_particles else [], par_aux=features if use_particles else [])
                     main = np.append(main, par if use_particles else np.tanh(sdf*l_fac) if use_tanh else sdf*l_fac, axis=0)
+                    main_rot = np.append(main_rot, par_rot if use_particles else None, axis=0)
                     pos = np.append(pos, positions, axis=0)
                     if len(features) > 0:
                         tmp = np.concatenate([(aux_par[f] if use_particles else aux_sdf[f]) for f in features])
@@ -73,4 +75,4 @@ def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0,
     if len(features) > 0:
         main = [main, aux]
     
-    return main, reference, pos
+    return main, reference, main_rot, pos

@@ -88,9 +88,8 @@ print(ref_path)
 if start_checkpoint == 0:
     print("Generate Network")
     if train_config['explicit']:
-
         fac = 16
-
+        
         k = train_config['par_feature_cnt']
         dropout = train_config['dropout']
         batch_size = train_config['batch_size']
@@ -105,16 +104,14 @@ if start_checkpoint == 0:
 
         stn_input = Input((particle_cnt_src,3))
         stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
-        stn_model = Model(inputs=stn_input, outputs=stn)
+        stn_model = Model(inputs=stn_input, outputs=stn, name="stn")
         stn = stn_model(inputs)
 
-        trans_input = stn_transform(stn,inputs,quat=True)
-        inter_model = Model(inputs=inputs, outputs=trans_input)
-        inter_model.compile(loss=hungarian_loss, optimizer=keras.optimizers.adam(lr=0.001))
+        transformed = stn_transform(stn,inputs,quat=True, name="trans")
 
         #x = concatenate([intermediate, stn([x,aux_input])],axis=-1)
 
-        x = [(Lambda(lambda v: v[:,i:i+1,:])(trans_input)) for i in range(particle_cnt_src)]
+        x = [(Lambda(lambda v: v[:,i:i+1,:])(transformed)) for i in range(particle_cnt_src)]
 
         x = split_layer(Dropout(dropout),x)
         x = split_layer(Dense(fac, activation='tanh'),x)
@@ -252,13 +249,14 @@ else:
         model = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
     else:
         generator = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
+        model = generator
         discriminator = load_model("%s_dis_%04d.h5" % (checkpoint_path, start_checkpoint))
 
 
 print("Load Training Data")
-src_data, ref_data = gen_patches(data_path, config_path, 
+src_data, ref_data, src_rot_data = gen_patches(data_path, config_path, 
     int(data_config['data_count']*train_config['train_split']), train_config['t_end'], 
-    pre_config['var'], pre_config['par_var'], t_start=train_config['t_start'])[:2]
+    pre_config['var'], pre_config['par_var'], t_start=train_config['t_start'])[:3]
 '''train_data = Dataset(src_path, 
                      0, int(data_config['data_count']*train_config['train_split']), train_config['t_start'], train_config['t_end'], 
                      features, pre_config['var'], pre_config['par_var'], ref_path, [features[0]])'''
@@ -285,10 +283,15 @@ class NthLogger(keras.callbacks.Callback):
 
 print("Start Training")
 
-'''if pre_train_stn:
-    history = inter_model.fit(x=src,y=rotated_src,epochs=epochs,batch_size=batch_size)
-    stn_model.trainable = False
-'''
+if pre_train_stn:
+    inputs = model.inputs[0]
+    stn = model.get_layer("stn")
+    trans_input = model.get_layer("trans")([inputs, stn(inputs)])
+    inter_model = Model(inputs=inputs, outputs=trans_input)
+    inter_model.compile(loss=hungarian_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
+    inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['epochs'],batch_size=train_config['batch_size'])
+    stn.trainable = False        
+    model.compile(loss=hungarian_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
 
 if train_config["adv_fac"] <= 0.:
     val_split = train_config['val_split']

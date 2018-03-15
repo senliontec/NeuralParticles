@@ -42,31 +42,31 @@ def SpatialTransformer(inputs, cnt,features=3,kernel=(1,3),dropout=0.2,fac=64,qu
         x = Reshape((features,features))(x)
     return x
 
-def stn_transform(transform, x, quat=False):
+def stn_transform(transform, x, quat=False, **kwargs):
     def tmp(v):
         from quaternion_mul import quaternion_rot
         import keras.backend as K
         return quaternion_rot(v[0],v[1]) if quat else K.batch_dot(v[0],v[1])
-    return Lambda(tmp)([x,transform])
+    return Lambda(tmp, **kwargs)([x,transform])
 
-def stn_transform_inv(transform, x, quat=False):
+def stn_transform_inv(transform, x, quat=False, **kwargs):
     def tmp(v):
         from quaternion_mul import quaternion_rot, quaternion_conj
         import tensorflow as tf
         import keras.backend as K
         return quaternion_rot(v[0],quaternion_conj(v[1])) if quat else K.batch_dot(v[0],tf.matrix_inverse(v[1]))
-    return Lambda(tmp)([x,transform])
+    return Lambda(tmp, **kwargs)([x,transform])
 
-def stn_grid_transform(transform, x, quat=False):
+def stn_grid_transform(transform, x, quat=False, **kwargs):
     def tmp(v):
         from advection import transform_grid, transform_vec_grid, rotate_grid, rotate_vec_grid
         if len(v[0].get_shape()) < 4:
             return rotate_grid(v[0],v[1]) if quat else transform_grid(v[0],v[1])
         else:
             return rotate_vec_grid(v[0],v[1]) if quat else transform_vec_grid(v[0],v[1])
-    return Lambda(tmp)([x,transform])
+    return Lambda(tmp, **kwargs)([x,transform])
 
-def stn_grid_transform_inv(transform, x, quat=False):
+def stn_grid_transform_inv(transform, x, quat=False, **kwargs):
     def tmp(v):
         from advection import transform_grid, transform_vec_grid, rotate_grid, rotate_vec_grid
         import tensorflow as tf
@@ -74,8 +74,7 @@ def stn_grid_transform_inv(transform, x, quat=False):
             return rotate_grid(v[0],quaternion_conj(v[1])) if quat else transform_grid(v[0],tf.matrix_inverse(v[1]))
         else:
             return rotate_vec_grid(v[0],quaternion_conj(v[1])) if quat else transform_vec_grid(v[0],tf.matrix_inverse(v[1]))
-
-    return Lambda(tmp)([x,transform])
+    return Lambda(tmp, **kwargs)([x,transform])
 
 if __name__ == "__main__":
     cnt = 1000
