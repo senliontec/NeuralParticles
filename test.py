@@ -104,7 +104,6 @@ paramUsed = []
 gpu = getParam("gpu", "", paramUsed)
 
 data_path = getParam("data", "data/", paramUsed)
-manta_path = getParam("manta", "manta/", paramUsed)
 config_path = getParam("config", "config/version_00.txt", paramUsed)
 verbose = int(getParam("verbose", 0, paramUsed)) != 0
 
@@ -269,13 +268,13 @@ class RandomParticles:
 
 def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
     result = np.empty((0,par_cnt,3))
-    particle_data_bound = grid.particles[in_bound(grid.particles[:,:2], bnd+patch_size/2, grid.dimX-(bnd+patch_size/2))]
 
     plot_particles(grid.particles, [0,grid.dimX], [0,grid.dimY], 0.1, (scr+"_not_accum.png")%t)
 
     sdf_f = sdf_func(np.squeeze(grid.cells))[0]
 
     if positions is None:
+        particle_data_bound = grid.particles[in_bound(grid.particles[:,:2], bnd+patch_size/2, grid.dimX-(bnd+patch_size/2))]
         positions = particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]))[0]]
 
     plot_particles(positions, [0,grid.dimX], [0,grid.dimY], 0.1, (scr + "_pos.png") % t)
@@ -348,27 +347,29 @@ def sdf_patches(sdf, positions, patch_size, scr, t):
     plot_sdf(img[0], [0,h_dim], [0,h_dim], (scr+".png")%t)
     return res
 
-def load_src(prefix, bnd, par_cnt, patch_size, scr, t, aux={}, positions=None):
+def load_src(prefix, bnd, par_cnt, patch_size, scr, t, positions=None):
     result = np.empty((0,par_cnt,3))
-    aux_res = {}
-    aux_data = {}
+    #aux_res = {}
+    #aux_data = {}
 
     particle_data = readParticles(prefix + "_ps.uni")[1]
-    for k, v in aux.items():
+    '''for k, v in aux.items():
         aux_data[k] = readParticles((prefix+"_p%s.uni")%v, "float32")[1]
         aux_res[k] = np.empty((0,par_cnt, aux_data[k].shape[-1]))
-
+'''
     header, sdf = readUni(prefix + "_sdf.uni")
     sdf_f = sdf_func(np.squeeze(sdf))[0]
 
-    particle_data_bound = particle_data[in_bound(particle_data[:,:2], bnd+patch_size/2,header['dimX']-(bnd+patch_size/2))]
-    if positions is None:
+    if positions is None:    
+        particle_data_bound = particle_data[in_bound(particle_data[:,:2], bnd+patch_size/2,header['dimX']-(bnd+patch_size/2))]
         positions = particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]))[0]]
-    
+        
+    plot_particles(positions, [0,header['dimX']], [0,header['dimY']], 0.1, (scr + "_pos.png") % t)
+
     img = np.empty((0,3))
     i = 0
     for pos in positions:
-        par, par_aux = extract_particles(particle_data, pos, par_cnt, patch_size/2, aux_data)
+        par = extract_particles(particle_data, pos, par_cnt, patch_size/2)[0]#, aux_data)
         #sort_idx = sort_particles(par, np.array([sdf_f(p) for p in par]))
         #par = par[sort_idx]
 
@@ -377,13 +378,12 @@ def load_src(prefix, bnd, par_cnt, patch_size, scr, t, aux={}, positions=None):
         i+=1
 
         result = np.append(result, [par], axis=0)
-        for k, v in par_aux.items():
-            aux_res[k] = np.append(aux_res[k], [v[sort_idx]], axis=0)
+        '''for k, v in par_aux.items():
+            aux_res[k] = np.append(aux_res[k], [v[sort_idx]], axis=0)'''
         img = np.append(img, np.add(par*patch_size/2, [pos[0], pos[1], 0.]), axis=0)
 
     plot_particles(img, [0,header['dimX']], [0,header['dimY']], 0.1, (scr+".png") % t)
-
-    return result, aux_res, positions
+    return result, positions
 
 src_file = "%s_%s-%s"%(data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
 dst_file = "%s_%s"%(data_config['prefix'], data_config['id']) + "_d%03d_%03d"
@@ -419,7 +419,7 @@ for v in range(var):
                     ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
 
                 #res, positions = load_test(src_data, 0, particle_cnt_src, patch_size, source_scr, t)
-                res, aux_res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 0, particle_cnt_src, patch_size, source_scr, t)
+                res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, source_scr, t)
 
                 src = np.append(src, res, axis=0)
                 #for k, val in aux_res.items():
@@ -437,7 +437,7 @@ for v in range(var):
                 rotated_src = np.append(rotated_src, res, axis=0)
                     
                 #res = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
-                res = load_src(data_path + "reference/" + dst_file%(d,t), 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions=positions*fac_2d)[0]
+                res = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, reference_scr, t, positions=positions*fac_2d)[0]
 
                 dst = np.append(dst, res, axis=0)
 
@@ -624,15 +624,15 @@ for v in range(1):
                 if trans_mode == 1 or trans_mode == 2:
                     ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
             
-                src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
+                #src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
+                src, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, test_source_scr, t)
 
-                ref = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions*fac_2d)[0]
+                #ref = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions*fac_2d)[0]
+                ref = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions=positions*fac_2d)[0]
 
                 if gen_grid:
                     sdf_ref = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_test_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_test_reference_scr, t)
                 
-                #src, aux_src, positions = load_src(data_path + "source/" + src_file%(d,v,t), 0, particle_cnt_src, patch_size, t_scr+"_patch.png", "test/test_%03d.png", t, aux_postfix)
-
                 result = model.predict(x=src,batch_size=batch_size)
                 grid_result = result
 
