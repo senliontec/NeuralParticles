@@ -1,0 +1,3 @@
+TF_INC=$(python -c 'import tensorflow as tf; print(tf.sysconfig.get_include())')
+g++ -std=c++11 -shared tf_nndistance.cpp -o tf_nndistance.so -fPIC -I $TF_INC -undefined dynamic_lookup
+g++ -std=c++11 -shared tf_approxmatch.cpp -o tf_approxmatch.so -fPIC -I $TF_INC -undefined dynamic_lookup

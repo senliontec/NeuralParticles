@@ -1,6 +1,7 @@
 import sys, os, warnings
 sys.path.append("manta/scenes/tools")
 sys.path.append("hungarian/")
+sys.path.append("structural_losses/")
 
 import matplotlib
 matplotlib.use('Agg')
@@ -29,6 +30,8 @@ import math
 from advection import interpol
 
 from hungarian_loss import hungarian_loss
+from tf_nndistance import nn_distance
+from tf_approxmatch import approx_match, match_cost
 
 from particle_grid import ParticleGrid
 
@@ -45,6 +48,14 @@ import keras.backend as K
 import tensorflow as tf
 
 from sklearn.decomposition import PCA
+
+def chamfer_loss(y_true, y_pred):
+    cost_p1_p2, _, cost_p2_p1, _ = nn_distance(y_pred, y_true)
+    return tf.reduce_mean(cost_p1_p2) + tf.reduce_mean(cost_p2_p1)
+
+def emd_loss(y_true, y_pred):
+    match = approx_match(y_pred, y_true)
+    return tf.reduce_mean(match_cost(y_pred, y_true, match))
 
 def eigenvector(data):
     pca = PCA()
@@ -194,14 +205,13 @@ if t_end < 0:
 samples = [[random.randint(t_start, t_end-1), random.randint(0, 20)] for i in range(patch_sample_cnt)]
 print(samples)
 
-patch_size = 5#pre_config['patch_size']
-fac_1d = 9
-fac_2d = 3
+patch_size = pre_config['patch_size']
+fac_1d = pre_config['factor']
+fac_2d = int(math.sqrt(fac_1d))
 ref_patch_size = patch_size * fac_2d
-stride = 1
-surface = 1.0
-particle_cnt_src = 100 #pre_config['par_cnt']
-particle_cnt_dst = 100
+surface = pre_config['surf']
+particle_cnt_src = pre_config['par_cnt']
+particle_cnt_dst = pre_config['par_cnt_ref']
 
 extrapol = 5
 

@@ -33,11 +33,14 @@ data_path = getParam("data", "data/", paramUsed)
 manta_path = getParam("manta", "manta/", paramUsed)
 config_path = getParam("config", "config/version_00.txt", paramUsed)
 verbose = int(getParam("verbose", 0, paramUsed)) != 0
+gpu = getParam("gpu", "", paramUsed)
 
 log_intervall = int(getParam("log_intervall", 10, paramUsed))
 checkpoint_intervall = int(getParam("checkpoint_intervall", 10, paramUsed))
 
 start_checkpoint = int(getParam("start_checkpoint", 0, paramUsed))
+
+checkUnusedParam(paramUsed)
 
 src_path = data_path + "patches/source/"
 ref_path = data_path + "patches/reference/"
@@ -49,6 +52,9 @@ if not os.path.exists(model_path):
 checkpoint_path = model_path + "checkpoints/"
 if not os.path.exists(checkpoint_path):
 	os.makedirs(checkpoint_path)
+
+if not gpu is "":
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu
 
 with open(config_path, 'r') as f:
     config = json.loads(f.read())
