@@ -418,7 +418,7 @@ for k in aux_postfix:
 src_gen = RandomParticles(dim,dim,fac_2d,dim/3,obj_cnt,1.0)# if fixed else 0.8)
 
 data_cnt = var*dataset*(t_end-t_start)*repetitions
-'''for v in range(var):
+for v in range(var):
     for d in range(dataset):
         for t in range(t_start, t_end):
             src_gen.gen_random(pos=np.array([dim/2+0.5,dim/2+0.5]) if fixed else None)
@@ -430,8 +430,8 @@ data_cnt = var*dataset*(t_end-t_start)*repetitions
                 if trans_mode == 1 or trans_mode == 2:
                     ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
 
-                #res, positions = load_test(src_data, 0, particle_cnt_src, patch_size, source_scr, t)
-                res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, source_scr, t)
+                res, positions = load_test(src_data, 0, particle_cnt_src, patch_size, source_scr, t)
+                #res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, source_scr, t)
 
                 src = np.append(src, res, axis=0)
                 #for k, val in aux_res.items():
@@ -448,16 +448,16 @@ data_cnt = var*dataset*(t_end-t_start)*repetitions
                         plot_particles(res[i],[-1,1],[-1,1],5,(source_scr+"_i%03d_rotated_patch.png")%(t,i))
                 rotated_src = np.append(rotated_src, res, axis=0)
                     
-                #res = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
-                res = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, reference_scr, t, positions=positions*fac_2d)[0]
+                res = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
+                #res = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, reference_scr, t, positions=positions*fac_2d)[0]
 
                 dst = np.append(dst, res, axis=0)
 
                 if gen_grid:
                     patch = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_reference_scr, t)
                     sdf_dst = np.append(sdf_dst, patch, axis=0)
-'''
-src, dst, rotated_src = gen_patches(data_path, config_path, dataset, t_end, var, repetitions, t_start=t_start)[:3]
+
+#src, dst, rotated_src = gen_patches(data_path, config_path, dataset, t_end, var, repetitions, t_start=t_start)[:3]
 
 fac = 16
 k = 256
@@ -582,7 +582,7 @@ m_out = []
 invm_out = []
 
 if par_out:
-    loss.append(chamfer_loss)#hungarian_loss)
+    loss.append(emd_loss)#hungarian_loss)
     y.append(dst)
     m_out.append(out)
     invm_out.append(inv_par_out)
@@ -637,13 +637,13 @@ for v in range(1):
                 if trans_mode == 1 or trans_mode == 2:
                     ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
             
-                #src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
+                src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
                 #src, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, test_source_scr, t)
 
-                #ref = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions*fac_2d)[0]
+                ref = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions*fac_2d)[0]
                 #ref = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions=positions*fac_2d)[0]
 
-                src, ref, rot_src, positions = gen_patches(data_path, config_path, d+1, t+1, 1, 1, d, t)
+                #src, ref, rot_src, positions = gen_patches(data_path, config_path, d+1, t+1, 1, 1, d, t)
 
                 if gen_grid:
                     sdf_ref = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_test_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_test_reference_scr, t)
