@@ -582,7 +582,7 @@ m_out = []
 invm_out = []
 
 if par_out:
-    loss.append(hungarian_loss)
+    loss.append(chamfer_loss)#hungarian_loss)
     y.append(dst)
     m_out.append(out)
     invm_out.append(inv_par_out)
