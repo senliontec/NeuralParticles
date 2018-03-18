@@ -10,8 +10,8 @@
     "epochs":             2,
     "explicit":           true,
     "mse_fac":            1.0,
-    "adv_fac":            0.0,
+    "adv_fac":            1.0,
     "par_feature_cnt":    256,
     "dropout":            0.2,
-    "pre_train_stn":      true
+    "pre_train_stn":      false
 }

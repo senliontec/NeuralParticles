@@ -164,15 +164,16 @@ if start_checkpoint == 0:
             generator = model
 
             inputs = Input((particle_cnt_src,3), name="main")
-            x = Dropout(dropout)(inputs)
+            x = Flatten()(inputs)
+            x = Dropout(dropout)(x)
             x = Dense(fac*32, activation='tanh')(x)
-            x = Dropout(dropout)(inputs)
+            x = Dropout(dropout)(x)
             x = Dense(fac*16, activation='tanh')(x)
-            x = Dropout(dropout)(inputs)
+            x = Dropout(dropout)(x)
             x = Dense(fac*8, activation='tanh')(x)
-            x = Dropout(dropout)(inputs)
+            x = Dropout(dropout)(x)
             x = Dense(fac*4, activation='tanh')(x)
-            x = Dropout(dropout)(inputs)
+            x = Dropout(dropout)(x)
             x = Dense(1, activation='sigmoid')(x)
 
             discriminator = Model(inputs=inputs, outputs=x)
@@ -321,10 +322,11 @@ if train_config["adv_fac"] <= 0.:
     plt.savefig(fig_path+".pdf")
 else:
     # GAN
-    z = Input(shape=(pre_config['patch_size'], pre_config['patch_size'],1), name='main')
-    z_aux = Input(shape=(pre_config['patch_size'], pre_config['patch_size'],feature_cnt-1), name='aux')
+    z = [Input(shape=(particle_cnt_src,3) if train_config['explicit'] else (pre_config['patch_size'], pre_config['patch_size'],1), name='main')]
+    if feature_cnt > 1:
+        z = np.append(z, [Input(shape=(pre_config['patch_size'], pre_config['patch_size'],feature_cnt-1), name='aux')])
 
-    img = generator([z,z_aux])
+    img = generator(z)
 
     # For the combined model we will only train the generator
     discriminator.trainable = False
@@ -333,7 +335,7 @@ else:
     valid = discriminator(img)
 
     # The combined model  (stacked generator and discriminator)
-    combined = Model([z,z_aux], [img,valid])
+    combined = Model(z, [img,valid])
     combined.compile(loss=['mse','binary_crossentropy'], optimizer=keras.optimizers.adam(lr=train_config['learning_rate']),
                     loss_weights=[train_config['mse_fac'], train_config['adv_fac']])
 
@@ -377,9 +379,9 @@ else:
             d_loss_real = discriminator.train_on_batch(y, np.ones((half_batch, 1)))
             d_loss = np.add(d_loss, cnt_inv * 0.5 * np.add(d_loss_real, d_loss_fake) )
             
-            x = src_data[idx1[i:i+half_batch]]
-            y = ref_data[idx1[i+half_batch:i+batch_size]]
-            g_loss = np.add(g_loss, cnt_inv * np.array(combined.train_on_batch(x, [y[0],np.ones((batch_size, 1))])))
+            x = src_data[idx1[i:i+batch_size]]
+            y = ref_data[idx1[i:i+batch_size]]
+            g_loss = np.add(g_loss, cnt_inv * np.array(combined.train_on_batch(x, [y, np.ones((batch_size, 1))])))
         
         # eval
         np.random.shuffle(val_idx0)
@@ -397,7 +399,7 @@ else:
         
         x = src_data[val_idx1]
         y = ref_data[val_idx1]
-        g_val_loss = combined.evaluate(x, [y[0],np.ones((eval_cnt, 1))], batch_size=batch_size, verbose=0)
+        g_val_loss = combined.evaluate(x, [y,np.ones((eval_cnt, 1))], batch_size=batch_size, verbose=0)
         
         history['d_loss'].append(d_loss[0])
         history['d_acc'].append(d_loss[1])
