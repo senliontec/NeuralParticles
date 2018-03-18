@@ -115,7 +115,7 @@ else:
 model = load_model(model_path, custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
 
 for t in range(t_start, t_end):
-    data, ref, positions = gen_patches(data_path, config_path, dataset+1, t+1, 1, 1, dataset, t)
+    data, ref, rot_data, positions = gen_patches(data_path, config_path, dataset+1, t+1, 1, 1, dataset, t)
     prediction = model.predict(x=data, batch_size=train_config['batch_size'])
     result = np.empty((0, 3)) if use_particles else np.ones((res, res, 1))
     for i in range(len(prediction)):
