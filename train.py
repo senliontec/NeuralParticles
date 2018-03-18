@@ -35,8 +35,8 @@ config_path = getParam("config", "config/version_00.txt", paramUsed)
 verbose = int(getParam("verbose", 0, paramUsed)) != 0
 gpu = getParam("gpu", "", paramUsed)
 
-log_intervall = int(getParam("log_intervall", 10, paramUsed))
-checkpoint_intervall = int(getParam("checkpoint_intervall", 10, paramUsed))
+log_intervall = int(getParam("log_intervall", 1, paramUsed))
+checkpoint_intervall = int(getParam("checkpoint_intervall", 1, paramUsed))
 
 start_checkpoint = int(getParam("start_checkpoint", 0, paramUsed))
 
@@ -336,7 +336,7 @@ else:
 
     # The combined model  (stacked generator and discriminator)
     combined = Model(z, [img,valid])
-    combined.compile(loss=['mse','binary_crossentropy'], optimizer=keras.optimizers.adam(lr=train_config['learning_rate']),
+    combined.compile(loss=[generator.loss_functions[0],discriminator.loss_functions[0]], optimizer=keras.optimizers.adam(lr=train_config['learning_rate']),
                     loss_weights=[train_config['mse_fac'], train_config['adv_fac']])
 
     if verbose:
