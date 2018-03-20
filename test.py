@@ -30,8 +30,6 @@ import math
 from advection import interpol
 
 from hungarian_loss import hungarian_loss
-from tf_nndistance import nn_distance
-from tf_approxmatch import approx_match, match_cost
 
 from particle_grid import ParticleGrid
 
@@ -49,14 +47,18 @@ import tensorflow as tf
 
 from sklearn.decomposition import PCA
 
+'''from tf_nndistance import nn_distance
+from tf_approxmatch import approx_match, match_cost
+
 def chamfer_loss(y_true, y_pred):
     cost_p1_p2, _, cost_p2_p1, _ = nn_distance(y_pred, y_true)
     return tf.reduce_mean(cost_p1_p2) + tf.reduce_mean(cost_p2_p1)
 
 def emd_loss(y_true, y_pred):
     match = approx_match(y_pred, y_true)
-    return tf.reduce_mean(match_cost(y_pred, y_true, match))
+    return tf.reduce_mean(match_cost(y_pred, y_true, match))'''
 
+use_test_data = False
 def eigenvector(data):
     pca = PCA()
     pca.fit(data)
@@ -400,70 +402,71 @@ def load_src(prefix, bnd, par_cnt, patch_size, scr, t, positions=None):
 src_file = "%s_%s-%s"%(data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
 dst_file = "%s_%s"%(data_config['prefix'], data_config['id']) + "_d%03d_%03d"
 
-src = np.empty((0,particle_cnt_src,3))
-dst = np.empty((0,particle_cnt_dst,3))
+if use_test_data:
+    src = np.empty((0,particle_cnt_src,3))
+    dst = np.empty((0,particle_cnt_dst,3))
 
-rotated_src = np.empty((0,particle_cnt_src,3))
+    rotated_src = np.empty((0,particle_cnt_src,3))
 
-sdf_dst = np.empty((0,ref_patch_size, ref_patch_size, 2) if use_vec else (0,ref_patch_size, ref_patch_size))
+    sdf_dst = np.empty((0,ref_patch_size, ref_patch_size, 2) if use_vec else (0,ref_patch_size, ref_patch_size))
 
-aux_postfix = {
-    #"vel":"v"
-}
+    aux_postfix = {
+        #"vel":"v"
+    }
 
-aux_src = {}
-for k in aux_postfix:
-    aux_src[k] = np.empty((0, particle_cnt_src, 3 if k == "vel" else 1))
+    aux_src = {}
+    for k in aux_postfix:
+        aux_src[k] = np.empty((0, particle_cnt_src, 3 if k == "vel" else 1))
 
-src_gen = RandomParticles(dim,dim,fac_2d,dim/3,obj_cnt,1.0)# if fixed else 0.8)
+    src_gen = RandomParticles(dim,dim,fac_2d,dim/3,obj_cnt,1.0)# if fixed else 0.8)
 
-data_cnt = var*dataset*(t_end-t_start)*repetitions
-for v in range(var):
-    for d in range(dataset):
-        for t in range(t_start, t_end):
-            src_gen.gen_random(pos=np.array([dim/2+0.5,dim/2+0.5]) if fixed else None)
-            for r in range(repetitions):
-                act_d = r+repetitions*((t-t_start)+(t_end-t_start)*(d+v*dataset))
-                print("Generate Data: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
-                src_data, ref_data = src_gen.get_grid()
+    data_cnt = var*dataset*(t_end-t_start)*repetitions
+    for v in range(var):
+        for d in range(dataset):
+            for t in range(t_start, t_end):
+                src_gen.gen_random(pos=np.array([dim/2+0.5,dim/2+0.5]) if fixed else None)
+                for r in range(repetitions):
+                    act_d = r+repetitions*((t-t_start)+(t_end-t_start)*(d+v*dataset))
+                    print("Generate Data: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
+                    src_data, ref_data = src_gen.get_grid()
 
-                if trans_mode == 1 or trans_mode == 2:
-                    ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
+                    if trans_mode == 1 or trans_mode == 2:
+                        ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
 
-                res, positions = load_test(src_data, 0, particle_cnt_src, patch_size, source_scr, t)
-                #res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, source_scr, t)
+                    res, positions = load_test(src_data, 0, particle_cnt_src, patch_size, source_scr, t)
+                    #res, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, source_scr, t)
 
-                src = np.append(src, res, axis=0)
-                #for k, val in aux_res.items():
-                #    aux_src[k] = np.append(aux_src[k], val, axis=0)
+                    src = np.append(src, res, axis=0)
+                    #for k, val in aux_res.items():
+                    #    aux_src[k] = np.append(aux_src[k], val, axis=0)
 
-                nor = mean_nor(src_data.cells, positions, t)
-                theta = np.arctan2(nor[:,0],nor[:,1])
+                    nor = mean_nor(src_data.cells, positions, t)
+                    theta = np.arctan2(nor[:,0],nor[:,1])
 
-                for i in range(len(res)):
-                    c, s = np.cos(-theta[i]), np.sin(-theta[i])
-                    mat = np.matrix([[c,-s,0],[s,c,0],[0,0,1]])
-                    res[i] = res[i] * mat
-                    if [t,i] in samples:
-                        plot_particles(res[i],[-1,1],[-1,1],5,(source_scr+"_i%03d_rotated_patch.png")%(t,i))
-                rotated_src = np.append(rotated_src, res, axis=0)
-                    
-                res = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
-                #res = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, reference_scr, t, positions=positions*fac_2d)[0]
+                    for i in range(len(res)):
+                        c, s = np.cos(-theta[i]), np.sin(-theta[i])
+                        mat = np.matrix([[c,-s,0],[s,c,0],[0,0,1]])
+                        res[i] = res[i] * mat
+                        if [t,i] in samples:
+                            plot_particles(res[i],[-1,1],[-1,1],5,(source_scr+"_i%03d_rotated_patch.png")%(t,i))
+                    rotated_src = np.append(rotated_src, res, axis=0)
+                        
+                    res = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
+                    #res = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, reference_scr, t, positions=positions*fac_2d)[0]
 
-                dst = np.append(dst, res, axis=0)
+                    dst = np.append(dst, res, axis=0)
 
-                if gen_grid:
-                    patch = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_reference_scr, t)
-                    sdf_dst = np.append(sdf_dst, patch, axis=0)
-
-#src, dst, rotated_src = gen_patches(data_path, config_path, dataset, t_end, var, repetitions, t_start=t_start)[:3]
+                    if gen_grid:
+                        patch = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_reference_scr, t)
+                        sdf_dst = np.append(sdf_dst, patch, axis=0)
+else:
+    src, dst, rotated_src = gen_patches(data_path, config_path, dataset, t_end, var, repetitions, t_start=t_start)[:3]
 
 fac = 16
 k = 256
 dropout = 0.2
 batch_size = train_config['batch_size']
-epochs = 3 # train_config['epochs']
+epochs = train_config['epochs']
 
 '''src = src[:len(src)//batch_size*batch_size]
 dst = dst[:len(src)//batch_size*batch_size]
@@ -563,26 +566,13 @@ if par_out and not use_vec:
     inv_par_out = Reshape((particle_cnt_dst,3))(x)
     out = stn_transform_inv(stn,inv_par_out,quat=True)
 
-    '''if adv_loss:
-        x = Flatten()(features)
-        x = Dropout(dropout)(x)
-        x = Dense(fac*8, activation='tanh')(x)
-        x = Dropout(dropout)(x)
-        x = Dense(fac*4, activation='tanh')(x)
-        x = Dropout(dropout)(x)
-        x = Dense(fac, activation='tanh')(x)
-        x = Dropout(dropout)(x)
-        x = Dense(1, activation='sigmoid')(x)
-        encoder = Model(inputs=inputs, outputs=features)
-        discriminator = Model(inputs=features, outputs=x)'''
-
 loss = []
 y = []
 m_out = []
 invm_out = []
 
 if par_out:
-    loss.append(emd_loss)#hungarian_loss)
+    loss.append(hungarian_loss)#emd_loss)
     y.append(dst)
     m_out.append(out)
     invm_out.append(inv_par_out)
@@ -598,6 +588,57 @@ elif use_vec:
 model = Model(inputs=inputs, outputs=m_out)
 invm = Model(inputs=inputs, outputs=invm_out)
 
+if train_config["adv_fac"] > 0.:
+    disc_input = Input((particle_cnt_src,3))
+    x = stn_transform(stn_model(disc_input) ,disc_input,quat=True)
+
+    x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
+
+    x = split_layer(Dropout(dropout),x)
+    x = split_layer(Dense(fac, activation='tanh'),x)
+    x = split_layer(Dropout(dropout),x)
+    x = split_layer(Dense(fac, activation='tanh'),x)
+
+    x = concatenate(x, axis=1)
+    x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x)
+
+    x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
+
+    x = split_layer(Dropout(dropout),x)
+    x = split_layer(Dense(fac, activation='tanh'),x)
+    x = split_layer(Dropout(dropout),x)
+    x = split_layer(Dense(fac*2, activation='tanh'),x)
+    x = split_layer(Dropout(dropout),x)
+    x = split_layer(Dense(k, activation='tanh'),x)
+
+    x = add(x)
+
+    x = Flatten()(x)
+    x = Dropout(dropout)(x)
+    x = Dense(fac*16, activation='tanh')(x)
+    x = Dropout(dropout)(x)
+    x = Dense(fac*8, activation='tanh')(x)
+    x = Dropout(dropout)(x)
+    x = Dense(fac*4, activation='tanh')(x)
+    x = Dropout(dropout)(x)
+    x = Dense(1, activation='sigmoid')(x)
+
+    '''disc_input = Input((particle_cnt_src,3), name="main")
+    x = Flatten()(disc_input)
+    x = Dropout(dropout)(x)
+    x = Dense(fac*32, activation='tanh')(x)
+    x = Dropout(dropout)(x)
+    x = Dense(fac*16, activation='tanh')(x)
+    x = Dropout(dropout)(x)
+    x = Dense(fac*8, activation='tanh')(x)
+    x = Dropout(dropout)(x)
+    x = Dense(fac*4, activation='tanh')(x)
+    x = Dropout(dropout)(x)
+    x = Dense(1, activation='sigmoid')(x)'''
+
+    discriminator = Model(inputs=disc_input, outputs=x)
+    discriminator.compile(loss='binary_crossentropy', optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]), metrics=['accuracy'])
+
 if not grid_out and gen_grid:
     sdf_in = Input((ref_patch_size, ref_patch_size))
     sample_out = Lambda(lambda v: K.relu(interpol(v[0],(v[1]+1)*ref_patch_size*0.5)))([sdf_in, out])
@@ -605,9 +646,99 @@ if not grid_out and gen_grid:
     train_model = Model(inputs=[inputs, sdf_in], outputs=[out,sample_out])
     train_model.compile(loss=[hungarian_loss, lambda x,y: K.mean(y,axis=-1)], optimizer=keras.optimizers.adam(lr=0.001), loss_weights=[1., 1.])
     history = train_model.fit(x=[src,sdf_dst],y=[dst,np.empty((dst.shape[0],dst.shape[1]))],epochs=epochs,batch_size=batch_size)
-else:
+elif train_config["adv_fac"] <= 0.:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=0.001))
     history = model.fit(x=src,y=y,epochs=epochs,batch_size=batch_size)
+else:
+    # GAN
+    z = [Input(shape=(particle_cnt_src,3), name='main')]
+    img = model(z)
+
+    # For the combined model we will only train the generator
+    discriminator.trainable = False
+
+    # The valid takes generated images as input and determines validity
+    valid = discriminator(img)
+
+    # The combined model  (stacked generator and discriminator)
+    combined = Model(z, [img,valid])
+    combined.compile(loss=[loss[0],discriminator.loss_functions[0]], optimizer=keras.optimizers.adam(lr=train_config['learning_rate']),
+                    loss_weights=[train_config['mse_fac'], train_config['adv_fac']])
+
+    half_batch = batch_size//2
+
+    train_cnt = int(len(src)*(1-train_config['val_split']))//batch_size*batch_size
+    print('train count: %d' % train_cnt)
+    eval_cnt = int(len(src)*train_config['val_split'])//batch_size*batch_size
+    print('eval count: %d' % eval_cnt)
+
+    cnt_inv = batch_size/train_cnt
+
+    history = {'d_loss':[],'d_acc':[],'g_loss':[],'g_mse':[],'g_adv_loss':[],
+            'd_val_loss':[],'d_val_acc':[],'g_val_loss':[],'g_val_mse':[],'g_val_adv_loss':[]}
+    idx0 = np.arange(train_cnt+eval_cnt)
+    idx1 = np.arange(train_cnt+eval_cnt)
+
+    np.random.shuffle(idx0)
+    np.random.shuffle(idx1)
+        
+    idx0, val_idx0 = np.split(idx0,[train_cnt])
+    idx1, val_idx1 = np.split(idx1,[train_cnt])
+
+    for ep in range(epochs):    
+        # train
+        np.random.shuffle(idx0)
+        np.random.shuffle(idx1)
+        g_loss = [0.,0.,0.]
+        d_loss = [0.,0.]
+        
+        for i in range(0,train_cnt,batch_size):
+            print("Train epoch {}, batch {}/{}".format(ep+1, i+batch_size, train_cnt), end="\r", flush=True)
+            x = src[idx0[i:i+half_batch]]
+            y = dst[idx0[i+half_batch:i+batch_size]]
+            x = model.predict(x)
+
+            d_loss_fake = discriminator.train_on_batch(x, np.zeros((half_batch, 1)))
+            d_loss_real = discriminator.train_on_batch(y, np.ones((half_batch, 1)))
+            d_loss = np.add(d_loss, cnt_inv * 0.5 * np.add(d_loss_real, d_loss_fake) )
+            
+            x = src[idx1[i:i+batch_size]]
+            y = dst[idx1[i:i+batch_size]]
+            g_loss = np.add(g_loss, cnt_inv * np.array(combined.train_on_batch(x, [y, np.ones((batch_size, 1))])))
+        
+        print("\r", flush=True)
+        # eval
+        np.random.shuffle(val_idx0)
+        np.random.shuffle(val_idx1)
+        g_val_loss = [0.,0.,0.]
+        d_val_loss = [0.,0.]
+    
+        x = src[val_idx0]
+        y = dst[val_idx0]
+        x = model.predict(x)
+        
+        d_loss_fake = discriminator.evaluate(x, np.zeros((eval_cnt, 1)), batch_size=half_batch, verbose=0)
+        d_loss_real = discriminator.evaluate(y, np.ones((eval_cnt, 1)), batch_size=half_batch, verbose=0)
+        d_val_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
+        
+        x = src[val_idx1]
+        y = dst[val_idx1]
+        g_val_loss = combined.evaluate(x, [y,np.ones((eval_cnt, 1))], batch_size=batch_size, verbose=0)
+        
+        history['d_loss'].append(d_loss[0])
+        history['d_acc'].append(d_loss[1])
+        history['d_val_loss'].append(d_val_loss[0])
+        history['d_val_acc'].append(d_val_loss[1])
+        history['g_loss'].append(g_loss[0])
+        history['g_mse'].append(g_loss[1])
+        history['g_adv_loss'].append(g_loss[2])
+        history['g_val_loss'].append(g_val_loss[0])
+        history['g_val_mse'].append(g_val_loss[1])
+        history['g_val_adv_loss'].append(g_val_loss[2])
+                
+        print ("epoch %i" % (ep+1))
+        print ("\ttrain: [D loss: %f, acc.: %.2f%%] [G loss: %f, mse: %f, adv: %f]" % (d_loss[0], 100*d_loss[1], g_loss[0], g_loss[1], g_loss[2]))
+        print ("\teval.: [D loss: %f, acc.: %.2f%%] [G loss: %f, mse: %f, adv: %f]" % (d_val_loss[0], 100*d_val_loss[1], g_val_loss[0], g_val_loss[1], g_val_loss[2]))
 
 #model.summary()
 '''plt.plot(history.history['loss'])
@@ -627,23 +758,22 @@ data_cnt = (t_end-t_start)*repetitions
 for v in range(1):
     for d in range(5,6):
         for t in range(t_start, t_end): 
-            src_gen.gen_random(pos=np.array([[dim/2+0.5,dim/2+0.5]]) if fixed else None, a=np.array([[t+1,t+1]]) if fixed else None)
+            if use_test_data:
+                src_gen.gen_random(pos=np.array([[dim/2+0.5,dim/2+0.5]]) if fixed else None, a=np.array([[t+1,t+1]]) if fixed else None)
             for r in range(repetitions):
                 act_d = r+repetitions*(t-t_start)
                 print("Run Test: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
 
-                src_data, ref_data = src_gen.get_grid()
+                if use_test_data:
+                    src_data, ref_data = src_gen.get_grid()
 
-                if trans_mode == 1 or trans_mode == 2:
-                    ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
-            
-                src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
-                #src, positions = load_src(data_path + "source/" + src_file%(d,v,t), 4/fac_2d, particle_cnt_src, patch_size, test_source_scr, t)
-
-                ref = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions*fac_2d)[0]
-                #ref = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions=positions*fac_2d)[0]
-
-                #src, ref, rot_src, positions = gen_patches(data_path, config_path, d+1, t+1, 1, 1, d, t)
+                    if trans_mode == 1 or trans_mode == 2:
+                        ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
+                
+                    src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
+                    ref = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions*fac_2d)[0]
+                else:
+                    src, ref, rot_src, positions = gen_patches(data_path, config_path, d+1, t+1, 1, 1, d, t)
 
                 if gen_grid:
                     sdf_ref = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_test_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_test_reference_scr, t)
