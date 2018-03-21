@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import keras
 from keras.models import Model, load_model
 
-from gen_patches import gen_patches
+from gen_patches import *
 
 from subpixel import *
 from spatial_transformer import *
@@ -95,6 +95,7 @@ factor_2D = math.sqrt(pre_config['factor'])
 patch_size = pre_config['patch_size']
 high_patch_size = int(patch_size*factor_2D)
 par_cnt = pre_config['par_cnt']
+par_cnt_dst = pre_config['par_cnt_ref']
 
 res = data_config['res']
 low_res = int(res/factor_2D)
@@ -115,7 +116,21 @@ else:
 model = load_model(model_path, custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
 
 for t in range(t_start, t_end):
-    data, ref, rot_data, positions = gen_patches(data_path, config_path, dataset+1, t+1, 1, 1, dataset, t)
+    (src_data, sdf_data), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
+
+    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'])
+    while(True):
+        src = patch_extractor.get_patch()
+        if src is None:
+            break
+        
+        ref = extract_particles(ref_data, patch_extractor.last_pos*factor_2D, par_cnt_dst, high_patch_size)[0]
+
+        result = model.predict(x=np.array([src]))[0]
+        patch_extractor.set_patch(result)
+    result = patch_extractor.data
+    
+    '''data, ref, rot_data, positions = gen_patches(data_path, config_path, dataset+1, t+1, 1, 1, dataset, t)
     prediction = model.predict(x=data, batch_size=train_config['batch_size'])
     result = np.empty((0, 3)) if use_particles else np.ones((res, res, 1))
     for i in range(len(prediction)):
@@ -126,7 +141,7 @@ for t in range(t_start, t_end):
             if pre_config['use_tanh'] != 0:
                 tmp = np.arctanh(np.clip(tmp,-.999999,.999999))
             tmp = tmp * circular_filter/pre_config['h_fac']
-            insert_patch(result, tmp, factor_2D*positions[i], elem_min)
+            insert_patch(result, tmp, factor_2D*positions[i], elem_min)'''
 
     if use_particles:
         hdr = OrderedDict([ ('dim',len(result)),

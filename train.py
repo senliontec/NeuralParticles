@@ -371,6 +371,7 @@ else:
         d_loss = [0.,0.]
         
         for i in range(0,train_cnt,batch_size):
+            print("Train epoch {}, batch {}/{}".format(ep+1, i+batch_size, train_cnt), end="\r", flush=True)
             x = src_data[idx0[i:i+half_batch]]
             y = ref_data[idx0[i+half_batch:i+batch_size]]
             x = generator.predict(x)
@@ -383,6 +384,7 @@ else:
             y = ref_data[idx1[i:i+batch_size]]
             g_loss = np.add(g_loss, cnt_inv * np.array(combined.train_on_batch(x, [y, np.ones((batch_size, 1))])))
         
+        print("\r", flush=True)
         # eval
         np.random.shuffle(val_idx0)
         np.random.shuffle(val_idx1)

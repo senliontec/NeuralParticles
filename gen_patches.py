@@ -11,6 +11,46 @@ import math
 
 from patch_helper import *
 
+class PatchExtractor:
+    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, bnd=0):
+        self.data = src_data.copy()
+        self.positions = get_positions(src_data, np.squeeze(sdf_data), patch_size, surface, bnd)
+        np.random.shuffle(self.positions)
+        self.last_pos = None
+        self.radius = patch_size/2
+        self.cnt = cnt
+    
+    def get_patch(self):
+        if len(self.positions) == 0:
+            return None
+
+        self.last_pos = self.positions[0]
+        self.positions = remove_particles(self.positions, self.last_pos, self.radius)[0]
+        self.data, patch = extract_remove_particles(self.data, self.last_pos, self.cnt, self.radius)[:2]
+        return patch
+
+    def set_patch(self, patch):
+        self.data = np.concatenate((self.data, np.add(patch * self.radius, self.last_pos)))
+
+
+def get_data_pair(data_path, config_path, dataset, timestep, var):
+    with open(config_path, 'r') as f:
+        config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
+        data_config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
+        pre_config = json.loads(f.read())
+
+    np.random.seed(data_config['seed'])
+
+    path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
+    path_ref = "%sreference/%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d_%03d"
+    print(path_src)
+    print(path_ref)
+
+    return get_data(path_src%(dataset,var,timestep)), get_data(path_ref%(dataset,timestep))
 
 def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0, t_start=0):
     with open(config_path, 'r') as f:

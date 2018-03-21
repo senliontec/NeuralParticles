@@ -72,6 +72,39 @@ def insert_patch(data, patch, pos, func):
 
 	data[0,y0:y1,x0:x1] = func(data[0,y0:y1,x0:x1], patch)
 
+def remove_particles(data, pos, constraint, aux_data={}):
+	par_idx = particle_radius(data, pos, constraint)
+	par_aux = {}
+	for k, v in aux_data.items():
+		par_aux[k] = np.delete(v, par_idx, axis=0)
+		
+	return np.delete(data, par_idx, axis=0), par_aux
+
+def extract_remove_particles(data, pos, cnt, constraint, aux_data={}):
+	par_idx = particle_radius(data, pos, constraint)
+	par_pos = np.subtract(data[par_idx],pos)/constraint
+
+	data = np.delete(data, par_idx, axis=0)
+
+	par_aux = {}
+	for k, v in aux_data.items():
+		par_aux[k] = v[par_idx]
+		v = np.delete(v, par_idx, axis=0)
+	
+	if len(par_pos) < cnt:
+		par_pos = np.concatenate((par_pos,np.zeros((cnt-len(par_pos),par_pos.shape[-1]))))
+		for k, v in par_aux.items():
+			par_aux[k] = np.concatenate((v,np.zeros((cnt-len(v),v.shape[-1]))))
+	
+	rnd_idx = np.arange(len(par_pos))
+	np.random.shuffle(rnd_idx)
+	rnd_idx = rnd_idx[:cnt]
+
+	par_pos = par_pos[rnd_idx]
+	for k, v in par_aux.items():
+		par_aux[k] = v[rnd_idx]
+	return data, par_pos, aux_data, par_aux
+
 def extract_particles(data, pos, cnt, constraint, aux_data={}):
 	par_idx = particle_radius(data, pos, constraint)
 	par_pos = np.subtract(data[par_idx],pos)/constraint
@@ -118,9 +151,9 @@ def get_patches(sdf_data, patch_size, dimX, dimY, bnd, stride, surface):
 	return np.array(pos)+0.5
 
 def plot_particles(data, xlim, ylim, s, path=None, ref=None, src=None):
-	plt.scatter(data[:,0],data[:,1],s=s,c='b')
 	if not ref is None:
-		plt.scatter(ref[:,0],ref[:,1],s=s,c='r')
+		plt.scatter(ref[:,0],ref[:,1],s=s*0.5,c='r')
+	plt.scatter(data[:,0],data[:,1],s=s,c='b')
 	if not src is None:
 		plt.scatter(src[:,0],src[:,1],s=s,c='g')
 	plt.xlim(xlim)

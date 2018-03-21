@@ -37,7 +37,7 @@ import scipy.ndimage.filters as fi
 
 import numpy as np
 
-from gen_patches import gen_patches
+from gen_patches import *
 
 random.seed(235)
 np.random.seed(694)
@@ -58,7 +58,7 @@ def emd_loss(y_true, y_pred):
     match = approx_match(y_pred, y_true)
     return tf.reduce_mean(match_cost(y_pred, y_true, match))'''
 
-use_test_data = False
+use_test_data = True
 def eigenvector(data):
     pca = PCA()
     pca.fit(data)
@@ -460,22 +460,16 @@ if use_test_data:
                         patch = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_reference_scr, t)
                         sdf_dst = np.append(sdf_dst, patch, axis=0)
 else:
-    src, dst, rotated_src = gen_patches(data_path, config_path, dataset, t_end, var, repetitions, t_start=t_start)[:3]
+    src, dst, rotated_src, positions = gen_patches(data_path, config_path, dataset, t_end, var, repetitions, t_start=t_start)
+    for t in range(t_start, t_end):
+        plot_particles(positions, [0,dim], [0,dim], 0.1, (source_scr + "_pos.png") % t)
+    
 
 fac = 16
 k = 256
 dropout = 0.2
 batch_size = train_config['batch_size']
 epochs = train_config['epochs']
-
-'''src = src[:len(src)//batch_size*batch_size]
-dst = dst[:len(src)//batch_size*batch_size]
-rotated_src = rotated_src[:len(src)//batch_size*batch_size]
-
-sdf_dst = sdf_dst[:len(src)//batch_size*batch_size]
-
-for k, v in aux_src.items():
-    aux_src[k] = v[:len(src)//batch_size*batch_size]'''
 
 inputs = Input((particle_cnt_src,3), name="main")
 #aux_input = Input((particle_cnt_src,3))
@@ -650,6 +644,8 @@ elif train_config["adv_fac"] <= 0.:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=0.001))
     history = model.fit(x=src,y=y,epochs=epochs,batch_size=batch_size)
 else:
+    model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
+
     # GAN
     z = [Input(shape=(particle_cnt_src,3), name='main')]
     img = model(z)
@@ -700,7 +696,7 @@ else:
 
             d_loss_fake = discriminator.train_on_batch(x, np.zeros((half_batch, 1)))
             d_loss_real = discriminator.train_on_batch(y, np.ones((half_batch, 1)))
-            d_loss = np.add(d_loss, cnt_inv * 0.5 * np.add(d_loss_real, d_loss_fake) )
+            d_loss = np.add(d_loss, cnt_inv * 0.5 * np.add(d_loss_real, d_loss_fake))
             
             x = src[idx1[i:i+batch_size]]
             y = dst[idx1[i:i+batch_size]]
@@ -758,105 +754,141 @@ data_cnt = (t_end-t_start)*repetitions
 for v in range(1):
     for d in range(5,6):
         for t in range(t_start, t_end): 
+            act_d = t-t_start
+            print("Run Test: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
+
             if use_test_data:
                 src_gen.gen_random(pos=np.array([[dim/2+0.5,dim/2+0.5]]) if fixed else None, a=np.array([[t+1,t+1]]) if fixed else None)
-            for r in range(repetitions):
-                act_d = r+repetitions*(t-t_start)
-                print("Run Test: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
+                src_data, ref_data = src_gen.get_grid()
+                if trans_mode == 1 or trans_mode == 2:
+                    ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
+                sdf_data = src_data.cells
+                src_data = src_data.particles
+                ref_sdf_data = ref_data.cells
+                ref_data = ref_data.particles
+            else:
+                (src_data, sdf_data), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v) 
 
-                if use_test_data:
-                    src_data, ref_data = src_gen.get_grid()
+            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, particle_cnt_src, surface)
 
-                    if trans_mode == 1 or trans_mode == 2:
-                        ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
+            i = 0
+            while(True):
+                src = patch_extractor.get_patch()
+                if src is None:
+                    break
                 
-                    src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
-                    ref = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions*fac_2d)[0]
-                else:
-                    src, ref, rot_src, positions = gen_patches(data_path, config_path, d+1, t+1, 1, 1, d, t)
+                ref = extract_particles(ref_data, patch_extractor.last_pos*fac_2d, particle_cnt_dst, ref_patch_size)[0]
 
-                if gen_grid:
-                    sdf_ref = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_test_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_test_reference_scr, t)
-                
-                result = model.predict(x=src,batch_size=batch_size)
-                grid_result = result
+                result = model.predict(x=np.array([src]))[0]
+                patch_extractor.set_patch(result)
 
-                inv_result = invm.predict(x=src,batch_size=batch_size)
-                inv_grid_result = inv_result
+                i+=1
+                if [t,i] in samples:
+                    inv_result = invm.predict(x=np.array([src]))[0]
+                    inter_result = inter_model.predict(x=np.array([src]))[0]
+                    plot_particles(result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_patch.png")%(t,i), ref, src)
+                    plot_particles(inv_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inv_patch.png")%(t,i))
+                    plot_particles(inter_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
+                    plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_i%03d.png")%(t,i), ref_data, src_data*fac_2d)
 
-                if grid_out and par_out:
-                    grid_result = result[1]
-                    result = result[0]
-                
-                if (grid_out or use_vec) and par_out:
-                    inv_grid_result = inv_result[1]
-                    inv_result = inv_result[0]
+            plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_comp.png")%(t), ref_data, src_data*fac_2d)
+            plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+".png")%(t))
 
-                inter_result = inter_model.predict(x=src,batch_size=batch_size)
 
-                for sample in samples:
-                    if sample[0] == t and sample[1] < len(src):
-                        print(Model(inputs=inputs, outputs=stn).predict(x=src[sample[1]:sample[1]+1],batch_size=1))
+            '''if use_test_data:
+                src_data, ref_data = src_gen.get_grid()
 
-                if use_vec:
-                    ps_half = ref_patch_size//2
-                    res_output = grid_result if grid_out else vec_model.predict(x=src,batch_size=batch_size)
-                    img = np.zeros((1,h_dim,h_dim,2))
-                    ref_img = np.zeros((1,h_dim,h_dim,2)) if gen_grid else None
-                    src_img = np.empty((0,3))
-
-                    for i in range(len(res_output)):
-                        tmp = res_output[i]
-                        tmp_ref = sdf_ref[i] if gen_grid else None
-                        pos = positions[i]*fac_2d
-                        if [t,i] in samples:
-                            plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (vec_test_result_scr+"_i%03d_patch.png")%(t,i), tmp_ref, (src[i]+1)*ref_patch_size/2, 5)
-                            plot_vec(inv_grid_result[i], [0,ref_patch_size], [0,ref_patch_size], (vec_test_result_scr+"_i%03d_inv_patch.png")%(t,i))
-                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
-
-                        if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
-                            insert_patch(img, tmp, pos.astype(int), elem_avg)
-                            if gen_grid: insert_patch(ref_img, tmp_ref, pos.astype(int), elem_avg)
-                        src_img = np.append(src_img, np.add(src[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                    plot_vec(img[0], [0,h_dim], [0,h_dim], (vec_test_result_scr+"_r%03d.png")%(t,r), ref_img[0] if gen_grid else None, src_img, 0.1)
-                elif grid_out:
-                    ps_half = ref_patch_size//2
-                    img = np.ones((1,h_dim,h_dim))*extrapol
-                    ref_img = np.ones((1,h_dim,h_dim))*extrapol
-                    src_img = np.empty((0,3))
-
-                    for i in range(len(grid_result)):
-                        tmp = np.arctanh(np.clip(grid_result[i],-.999999999999,.999999999999)) / 12.0
-                        tmp_ref = np.arctanh(np.clip(sdf_ref[i],-.999999999999,.999999999999)) / 12.0
-                        pos = positions[i]*fac_2d
-                        if [t,i] in samples:
-                            plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (sdf_test_result_scr+"_i%03d_patch.png")%(t,i), tmp_ref, (src[i]+1)*ref_patch_size/2, 5)
-                            plot_sdf(inv_grid_result[i], [0,ref_patch_size], [0,ref_patch_size], (sdf_test_result_scr+"_i%03d_inv_patch.png")%(t,i))
-                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
-
-                        if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
-                            insert_patch(img, tmp * circular_filter, pos.astype(int), elem_min)
-                            insert_patch(ref_img, tmp_ref, pos.astype(int), elem_min)
-                        src_img = np.append(src_img, np.add(src[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                    plot_sdf(img[0], [0,h_dim], [0,h_dim], (sdf_test_result_scr+"_r%03d.png")%(t,r), ref_img[0], src_img, 0.1)
-                
-                if par_out:
-                    img = np.empty((0,3))
-                    ref_img = np.empty((0,3))
-                    src_img = np.empty((0,3))
-
-                    for i in range(len(result)):
-                        #kmeans.fit(result[i,:,:2])
-                        #par = np.append(kmeans.cluster_centers_, np.zeros((10,1)), axis=1)
-                        par = result[i]#,:10]
-                        if [t,i] in samples:# or True:
-                            plot_particles(par, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_patch.png")%(t,i), ref[i], src[i])
-                            plot_particles(inv_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inv_patch.png")%(t,i))
-                            plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
-                        
-                        img = np.append(img, np.add(par*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                        ref_img = np.append(ref_img, np.add(ref[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                        src_img = np.append(src_img, np.add(src[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                    plot_particles(img, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_r%03d.png")%(t,r), ref_img, src_img)
-
+                if trans_mode == 1 or trans_mode == 2:
+                    ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
             
+                src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
+                ref = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions*fac_2d)[0]
+            else:
+                src, ref, rot_src, positions = gen_patches(data_path, config_path, d+1, t+1, 1, 1, d, t)
+
+            if gen_grid:
+                sdf_ref = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_test_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_test_reference_scr, t)
+            
+            result = model.predict(x=src,batch_size=batch_size)
+            grid_result = result
+
+            inv_result = invm.predict(x=src,batch_size=batch_size)
+            inv_grid_result = inv_result
+
+            if grid_out and par_out:
+                grid_result = result[1]
+                result = result[0]
+            
+            if (grid_out or use_vec) and par_out:
+                inv_grid_result = inv_result[1]
+                inv_result = inv_result[0]
+
+            inter_result = inter_model.predict(x=src,batch_size=batch_size)
+
+            for sample in samples:
+                if sample[0] == t and sample[1] < len(src):
+                    print(Model(inputs=inputs, outputs=stn).predict(x=src[sample[1]:sample[1]+1],batch_size=1))
+
+            if use_vec:
+                ps_half = ref_patch_size//2
+                res_output = grid_result if grid_out else vec_model.predict(x=src,batch_size=batch_size)
+                img = np.zeros((1,h_dim,h_dim,2))
+                ref_img = np.zeros((1,h_dim,h_dim,2)) if gen_grid else None
+                src_img = np.empty((0,3))
+
+                for i in range(len(res_output)):
+                    tmp = res_output[i]
+                    tmp_ref = sdf_ref[i] if gen_grid else None
+                    pos = positions[i]*fac_2d
+                    if [t,i] in samples:
+                        plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (vec_test_result_scr+"_i%03d_patch.png")%(t,i), tmp_ref, (src[i]+1)*ref_patch_size/2, 5)
+                        plot_vec(inv_grid_result[i], [0,ref_patch_size], [0,ref_patch_size], (vec_test_result_scr+"_i%03d_inv_patch.png")%(t,i))
+                        plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
+
+                    if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
+                        insert_patch(img, tmp, pos.astype(int), elem_avg)
+                        if gen_grid: insert_patch(ref_img, tmp_ref, pos.astype(int), elem_avg)
+                    src_img = np.append(src_img, np.add(src[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
+                plot_vec(img[0], [0,h_dim], [0,h_dim], (vec_test_result_scr+"_r%03d.png")%(t,r), ref_img[0] if gen_grid else None, src_img, 0.1)
+            elif grid_out:
+                ps_half = ref_patch_size//2
+                img = np.ones((1,h_dim,h_dim))*extrapol
+                ref_img = np.ones((1,h_dim,h_dim))*extrapol
+                src_img = np.empty((0,3))
+
+                for i in range(len(grid_result)):
+                    tmp = np.arctanh(np.clip(grid_result[i],-.999999999999,.999999999999)) / 12.0
+                    tmp_ref = np.arctanh(np.clip(sdf_ref[i],-.999999999999,.999999999999)) / 12.0
+                    pos = positions[i]*fac_2d
+                    if [t,i] in samples:
+                        plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (sdf_test_result_scr+"_i%03d_patch.png")%(t,i), tmp_ref, (src[i]+1)*ref_patch_size/2, 5)
+                        plot_sdf(inv_grid_result[i], [0,ref_patch_size], [0,ref_patch_size], (sdf_test_result_scr+"_i%03d_inv_patch.png")%(t,i))
+                        plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
+
+                    if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
+                        insert_patch(img, tmp * circular_filter, pos.astype(int), elem_min)
+                        insert_patch(ref_img, tmp_ref, pos.astype(int), elem_min)
+                    src_img = np.append(src_img, np.add(src[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
+                plot_sdf(img[0], [0,h_dim], [0,h_dim], (sdf_test_result_scr+"_r%03d.png")%(t,r), ref_img[0], src_img, 0.1)
+            
+            if par_out:
+                img = np.empty((0,3))
+                ref_img = np.empty((0,3))
+                src_img = np.empty((0,3))
+
+                for i in range(len(result)):
+                    #kmeans.fit(result[i,:,:2])
+                    #par = np.append(kmeans.cluster_centers_, np.zeros((10,1)), axis=1)
+                    par = result[i]#,:10]
+                    if [t,i] in samples:# or True:
+                        plot_particles(par, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_patch.png")%(t,i), ref[i], src[i])
+                        plot_particles(inv_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inv_patch.png")%(t,i))
+                        plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
+                    
+                    img = np.append(img, np.add(par*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
+                    ref_img = np.append(ref_img, np.add(ref[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
+                    src_img = np.append(src_img, np.add(src[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
+                plot_particles(img, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_r%03d.png")%(t,r), ref_img, src_img)
+
+        
+'''
