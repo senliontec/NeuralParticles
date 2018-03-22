@@ -91,6 +91,20 @@ if verbose:
 
 use_particles = train_config['explicit'] != 0
 
+loss_mode = train_config['loss']
+
+particle_loss = keras.losses.mse
+
+if loss_mode == 'hungarian_loss':
+    from hungarian_loss import hungarian_loss
+    particle_loss = hungarian_loss
+elif loss_mode == 'emd_loss':
+    from tf_approxmatch import emd_loss
+    particle_loss = emd_loss
+elif loss_mode == 'chamfer_loss':
+    from tf_nndistance import chamfer_loss
+    particle_loss = chamfer_loss
+
 factor_2D = math.sqrt(pre_config['factor'])
 patch_size = pre_config['patch_size']
 ref_patch_size = pre_config['patch_size_ref']
@@ -113,7 +127,7 @@ if checkpoint > 0:
 else:
     model_path = data_path + "models/%s_%s.h5" % (data_config['prefix'], config['id'])
 
-model = load_model(model_path, custom_objects={'Subpixel': Subpixel})
+model = load_model(model_path, custom_objects={'Subpixel': Subpixel, loss_mode: particle_loss})
 
 for t in range(t_start, t_end):
     (src_data, sdf_data), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 

@@ -459,13 +459,13 @@ loss_mode = train_config['loss']
 
 particle_loss = keras.losses.mse
 
-if loss_mode == 1:
+if loss_mode == 'hungarian_loss':
     from hungarian_loss import hungarian_loss
     particle_loss = hungarian_loss
-elif loss_mode == 2:
+elif loss_mode == 'emd_loss':
     from tf_approxmatch import emd_loss
     particle_loss = emd_loss
-elif loss_mode == 3:
+elif loss_mode == 'chamfer_loss':
     from tf_nndistance import chamfer_loss
     particle_loss = chamfer_loss
 
