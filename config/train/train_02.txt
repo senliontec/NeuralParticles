@@ -13,5 +13,6 @@
     "adv_fac":            0.0,
     "par_feature_cnt":    256,
     "dropout":            0.2,
-    "pre_train_stn":      false
+    "pre_train_stn":      false,
+    "loss":               1
 }

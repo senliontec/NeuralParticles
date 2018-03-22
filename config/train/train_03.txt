@@ -1,18 +1,18 @@
 {
-    "id":                 "t01",
+    "id":                 "t02",
     "train_split":        0.9,
     "val_split":          0.2,
     "t_start":            5,
     "t_end":              15,
-    "features":           ["sdf","vel"],
+    "features":           ["ps"],
     "batch_size":         32,
     "learning_rate":      1e-3,
-    "epochs":             250,
-    "explicit":           false,
+    "epochs":             3,
+    "explicit":           true,
     "mse_fac":            1.0,
-    "adv_fac":            0.01,
+    "adv_fac":            0.0,
     "par_feature_cnt":    256,
     "dropout":            0.2,
-    "pre_train_stn":      true,
-    "loss":               0
+    "pre_train_stn":      false,
+    "loss":               2
 }

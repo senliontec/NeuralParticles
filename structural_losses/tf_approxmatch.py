@@ -49,6 +49,10 @@ def _match_cost_grad(op,grad_cost):
 	grad_1,grad_2=approxmatch_module.match_cost_grad(xyz1,xyz2,match)
 	return [grad_1*tf.expand_dims(tf.expand_dims(grad_cost,1),2),grad_2*tf.expand_dims(tf.expand_dims(grad_cost,1),2),None]
 
+def emd_loss(y_true, y_pred):
+    match = approx_match(y_pred, y_true)
+    return tf.reduce_mean(match_cost(y_pred, y_true, match))
+
 if __name__=='__main__':
 	alpha=0.5
 	beta=2.0

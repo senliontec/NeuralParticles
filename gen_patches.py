@@ -12,21 +12,24 @@ import math
 from patch_helper import *
 
 class PatchExtractor:
-    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, bnd=0):
+    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=0, bnd=0):
+        self.src_data = src_data
         self.data = src_data.copy()
         self.positions = get_positions(src_data, np.squeeze(sdf_data), patch_size, surface, bnd)
         np.random.shuffle(self.positions)
         self.last_pos = None
         self.radius = patch_size/2
         self.cnt = cnt
+        self.stride = stride if stride > 0 else self.radius
     
     def get_patch(self):
         if len(self.positions) == 0:
             return None
 
         self.last_pos = self.positions[0]
-        self.positions = remove_particles(self.positions, self.last_pos, self.radius)[0]
-        self.data, patch = extract_remove_particles(self.data, self.last_pos, self.cnt, self.radius)[:2]
+        self.positions = remove_particles(self.positions, self.last_pos, self.stride)[0]
+        self.data = remove_particles(self.data, self.last_pos, self.stride)[0]
+        patch = extract_particles(self.src_data, self.last_pos, self.cnt, self.radius)[0]
         return patch
 
     def set_patch(self, patch):
@@ -67,7 +70,7 @@ def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0,
 
     fac_2d = math.sqrt(pre_config['factor'])
     patch_size = pre_config['patch_size']
-    patch_size_ref = int(patch_size * fac_2d)
+    patch_size_ref = pre_config['patch_size_ref']
 
     l_fac = pre_config['l_fac']
     h_fac = pre_config['h_fac']

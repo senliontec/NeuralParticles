@@ -25,8 +25,6 @@ from split_layer import *
 from keras import regularizers
 import numpy as np
 
-from hungarian_loss import hungarian_loss
-
 paramUsed = []
 
 data_path = getParam("data", "data/", paramUsed)
@@ -81,6 +79,9 @@ if 'vel' in features:
     feature_cnt += 2
 print("feature_count: %d" % feature_cnt)
 
+patch_size = pre_config['patch_size']
+ref_patch_size = pre_config['patch_size_ref']
+
 model_path = '%s%s_%s' % (model_path, data_config['prefix'], config['id'])
 checkpoint_path = '%s%s_%s' % (checkpoint_path, data_config['prefix'], config['id'])
 print(model_path)
@@ -90,6 +91,20 @@ src_path = "%s%s_%s-%s" % (src_path, data_config['prefix'], data_config['id'], p
 ref_path = "%s%s_%s-%s" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_pvar%02d_%03d"
 print(src_path)
 print(ref_path)
+
+loss_mode = train_config['loss']
+
+particle_loss = keras.losses.mse
+
+if loss_mode == 1:
+    from hungarian_loss import hungarian_loss
+    particle_loss = hungarian_loss
+elif loss_mode == 2:
+    from tf_approxmatch import emd_loss
+    particle_loss = emd_loss
+elif loss_mode == 3:
+    from tf_nndistance import chamfer_loss
+    particle_loss = chamfer_loss
 
 if start_checkpoint == 0:
     print("Generate Network")
@@ -150,10 +165,10 @@ if start_checkpoint == 0:
         out = stn_transform_inv(stn,inv_par_out,quat=True)
 
         if feature_cnt > 1:
-            auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")  
+            auxiliary_input = Input(shape=(patch_size, patch_size, feature_cnt-1), name="auxiliary_input")  
 
         model = Model(inputs=[inputs, auxiliary_input], outputs=out) if feature_cnt > 1 else Model(inputs=[inputs], outputs=out)
-        model.compile(loss=hungarian_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
+        model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
 
         model.save(model_path + '.h5')
         
@@ -184,19 +199,19 @@ if start_checkpoint == 0:
             if verbose: 
                 discriminator.summary()
     else:   
-        inputs = Input((pre_config['patch_size'], pre_config['patch_size'], 1), name="main_input")
-        auxiliary_input = Input(shape=(pre_config['patch_size'], pre_config['patch_size'], feature_cnt-1), name="auxiliary_input")
+        inputs = Input((patch_size, patch_size, 1), name="main_input")
+        auxiliary_input = Input(shape=(patch_size, patch_size, feature_cnt-1), name="auxiliary_input")
 
-        base = Reshape((pre_config['patch_size']*pre_config['patch_size'],), name="reshape_flat")(inputs)
+        base = Reshape((patch_size*patch_size,), name="reshape_flat")(inputs)
         base = RepeatVector(9, name="repeate")(base)
         base = Permute((2, 1), name="permute")(base)
-        base = Reshape((pre_config['patch_size'], pre_config['patch_size'],9), name="reshape_back")(base)
+        base = Reshape((patch_size, patch_size,9), name="reshape_back")(base)
         
         x = concatenate([inputs, auxiliary_input], name="concatenate")
-        x = Reshape((pre_config['patch_size']*pre_config['patch_size']*feature_cnt,), name="reshape_flat_res")(x)
+        x = Reshape((patch_size*patch_size*feature_cnt,), name="reshape_flat_res")(x)
         x = RepeatVector(9, name="repeate_res")(x)
         x = Permute((2, 1), name="permute_res")(x)
-        x = Reshape((pre_config['patch_size'], pre_config['patch_size'],9*feature_cnt), name="reshape_back_res")(x)
+        x = Reshape((patch_size, patch_size,9*feature_cnt), name="reshape_back_res")(x)
         
         #x = concatenate([base, auxiliary_input], name="concatenate")
         
@@ -229,8 +244,7 @@ if start_checkpoint == 0:
             generator = model
             discriminator = Sequential(name="discriminator")
 
-            high_patch_size = int(pre_config['patch_size']*math.sqrt(pre_config['factor']))
-            img_shape = (high_patch_size, high_patch_size, 1)
+            img_shape = (ref_patch_size, ref_patch_size, 1)
 
             discriminator.add(Conv2D(32, kernel_size=3, strides=2, input_shape=img_shape, padding="same"))
             discriminator.add(LeakyReLU(alpha=0.2))
@@ -253,9 +267,9 @@ if start_checkpoint == 0:
                 discriminator.summary()
 else:
     if train_config["adv_fac"] <= 0.:
-        model = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
+        model = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel})
     else:
-        generator = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
+        generator = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'Subpixel': Subpixel})
         model = generator
         discriminator = load_model("%s_dis_%04d.h5" % (checkpoint_path, start_checkpoint))
 
@@ -295,10 +309,10 @@ if pre_train_stn:
     stn = model.get_layer("stn")
     trans_input = model.get_layer("trans")([inputs, stn(inputs)])
     inter_model = Model(inputs=inputs, outputs=trans_input)
-    inter_model.compile(loss=hungarian_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
+    inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
     inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['epochs'],batch_size=train_config['batch_size'])
     stn.trainable = False        
-    model.compile(loss=hungarian_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
+    model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
 
 if train_config["adv_fac"] <= 0.:
     val_split = train_config['val_split']
@@ -322,9 +336,9 @@ if train_config["adv_fac"] <= 0.:
     plt.savefig(fig_path+".pdf")
 else:
     # GAN
-    z = [Input(shape=(particle_cnt_src,3) if train_config['explicit'] else (pre_config['patch_size'], pre_config['patch_size'],1), name='main')]
+    z = [Input(shape=(particle_cnt_src,3) if train_config['explicit'] else (patch_size, patch_size,1), name='main')]
     if feature_cnt > 1:
-        z = np.append(z, [Input(shape=(pre_config['patch_size'], pre_config['patch_size'],feature_cnt-1), name='aux')])
+        z = np.append(z, [Input(shape=(patch_size, patch_size,feature_cnt-1), name='aux')])
 
     img = generator(z)
 

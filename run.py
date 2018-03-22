@@ -93,18 +93,18 @@ use_particles = train_config['explicit'] != 0
 
 factor_2D = math.sqrt(pre_config['factor'])
 patch_size = pre_config['patch_size']
-high_patch_size = int(patch_size*factor_2D)
+ref_patch_size = pre_config['patch_size_ref']
 par_cnt = pre_config['par_cnt']
 par_cnt_dst = pre_config['par_cnt_ref']
 
 res = data_config['res']
 low_res = int(res/factor_2D)
 
-half_ps = high_patch_size//2
+half_ps = ref_patch_size//2
 #border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
 
 elem_min = np.vectorize(lambda x,y: min(x,y))
-circular_filter = np.reshape(filter2D(high_patch_size, high_patch_size*0.2, 500), (high_patch_size, high_patch_size))
+circular_filter = np.reshape(filter2D(ref_patch_size, ref_patch_size*0.2, 500), (ref_patch_size, ref_patch_size))
 
 features = train_config['features'][1:]
 
@@ -113,18 +113,18 @@ if checkpoint > 0:
 else:
     model_path = data_path + "models/%s_%s.h5" % (data_config['prefix'], config['id'])
 
-model = load_model(model_path, custom_objects={'Subpixel': Subpixel, 'hungarian_loss': hungarian_loss})
+model = load_model(model_path, custom_objects={'Subpixel': Subpixel})
 
 for t in range(t_start, t_end):
     (src_data, sdf_data), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
 
-    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'])
+    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], 4)
     while(True):
         src = patch_extractor.get_patch()
         if src is None:
             break
         
-        ref = extract_particles(ref_data, patch_extractor.last_pos*factor_2D, par_cnt_dst, high_patch_size)[0]
+        ref = extract_particles(ref_data, patch_extractor.last_pos*factor_2D, par_cnt_dst, ref_patch_size)[0]
 
         result = model.predict(x=np.array([src]))[0]
         patch_extractor.set_patch(result)
@@ -135,7 +135,7 @@ for t in range(t_start, t_end):
     result = np.empty((0, 3)) if use_particles else np.ones((res, res, 1))
     for i in range(len(prediction)):
         if use_particles:
-            result = np.append(result, (prediction[i] * high_patch_size/2 + np.array([[positions[i,0]*factor_2D,positions[i,1]*factor_2D,0.0]])), axis=0)
+            result = np.append(result, (prediction[i] * ref_patch_size/2 + np.array([[positions[i,0]*factor_2D,positions[i,1]*factor_2D,0.0]])), axis=0)
         else:
             tmp = prediction[i]
             if pre_config['use_tanh'] != 0:

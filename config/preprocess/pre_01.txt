@@ -1,6 +1,7 @@
 {
     "id":             "p01",
     "patch_size":     5,
+    "patch_size_ref": 15,
     "stride":         2,
     "surf":           0.5,
     "l_fac":          12.0,

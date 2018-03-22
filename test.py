@@ -29,8 +29,6 @@ import math
 
 from advection import interpol
 
-from hungarian_loss import hungarian_loss
-
 from particle_grid import ParticleGrid
 
 import scipy.ndimage.filters as fi
@@ -47,18 +45,7 @@ import tensorflow as tf
 
 from sklearn.decomposition import PCA
 
-'''from tf_nndistance import nn_distance
-from tf_approxmatch import approx_match, match_cost
-
-def chamfer_loss(y_true, y_pred):
-    cost_p1_p2, _, cost_p2_p1, _ = nn_distance(y_pred, y_true)
-    return tf.reduce_mean(cost_p1_p2) + tf.reduce_mean(cost_p2_p1)
-
-def emd_loss(y_true, y_pred):
-    match = approx_match(y_pred, y_true)
-    return tf.reduce_mean(match_cost(y_pred, y_true, match))'''
-
-use_test_data = True
+use_test_data = False
 def eigenvector(data):
     pca = PCA()
     pca.fit(data)
@@ -210,7 +197,7 @@ print(samples)
 patch_size = pre_config['patch_size']
 fac_1d = pre_config['factor']
 fac_2d = int(math.sqrt(fac_1d))
-ref_patch_size = patch_size * fac_2d
+ref_patch_size = pre_config['patch_size_ref']
 surface = pre_config['surf']
 particle_cnt_src = pre_config['par_cnt']
 particle_cnt_dst = pre_config['par_cnt_ref']
@@ -461,8 +448,6 @@ if use_test_data:
                         sdf_dst = np.append(sdf_dst, patch, axis=0)
 else:
     src, dst, rotated_src, positions = gen_patches(data_path, config_path, dataset, t_end, var, repetitions, t_start=t_start)
-    for t in range(t_start, t_end):
-        plot_particles(positions, [0,dim], [0,dim], 0.1, (source_scr + "_pos.png") % t)
     
 
 fac = 16
@@ -470,6 +455,19 @@ k = 256
 dropout = 0.2
 batch_size = train_config['batch_size']
 epochs = train_config['epochs']
+loss_mode = train_config['loss']
+
+particle_loss = keras.losses.mse
+
+if loss_mode == 1:
+    from hungarian_loss import hungarian_loss
+    particle_loss = hungarian_loss
+elif loss_mode == 2:
+    from tf_approxmatch import emd_loss
+    particle_loss = emd_loss
+elif loss_mode == 3:
+    from tf_nndistance import chamfer_loss
+    particle_loss = chamfer_loss
 
 inputs = Input((particle_cnt_src,3), name="main")
 #aux_input = Input((particle_cnt_src,3))
@@ -481,7 +479,7 @@ stn = stn_model(inputs)
 
 trans_input = stn_transform(stn,inputs,quat=True)
 inter_model = Model(inputs=inputs, outputs=trans_input)
-inter_model.compile(loss=hungarian_loss, optimizer=keras.optimizers.adam(lr=0.001))
+inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=0.001))
 
 if pre_train_stn:
     history = inter_model.fit(x=src,y=rotated_src,epochs=epochs,batch_size=batch_size)
@@ -566,7 +564,7 @@ m_out = []
 invm_out = []
 
 if par_out:
-    loss.append(hungarian_loss)#emd_loss)
+    loss.append(particle_loss)
     y.append(dst)
     m_out.append(out)
     invm_out.append(inv_par_out)
@@ -638,7 +636,7 @@ if not grid_out and gen_grid:
     sample_out = Lambda(lambda v: K.relu(interpol(v[0],(v[1]+1)*ref_patch_size*0.5)))([sdf_in, out])
 
     train_model = Model(inputs=[inputs, sdf_in], outputs=[out,sample_out])
-    train_model.compile(loss=[hungarian_loss, lambda x,y: K.mean(y,axis=-1)], optimizer=keras.optimizers.adam(lr=0.001), loss_weights=[1., 1.])
+    train_model.compile(loss=[particle_loss, lambda x,y: K.mean(y,axis=-1)], optimizer=keras.optimizers.adam(lr=0.001), loss_weights=[1., 1.])
     history = train_model.fit(x=[src,sdf_dst],y=[dst,np.empty((dst.shape[0],dst.shape[1]))],epochs=epochs,batch_size=batch_size)
 elif train_config["adv_fac"] <= 0.:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=0.001))
@@ -751,6 +749,7 @@ plt.clf()'''
 #src_gen = RandomParticles(dim,dim,fac_2d,dim/3,10,1.0)
 data_cnt = (t_end-t_start)*repetitions
 #kmeans = KMeans(n_clusters=10)
+stride = pre_config['stride']
 for v in range(1):
     for d in range(5,6):
         for t in range(t_start, t_end): 
@@ -767,9 +766,10 @@ for v in range(1):
                 ref_sdf_data = ref_data.cells
                 ref_data = ref_data.particles
             else:
-                (src_data, sdf_data), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v) 
+                (src_data, sdf_data), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v)
 
-            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, particle_cnt_src, surface)
+
+            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, particle_cnt_src, surface, stride)
 
             i = 0
             while(True):
@@ -790,10 +790,10 @@ for v in range(1):
                     plot_particles(inv_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inv_patch.png")%(t,i))
                     plot_particles(inter_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
                     plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_i%03d.png")%(t,i), ref_data, src_data*fac_2d)
-
+            plot_particles(src_data, [0,dim], [0,dim], 0.1, (test_source_scr+".png")%(t))
+            plot_particles(ref_data, [0,h_dim], [0,h_dim], 0.1, (test_reference_scr+".png")%(t))
             plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_comp.png")%(t), ref_data, src_data*fac_2d)
             plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+".png")%(t))
-
 
             '''if use_test_data:
                 src_data, ref_data = src_gen.get_grid()

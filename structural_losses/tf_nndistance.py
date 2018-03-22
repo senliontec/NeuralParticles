@@ -35,6 +35,9 @@ def _nn_distance_grad(op,grad_dist1,grad_idx1,grad_dist2,grad_idx2):
 	idx2=op.outputs[3]
 	return nn_distance_module.nn_distance_grad(xyz1,xyz2,grad_dist1,idx1,grad_dist2,idx2)
 
+def chamfer_loss(y_true, y_pred):
+    cost_p1_p2, _, cost_p2_p1, _ = nn_distance(y_pred, y_true)
+    return tf.reduce_mean(cost_p1_p2) + tf.reduce_mean(cost_p2_p1)
 
 if __name__=='__main__':
 	import numpy as np
