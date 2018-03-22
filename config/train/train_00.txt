@@ -14,5 +14,5 @@
     "par_feature_cnt":    256,
     "dropout":            0.2,
     "pre_train_stn":      true,
-    "loss":               0
+    "loss":               "mse"
 }
