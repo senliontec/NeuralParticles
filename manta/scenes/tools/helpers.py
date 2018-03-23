@@ -58,10 +58,10 @@ def backupSources(name):
 
 
 def particle_range(arr, pos, r):
-	return np.where(np.all(np.abs(np.subtract(arr,pos)) < r, axis=-1))
+	return np.where(np.all(np.abs(np.subtract(arr,pos)) < r, axis=-1))[0]
 
 def particle_radius(arr, pos, radius):
-	return np.where(np.linalg.norm(np.subtract(arr,pos), axis=1) < radius)
+	return np.where(np.linalg.norm(np.subtract(arr,pos), axis=1) < radius)[0]
 
 def insert_patch(data, patch, pos, func):
 	patch_size = patch.shape[0]//2
@@ -80,51 +80,40 @@ def remove_particles(data, pos, constraint, aux_data={}):
 		
 	return np.delete(data, par_idx, axis=0), par_aux
 
-def extract_remove_particles(data, pos, cnt, constraint, aux_data={}):
+'''def extract_remove_particles(data, pos, cnt, constraint, aux_data={}):
 	par_idx = particle_radius(data, pos, constraint)
+	np.random.shuffle(par_idx)
+	par_idx = par_idx[:min(cnt,len(par_idx))]
+
 	par_pos = np.subtract(data[par_idx],pos)/constraint
-
 	data = np.delete(data, par_idx, axis=0)
-
 	par_aux = {}
 	for k, v in aux_data.items():
 		par_aux[k] = v[par_idx]
 		v = np.delete(v, par_idx, axis=0)
-	
+
 	if len(par_pos) < cnt:
 		par_pos = np.concatenate((par_pos,np.zeros((cnt-len(par_pos),par_pos.shape[-1]))))
 		for k, v in par_aux.items():
 			par_aux[k] = np.concatenate((v,np.zeros((cnt-len(v),v.shape[-1]))))
 	
-	rnd_idx = np.arange(len(par_pos))
-	np.random.shuffle(rnd_idx)
-	rnd_idx = rnd_idx[:cnt]
-
-	par_pos = par_pos[rnd_idx]
-	for k, v in par_aux.items():
-		par_aux[k] = v[rnd_idx]
-	return data, par_pos, aux_data, par_aux
+	return data, par_pos, aux_data, par_aux'''
 
 def extract_particles(data, pos, cnt, constraint, aux_data={}):
 	par_idx = particle_radius(data, pos, constraint)
-	par_pos = np.subtract(data[par_idx],pos)/constraint
+	np.random.shuffle(par_idx)
+	par_idx = par_idx[:min(cnt,len(par_idx))]
 
+	par_pos = np.subtract(data[par_idx],pos)/constraint
 	par_aux = {}
 	for k, v in aux_data.items():
 		par_aux[k] = v[par_idx]
-	
+
 	if len(par_pos) < cnt:
 		par_pos = np.concatenate((par_pos,np.zeros((cnt-len(par_pos),par_pos.shape[-1]))))
 		for k, v in par_aux.items():
 			par_aux[k] = np.concatenate((v,np.zeros((cnt-len(v),v.shape[-1]))))
-	
-	rnd_idx = np.arange(len(par_pos))
-	np.random.shuffle(rnd_idx)
-	rnd_idx = rnd_idx[:cnt]
-
-	par_pos = par_pos[rnd_idx]
-	for k, v in par_aux.items():
-		par_aux[k] = v[rnd_idx]
+			
 	return par_pos, par_aux
 
 def extract_patch(data, pos, patch_size):
