@@ -124,8 +124,6 @@ repetitions = int(getParam("rep", 10, paramUsed))
 obj_cnt = int(getParam("obj_cnt", 10, paramUsed))
 fixed = int(getParam("fixed", 0, paramUsed)) != 0
 
-pre_train_stn = int(getParam("pre_train", 0, paramUsed)) != 0
-
 prefix = getParam("prefix", "test", paramUsed)
 source = getParam("l_scr", "source", paramUsed)
 reference = getParam("h_scr", "reference", paramUsed)
@@ -451,11 +449,12 @@ else:
     
 
 fac = 16
-k = 256
-dropout = 0.2
+k = train_config['par_feature_cnt']
+dropout = train_config['dropout']
 batch_size = train_config['batch_size']
 epochs = train_config['epochs']
 loss_mode = train_config['loss']
+pre_train_stn = train_config['pre_train_stn']
 
 particle_loss = keras.losses.mse
 
