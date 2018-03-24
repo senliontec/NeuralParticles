@@ -45,6 +45,12 @@ import tensorflow as tf
 
 from sklearn.decomposition import PCA
 
+from hungarian_loss import hungarian_loss
+use_gpu = len(K.tensorflow_backend._get_available_gpus()) > 0
+if use_gpu:
+    from tf_approxmatch import emd_loss
+    from tf_nndistance import chamfer_loss
+
 use_test_data = False
 def eigenvector(data):
     pca = PCA()
@@ -459,13 +465,10 @@ pre_train_stn = train_config['pre_train_stn']
 particle_loss = keras.losses.mse
 
 if loss_mode == 'hungarian_loss':
-    from hungarian_loss import hungarian_loss
     particle_loss = hungarian_loss
 elif loss_mode == 'emd_loss':
-    from tf_approxmatch import emd_loss
     particle_loss = emd_loss
 elif loss_mode == 'chamfer_loss':
-    from tf_nndistance import chamfer_loss
     particle_loss = chamfer_loss
 
 inputs = Input((particle_cnt_src,3), name="main")
@@ -746,9 +749,13 @@ prefix = "test"
 plt.savefig("%s/loss.png"%prefix)
 plt.clf()'''
 #src_gen = RandomParticles(dim,dim,fac_2d,dim/3,10,1.0)
-data_cnt = (t_end-t_start)*repetitions
+data_cnt = t_end-t_start
 #kmeans = KMeans(n_clusters=10)
 stride = pre_config['stride']
+avg_hungarian_loss = 0
+if use_gpu:
+    avg_chamfer_loss = 0
+    avg_emd_loss = 0
 for v in range(1):
     for d in range(5,6):
         for t in range(t_start, t_end): 
@@ -767,9 +774,13 @@ for v in range(1):
             else:
                 (src_data, sdf_data), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v)
 
-
             patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, particle_cnt_src, surface, stride)
 
+            plot_particles(patch_extractor.positions, [0,dim], [0,dim], 0.1, (test_source_scr+"_pos.png")%(t))
+            
+            src_accum = np.empty((0,3))
+            ref_accum = np.empty((0,3))
+            res_accum = np.empty((0,3))
             i = 0
             while(True):
                 src = patch_extractor.get_patch()
@@ -789,105 +800,52 @@ for v in range(1):
                     plot_particles(inv_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inv_patch.png")%(t,i))
                     plot_particles(inter_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
                     plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_i%03d.png")%(t,i), ref_data, src_data*fac_2d)
+                    
+                    write_csv((test_result_scr+"_i%03d_patch_res.csv")%(t,i), result)
+                    write_csv((test_result_scr+"_i%03d_patch_ref.csv")%(t,i), ref)
+                    write_csv((test_result_scr+"_i%03d_patch_src.csv")%(t,i), src)
+                    write_csv((test_result_scr+"_i%03d_inv_patch.csv")%(t,i), inv_result)
+                    write_csv((test_result_scr+"_i%03d_inter_patch.csv")%(t,i), inter_result)
+                    write_csv((test_result_scr+"_i%03d_res.csv")%(t,i), patch_extractor.data*fac_2d)
+
+                src_accum = np.concatenate((src_accum, patch_extractor.transform_patch(src)))
+                ref_accum = np.concatenate((ref_accum, patch_extractor.transform_patch(ref)*fac_2d))
+                res_accum = np.concatenate((res_accum, patch_extractor.transform_patch(result)*fac_2d))
+
             plot_particles(src_data, [0,dim], [0,dim], 0.1, (test_source_scr+".png")%(t))
             plot_particles(ref_data, [0,h_dim], [0,h_dim], 0.1, (test_reference_scr+".png")%(t))
             plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_comp.png")%(t), ref_data, src_data*fac_2d)
             plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+".png")%(t))
-
-            '''if use_test_data:
-                src_data, ref_data = src_gen.get_grid()
-
-                if trans_mode == 1 or trans_mode == 2:
-                    ref_data.particles = translation(ref_data.particles, np.squeeze(ref_data.cells), trans_fac)# if trans_fac > 0 else (-trans_fac / src_gen.a[0,0]))
             
-                src, positions = load_test(src_data, 0, particle_cnt_src, patch_size, test_source_scr, t)
-                ref = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, test_reference_scr, t, positions*fac_2d)[0]
-            else:
-                src, ref, rot_src, positions = gen_patches(data_path, config_path, d+1, t+1, 1, 1, d, t)
+            write_csv((test_result_scr+"_res.csv")%(t), patch_extractor.data*fac_2d)
+            write_csv((test_result_scr+"_ref.csv")%(t), ref_data)
+            write_csv((test_result_scr+"_src.csv")%(t), src_data)
 
-            if gen_grid:
-                sdf_ref = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_test_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_test_reference_scr, t)
-            
-            result = model.predict(x=src,batch_size=batch_size)
-            grid_result = result
+            print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), len(patch_extractor.data)/len(src_data)))
 
-            inv_result = invm.predict(x=src,batch_size=batch_size)
-            inv_grid_result = inv_result
+            call_f = lambda f,x,y: K.eval(f(x, y))[0]
 
-            if grid_out and par_out:
-                grid_result = result[1]
-                result = result[0]
-            
-            if (grid_out or use_vec) and par_out:
-                inv_grid_result = inv_result[1]
-                inv_result = inv_result[0]
+            # normalize particle count
+            min_cnt = min(len(ref_accum), len(res_accum))
+            np.random.shuffle(ref_accum)
+            np.random.shuffle(res_accum)
+            ref_accum = K.constant(np.array([ref_accum[:min_cnt]]))
+            res_accum = K.constant(np.array([res_accum[:min_cnt]]))
 
-            inter_result = inter_model.predict(x=src,batch_size=batch_size)
+            if use_gpu:
+                loss = call_f(chamfer_loss, ref_accum, res_accum)
+                avg_chamfer_loss += loss
+                print("global chamfer loss: %f" % loss)
+                loss = call_f(emd_loss, ref_accum, res_accum)
+                avg_emd_loss += loss
+                print("global emd loss: %f" % loss)
 
-            for sample in samples:
-                if sample[0] == t and sample[1] < len(src):
-                    print(Model(inputs=inputs, outputs=stn).predict(x=src[sample[1]:sample[1]+1],batch_size=1))
+            '''
+            loss = call_f(hungarian_loss, ref_accum, res_accum)
+            avg_hungarian_loss += loss
+            print("global hungarian loss: %f" % loss)'''
 
-            if use_vec:
-                ps_half = ref_patch_size//2
-                res_output = grid_result if grid_out else vec_model.predict(x=src,batch_size=batch_size)
-                img = np.zeros((1,h_dim,h_dim,2))
-                ref_img = np.zeros((1,h_dim,h_dim,2)) if gen_grid else None
-                src_img = np.empty((0,3))
-
-                for i in range(len(res_output)):
-                    tmp = res_output[i]
-                    tmp_ref = sdf_ref[i] if gen_grid else None
-                    pos = positions[i]*fac_2d
-                    if [t,i] in samples:
-                        plot_vec(tmp, [0,ref_patch_size], [0,ref_patch_size], (vec_test_result_scr+"_i%03d_patch.png")%(t,i), tmp_ref, (src[i]+1)*ref_patch_size/2, 5)
-                        plot_vec(inv_grid_result[i], [0,ref_patch_size], [0,ref_patch_size], (vec_test_result_scr+"_i%03d_inv_patch.png")%(t,i))
-                        plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
-
-                    if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
-                        insert_patch(img, tmp, pos.astype(int), elem_avg)
-                        if gen_grid: insert_patch(ref_img, tmp_ref, pos.astype(int), elem_avg)
-                    src_img = np.append(src_img, np.add(src[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                plot_vec(img[0], [0,h_dim], [0,h_dim], (vec_test_result_scr+"_r%03d.png")%(t,r), ref_img[0] if gen_grid else None, src_img, 0.1)
-            elif grid_out:
-                ps_half = ref_patch_size//2
-                img = np.ones((1,h_dim,h_dim))*extrapol
-                ref_img = np.ones((1,h_dim,h_dim))*extrapol
-                src_img = np.empty((0,3))
-
-                for i in range(len(grid_result)):
-                    tmp = np.arctanh(np.clip(grid_result[i],-.999999999999,.999999999999)) / 12.0
-                    tmp_ref = np.arctanh(np.clip(sdf_ref[i],-.999999999999,.999999999999)) / 12.0
-                    pos = positions[i]*fac_2d
-                    if [t,i] in samples:
-                        plot_sdf(tmp, [0,ref_patch_size], [0,ref_patch_size], (sdf_test_result_scr+"_i%03d_patch.png")%(t,i), tmp_ref, (src[i]+1)*ref_patch_size/2, 5)
-                        plot_sdf(inv_grid_result[i], [0,ref_patch_size], [0,ref_patch_size], (sdf_test_result_scr+"_i%03d_inv_patch.png")%(t,i))
-                        plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
-
-                    if np.all(pos[:2]>ps_half) and np.all(pos[:2]<h_dim-ps_half):
-                        insert_patch(img, tmp * circular_filter, pos.astype(int), elem_min)
-                        insert_patch(ref_img, tmp_ref, pos.astype(int), elem_min)
-                    src_img = np.append(src_img, np.add(src[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                plot_sdf(img[0], [0,h_dim], [0,h_dim], (sdf_test_result_scr+"_r%03d.png")%(t,r), ref_img[0], src_img, 0.1)
-            
-            if par_out:
-                img = np.empty((0,3))
-                ref_img = np.empty((0,3))
-                src_img = np.empty((0,3))
-
-                for i in range(len(result)):
-                    #kmeans.fit(result[i,:,:2])
-                    #par = np.append(kmeans.cluster_centers_, np.zeros((10,1)), axis=1)
-                    par = result[i]#,:10]
-                    if [t,i] in samples:# or True:
-                        plot_particles(par, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_patch.png")%(t,i), ref[i], src[i])
-                        plot_particles(inv_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inv_patch.png")%(t,i))
-                        plot_particles(inter_result[i], [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
-                    
-                    img = np.append(img, np.add(par*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                    ref_img = np.append(ref_img, np.add(ref[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                    src_img = np.append(src_img, np.add(src[i]*ref_patch_size/2, [positions[i,0]*fac_2d, positions[i,1]*fac_2d, 0.]), axis=0)
-                plot_particles(img, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_r%03d.png")%(t,r), ref_img, src_img)
-
-        
-'''
+print("avg hungarian loss: %f" % (avg_hungarian_loss/data_cnt))
+if use_gpu:
+    print("avg chamfer loss: %f" % (avg_chamfer_loss/data_cnt))
+    print("avg emd loss: %f" % (avg_emd_loss/data_cnt))

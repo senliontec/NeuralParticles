@@ -22,6 +22,12 @@ class PatchExtractor:
         self.cnt = cnt
         self.stride = stride if stride > 0 else self.radius
     
+    def transform_patch(self, patch):
+        return np.add(patch * self.radius, self.last_pos)
+
+    def inv_transform_patch(self, patch):
+        return np.subtract(patch, self.last_pos) / self.radius
+
     def get_patch(self):
         if len(self.positions) == 0:
             return None
@@ -33,7 +39,7 @@ class PatchExtractor:
         return patch
 
     def set_patch(self, patch):
-        self.data = np.concatenate((self.data, np.add(patch * self.radius, self.last_pos)))
+        self.data = np.concatenate((self.data, self.transform_patch(patch)))
 
 
 def get_data_pair(data_path, config_path, dataset, timestep, var):

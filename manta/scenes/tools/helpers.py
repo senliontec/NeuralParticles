@@ -4,6 +4,7 @@
 import sys, warnings
 import shutil
 import numpy as np
+import csv
 
 import matplotlib
 matplotlib.use('Agg')
@@ -131,14 +132,23 @@ def get_patches(sdf_data, patch_size, dimX, dimY, bnd, stride, surface):
 		for x in range(patch_size+bnd,dimX-patch_size-bnd, stride):
 			z = 0
 			if(abs(sdf_data[z,y,x,0]) < surface):
-				x0 = x-patch_size
-				x1 = x+patch_size+1
-				y0 = y-patch_size
-				y1 = y+patch_size+1
-
 				pos.append([x,y,z])
 	return np.array(pos)+0.5
 
+def write_csv(path, data):
+	with open(path, 'w') as csvfile:
+		csvwriter = csv.writer(csvfile)
+		for d in data:
+			csvwriter.writerow(d)
+
+def read_csv(path):
+	data = np.empty((0,3))
+	with open(path, 'r') as csvfile:
+		csvreader = csv.reader(csvfile)
+		for row in csvreader:
+			data = np.concatenate((data, np.array([row]).astype(float)))
+	return data
+	
 def plot_particles(data, xlim, ylim, s, path=None, ref=None, src=None):
 	if not ref is None:
 		plt.scatter(ref[:,0],ref[:,1],s=s,c='r')

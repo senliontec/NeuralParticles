@@ -28,4 +28,4 @@ def hungarian_loss(y_true, y_pred):
 
     y_true = tf.gather_nd(y_true,idx)
 
-    return losses.mean_squared_error(y_true, y_pred)
+    return K.mean(K.sum(K.square(y_true - y_pred), axis=-1), axis=-1)

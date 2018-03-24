@@ -51,7 +51,7 @@ def _match_cost_grad(op,grad_cost):
 
 def emd_loss(y_true, y_pred):
     match = approx_match(y_pred, y_true)
-    return tf.reduce_mean(match_cost(y_pred, y_true, match))
+    return match_cost(y_pred, y_true, match)/tf.cast(tf.shape(y_pred)[1], tf.float32)
 
 if __name__=='__main__':
 	alpha=0.5
