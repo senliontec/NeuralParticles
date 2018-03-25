@@ -644,7 +644,7 @@ if not grid_out and gen_grid:
     history = train_model.fit(x=[src,sdf_dst],y=[dst,np.empty((dst.shape[0],dst.shape[1]))],epochs=epochs,batch_size=batch_size)
 elif train_config["adv_fac"] <= 0.:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=0.001))
-    history = model.fit(x=src,y=y,epochs=epochs,batch_size=batch_size)
+    #history = model.fit(x=src,y=y,epochs=epochs,batch_size=batch_size)
 else:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
 
@@ -777,6 +777,9 @@ for v in range(1):
                 (src_data, sdf_data), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v)
 
             patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, particle_cnt_src, surface, stride)
+            sdf_f = sdf_func(np.squeeze(sdf_data))[0]
+            sdf_v = np.vectorize(sdf_f)
+            print(sdf_v(src_data[:10]))
 
             plot_particles(patch_extractor.positions, [0,dim], [0,dim], 0.1, (test_source_scr+"_pos.png")%(t))
             
@@ -802,7 +805,7 @@ for v in range(1):
                     plot_particles(inv_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inv_patch.png")%(t,i))
                     plot_particles(inter_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
                     plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_i%03d.png")%(t,i), ref_data, src_data*fac_2d)
-                    
+                     
                     write_csv((test_result_scr+"_i%03d_patch_res.csv")%(t,i), result)
                     write_csv((test_result_scr+"_i%03d_patch_ref.csv")%(t,i), ref)
                     write_csv((test_result_scr+"_i%03d_patch_src.csv")%(t,i), src)
