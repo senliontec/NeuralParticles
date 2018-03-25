@@ -40,16 +40,13 @@ from gen_patches import *
 random.seed(235)
 np.random.seed(694)
 
-import keras.backend as K
 import tensorflow as tf
 
 from sklearn.decomposition import PCA
 
+import keras.backend as K
+
 from hungarian_loss import hungarian_loss
-use_gpu = len(K.tensorflow_backend._get_available_gpus()) > 0
-if use_gpu:
-    from tf_approxmatch import emd_loss
-    from tf_nndistance import chamfer_loss
 
 use_test_data = False
 def eigenvector(data):
@@ -176,6 +173,11 @@ checkUnusedParam(paramUsed)
 
 if not gpu is "":
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu
+
+use_gpu = len(K.tensorflow_backend._get_available_gpus()) > 0
+if use_gpu:
+    from tf_approxmatch import emd_loss
+    from tf_nndistance import chamfer_loss
 
 with open(config_path, 'r') as f:
     config = json.loads(f.read())

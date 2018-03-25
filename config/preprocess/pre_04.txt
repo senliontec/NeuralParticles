@@ -1,5 +1,5 @@
 {
-    "id":             "p03",
+    "id":             "p02",
     "patch_size":     5,
     "patch_size_ref": 15,
     "stride":         1.0,
