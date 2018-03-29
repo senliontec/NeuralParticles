@@ -62,21 +62,20 @@ random.seed(data_config['seed'])
 output_path = "%s%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d"
 print(output_path)
 
-def call_dataset_gen(var0,var1,var2):
+def call_dataset_gen(var0,var1,var2,var3):
     def run_gen(cubes,cnt):
         param['c_cnt'] = len(cubes)
         
         param['out'] = output_path % cnt + "_%03d"
         run_manta(manta_path, "scenes/2D_sph.py", dict(param, **cubes), verbose) 
         
-    param['circ'] = 0
-
     i = 0
     i0 = 0
     i1 = 0
     i2 = 0
+    i3 = 0
 
-    while i < var0+var1+var2:
+    while i < var0+var1+var2+var3:
         param['circ'] = 0.
         if i0 < var0:
             # generate different cubes with dataformat "pos_x,pos_y,scale_x,scale_y"
@@ -103,8 +102,8 @@ def call_dataset_gen(var0,var1,var2):
             run_gen(cubes, i)
             i+=1
             i1+=1
-        param['circ'] = data_config['circ_vel']
         if i2 < var2:
+            param['circ'] = data_config['circ_vel']
             cubes = {}
             for c in range(random.randint(2,data_config['max_cnt'])):    
                 scx = random.uniform(data_config['min_scale'], data_config['max_scale'])*0.5
@@ -115,9 +114,14 @@ def call_dataset_gen(var0,var1,var2):
             run_gen(cubes, i)
             i+=1
             i2+=1
+        if i3 < var3:
+            run_gen({},i)
+            i+=1
+            i3+=1
     
 var1 = int(data_config['data_count'] * data_config['var1'])
 var2 = int(data_config['data_count'] * data_config['var2'])
-var0 = data_config['data_count'] - var1 - var2
+var3 = int(data_config['data_count'] * data_config['var3'])
+var0 = data_config['data_count'] - var1 - var2 - var3
  
-call_dataset_gen(var0,var1,var2)
+call_dataset_gen(var0,var1,var2,var3)

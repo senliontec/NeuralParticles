@@ -45,10 +45,6 @@ if sdt <= 0:
 cube_cnt = int(getParam("c_cnt", 0, paramUsed))
 cube = []
 
-if cube_cnt <= 0:
-	print("provide at least one cube definition!")
-	exit()
-
 class Cube:
 	def __init__(self, p, s):
 		self.pos = p
@@ -148,10 +144,49 @@ for c in cube:
 	fld.applyToGrid(grid=gFlags, value=FlagFluid, respectFlags=gFlags)
 	init_phi.join(fld.computeLevelset())
 
+if cube_cnt == 0:
+	wltstrength = 0.6
+	fld = s.create(Box, center=gs*vec3(0.5,0.2,1), size=gs*vec3(1.0, 0.03,1))
+	fld.applyToGrid(grid=gFlags, value=FlagFluid, respectFlags=gFlags)
+	init_phi.join(fld.computeLevelset())
+
+	wltnoise = NoiseField( parent=s, loadFromFile=True)
+	# scale according to lowres sim , smaller numbers mean larger vortices
+	wltnoise.posScale = vec3( int(1.0*gs.x) ) * 0.5
+	wltnoise.timeAnim = 0.1
+
+	velNoise = s.create(Vec3Grid)
+	w = s.create(RealGrid)
+	w.setConst(1.)
+	applyNoiseVec3(gFlags, velNoise, wltnoise, scale=wltstrength, weight=w)
+
+
+	wltnoise2 = NoiseField( parent=s, loadFromFile=True)
+	wltnoise2.posScale = wltnoise.posScale * 2.0
+	wltnoise2.timeAnim = 0.1
+
+	wltnoise3 = NoiseField( parent=s, loadFromFile=True)
+	wltnoise3.posScale = wltnoise2.posScale * 2.0
+	wltnoise3.timeAnim = 0.1
+	applyNoiseVec3(gFlags, velNoise, wltnoise2, scale=wltstrength*0.6 , weight=w)
+	applyNoiseVec3(gFlags, velNoise, wltnoise3, scale=wltstrength*0.6*0.6 , weight=w)
+
+	fld = s.create(Box, center=gs*vec3(0.5,0.1,1), size=gs*vec3(1.0, 0.1,1))
+	fld.applyToGrid(grid=gFlags, value=FlagFluid, respectFlags=gFlags)
+	init_phi.join(fld.computeLevelset())
+
 begin = pp.size()
 sampleLevelsetWithParticles(phi=init_phi, flags=gFlags, parts=pp, discretization=sres, randomness=0)
 end = pp.size()
 pT.setConstRange(s=FlagFluid, begin=begin, end=end, notiming=True)
+
+
+if circular_vel > 0:
+	fillVelocityCircular(pVtmp, pp, -circular_vel, vec3(res/2.,res/2.,0.5))
+	#grav = 0
+
+if cube_cnt == 0:
+	mapGridToPartsVec3(source=velNoise, parts=pp, target=pVtmp )
 
 # fluid setup: dam
 #generateBlock(vec3(0.766, 0.08, 0.5), vec3(0.08, 0.15, 0.4), FlagFluid)
@@ -161,10 +196,6 @@ sph.updateSoundSpeed(math.sqrt(2.0*math.fabs(grav)*0.55*gs.y/eta), notiming=True
 pD.setConst(s=sph.density, notiming=True)
 gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt, notiming=True)
 neighbor.update(pts=pp, indexSys=gIdxSys, index=gIdx, radius=kern.supportRadius(), notiming=True)
-
-if circular_vel > 0:
-	fillVelocityCircular(pV, pp, -circular_vel, vec3(res/2.,res/2.,0.5))
-	#grav = 0
 
 if guion:
 	gui = Gui()
