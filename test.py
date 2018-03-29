@@ -276,7 +276,7 @@ class RandomParticles:
 def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
     result = np.empty((0,par_cnt,3))
 
-    plot_particles(grid.particles, [0,grid.dimX], [0,grid.dimY], 0.1, (scr+"_not_accum.png")%t)
+    #plot_particles(grid.particles, [0,grid.dimX], [0,grid.dimY], 0.1, (scr+"_not_accum.png")%t)
 
     sdf_f = sdf_func(np.squeeze(grid.cells))[0]
 
@@ -284,7 +284,7 @@ def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
         particle_data_bound = grid.particles[in_bound(grid.particles[:,:2], bnd+patch_size/2, grid.dimX-(bnd+patch_size/2))]
         positions = particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]))[0]]
 
-    plot_particles(positions, [0,grid.dimX], [0,grid.dimY], 0.1, (scr + "_pos.png") % t)
+    #plot_particles(positions, [0,grid.dimX], [0,grid.dimY], 0.1, (scr + "_pos.png") % t)
 
     img = np.empty((0,3))
     i = 0
@@ -293,14 +293,14 @@ def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
         #sort_idx = sort_particles(par, np.array([sdf_f(p) for p in par]))
         #par = par[sort_idx]
 
-        if [t,i] in samples:
-            plot_particles(par, [-1,1], [-1,1], 5, (scr+"_i%03d_patch.png")%(t,i))
+        #if [t,i] in samples:
+        #    plot_particles(par, [-1,1], [-1,1], 5, (scr+"_i%03d_patch.png")%(t,i))
         i+=1
 
         result = np.append(result, [par], axis=0)
         img = np.append(img, np.add(par*patch_size/2, [pos[0], pos[1], 0.]), axis=0)
 
-    plot_particles(img, [0,grid.dimX], [0,grid.dimY], 0.1, (scr + ".png") % t)
+    #plot_particles(img, [0,grid.dimX], [0,grid.dimY], 0.1, (scr + ".png") % t)
     return result, positions
 
 def mean_nor(sdf, positions, t):
@@ -308,8 +308,8 @@ def mean_nor(sdf, positions, t):
     nor_f = sdf_func(np.squeeze(sdf))[1]
     for i in range(len(positions)):
         res[i] = nor_f(positions[i,:2])
-        if [t,i] in samples:
-            print(res[i])
+        #if [t,i] in samples:
+        #    print(res[i])
     return res
 
 def nor_patches(sdf, positions, patch_size, scr, t):
@@ -411,7 +411,7 @@ if use_test_data:
     for k in aux_postfix:
         aux_src[k] = np.empty((0, particle_cnt_src, 3 if k == "vel" else 1))
 
-    src_gen = RandomParticles(dim,dim,fac_2d,dim/3,obj_cnt,1.0)# if fixed else 0.8)
+    src_gen = RandomParticles(dim,dim,fac_2d,dim/3,obj_cnt,1.0)#if fixed else 0.6)
 
     data_cnt = var*dataset*(t_end-t_start)*repetitions
     for v in range(var):
@@ -440,8 +440,8 @@ if use_test_data:
                         c, s = np.cos(-theta[i]), np.sin(-theta[i])
                         mat = np.matrix([[c,-s,0],[s,c,0],[0,0,1]])
                         res[i] = res[i] * mat
-                        if [t,i] in samples:
-                            plot_particles(res[i],[-1,1],[-1,1],5,(source_scr+"_i%03d_rotated_patch.png")%(t,i))
+                        #if [t,i] in samples:
+                        #    plot_particles(res[i],[-1,1],[-1,1],5,(source_scr+"_i%03d_rotated_patch.png")%(t,i))
                     rotated_src = np.append(rotated_src, res, axis=0)
                         
                     res = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
@@ -644,7 +644,7 @@ if not grid_out and gen_grid:
     history = train_model.fit(x=[src,sdf_dst],y=[dst,np.empty((dst.shape[0],dst.shape[1]))],epochs=epochs,batch_size=batch_size)
 elif train_config["adv_fac"] <= 0.:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=0.001))
-    #history = model.fit(x=src,y=y,epochs=epochs,batch_size=batch_size)
+    history = model.fit(x=src,y=y,epochs=epochs,batch_size=batch_size)
 else:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
 
@@ -826,7 +826,7 @@ for v in range(1):
             idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, ref_data[:,:2]/fac_2d))))
             write_csv((test_result_scr+"_ref.csv")%(t), ref_data[idx])
             idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, src_data[:,:2]))))
-            write_csv((test_result_scr+"_src.csv")%(t), src_data[idx]*fac_2d)
+            write_csv((test_result_scr+"_src.csv")%(t), src_data[idx])
 
             print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), len(patch_extractor.data)/len(src_data)))
 
