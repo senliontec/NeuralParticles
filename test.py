@@ -400,6 +400,7 @@ if use_test_data:
     dst = np.empty((0,particle_cnt_dst,3))
 
     rotated_src = np.empty((0,particle_cnt_src,3))
+    rotated_dst = np.empty((0,particle_cnt_dst,3))
 
     sdf_dst = np.empty((0,ref_patch_size, ref_patch_size, 2) if use_vec else (0,ref_patch_size, ref_patch_size))
 
@@ -447,15 +448,25 @@ if use_test_data:
                     res = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
                     #res = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, reference_scr, t, positions=positions*fac_2d)[0]
 
+                    nor = mean_nor(ref_data.cells, positions*fac_2d, t)
+                    theta = np.arctan2(nor[:,0],nor[:,1])
+
+                    for i in range(len(res)):
+                        c, s = np.cos(-theta[i]), np.sin(-theta[i])
+                        mat = np.matrix([[c,-s,0],[s,c,0],[0,0,1]])
+                        res[i] = res[i] * mat
+                        #if [t,i] in samples:
+                        #    plot_particles(res[i],[-1,1],[-1,1],5,(source_scr+"_i%03d_rotated_patch.png")%(t,i))
+                    rotated_dst = np.append(rotated_dst, res, axis=0)
+
                     dst = np.append(dst, res, axis=0)
 
                     if gen_grid:
                         patch = nor_patches(ref_data.cells, positions*fac_2d, ref_patch_size, vec_reference_scr, t) if use_vec else sdf_patches(ref_data.cells, positions*fac_2d, ref_patch_size, sdf_reference_scr, t)
                         sdf_dst = np.append(sdf_dst, patch, axis=0)
 else:
-    src, dst, rotated_src, positions = gen_patches(data_path, config_path, dataset, t_end, var, repetitions, t_start=t_start)
+    src, dst, rotated_src, rotated_dst, positions = gen_patches(data_path, config_path, dataset, t_end, var, repetitions, t_start=t_start)
     
-
 fac = 16
 k = train_config['par_feature_cnt']
 dropout = train_config['dropout']
@@ -463,6 +474,14 @@ batch_size = train_config['batch_size']
 epochs = train_config['epochs']
 loss_mode = train_config['loss']
 pre_train_stn = train_config['pre_train_stn']
+
+aux_features = train_config['features']
+feature_cnt = len(aux_features)
+pVaux = False
+if 'pV' in aux_features:
+    pVaux = True
+    feature_cnt += 3
+print("feature_count: %d" % feature_cnt)
 
 particle_loss = keras.losses.mse
 
@@ -473,25 +492,30 @@ elif loss_mode == 'emd_loss':
 elif loss_mode == 'chamfer_loss':
     particle_loss = chamfer_loss
 
-inputs = Input((particle_cnt_src,3), name="main")
-#aux_input = Input((particle_cnt_src,3))
+inputs = [Input((particle_cnt_src,3), name="main")]
 
 stn_input = Input((particle_cnt_src,3))
 stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
 stn_model = Model(inputs=stn_input, outputs=stn)
 stn = stn_model(inputs)
 
-trans_input = stn_transform(stn,inputs,quat=True)
-inter_model = Model(inputs=inputs, outputs=trans_input)
+trans_input = stn_transform(stn,inputs[0],quat=True)
+inter_model = Model(inputs=inputs[0], outputs=trans_input)
 inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=0.001))
 
 if pre_train_stn:
     history = inter_model.fit(x=src,y=rotated_src,epochs=epochs,batch_size=batch_size)
     stn_model.trainable = False
 
-#x = concatenate([intermediate, stn([x,aux_input])],axis=-1)
+if feature_cnt > 0:
+    aux_input = Input((particle_cnt_src, aux_features))
+    inputs.append(aux_input)
+    if pVaux:
+        #TODO: transform_vec? (inverse transposed rotation)
+        aux_input[:,:3] = stn_transform(stn, aux_input[:,:3],quat=True)
+    trans_input = concatenate([trans_input, aux_input], axis=-1)
 
-x = [(Lambda(lambda v: v[:,i:i+1,:])(trans_input)) for i in range(particle_cnt_src)]
+x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
 
 x = split_layer(Dropout(dropout),x)
 x = split_layer(Dense(fac, activation='tanh'),x)
@@ -585,10 +609,24 @@ model = Model(inputs=inputs, outputs=m_out)
 invm = Model(inputs=inputs, outputs=invm_out)
 
 if train_config["adv_fac"] > 0.:
-    disc_input = Input((particle_cnt_src,3))
-    x = stn_transform(stn_model(disc_input) ,disc_input,quat=True)
+    disc_input = Input((particle_cnt_dst,3))
 
-    x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
+    disc_stn_input = Input((particle_cnt_dst,3))
+    disc_stn = SpatialTransformer(disc_stn_input,particle_cnt_dst,dropout=dropout,quat=True,norm=True)
+    disc_stn_model = Model(inputs=disc_stn_input, outputs=disc_stn)
+    disc_stn = disc_stn_model(disc_input)
+
+    disc_trans_input = stn_transform(disc_stn,disc_input,quat=True)
+    disc_inter_model = Model(inputs=disc_input, outputs=disc_trans_input)
+    disc_inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=0.001))
+
+    if pre_train_stn:
+        history = disc_inter_model.fit(x=dst,y=rotated_dst,epochs=epochs,batch_size=batch_size)
+        disc_stn_model.trainable = False
+
+    #x = stn_transform(stn_model(disc_input) ,disc_input,quat=True)
+
+    x = [(Lambda(lambda v: v[:,i:i+1,:])(disc_trans_input)) for i in range(particle_cnt_dst)]
 
     x = split_layer(Dropout(dropout),x)
     x = split_layer(Dense(fac, activation='tanh'),x)
@@ -596,9 +634,9 @@ if train_config["adv_fac"] > 0.:
     x = split_layer(Dense(fac, activation='tanh'),x)
 
     x = concatenate(x, axis=1)
-    x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x)
+    x = stn_transform(SpatialTransformer(x,particle_cnt_dst,fac,1),x)
 
-    x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
+    x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_dst)]
 
     x = split_layer(Dropout(dropout),x)
     x = split_layer(Dense(fac, activation='tanh'),x)
@@ -781,6 +819,8 @@ for v in range(1):
 
             plot_particles(patch_extractor.positions, [0,dim], [0,dim], 0.1, (test_source_scr+"_pos.png")%(t))
             
+            write_csv((test_source_scr+"_pos.csv")%(t), patch_extractor.positions)
+            
             src_accum = np.empty((0,3))
             ref_accum = np.empty((0,3))
             res_accum = np.empty((0,3))
@@ -797,6 +837,7 @@ for v in range(1):
 
                 i+=1
                 if [t,i] in samples:
+                    print("{},{}: {}".format(t,i,patch_extractor.last_pos))
                     inv_result = invm.predict(x=np.array([src]))[0]
                     inter_result = inter_model.predict(x=np.array([src]))[0]
                     plot_particles(result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_patch.png")%(t,i), ref, src)
@@ -822,11 +863,11 @@ for v in range(1):
             plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+".png")%(t))
             
             idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, patch_extractor.data[:,:2]))))
-            write_csv((test_result_scr+"_res.csv")%(t), patch_extractor.data[idx]*fac_2d)
+            write_csv((test_result_scr+".csv")%(t), patch_extractor.data[idx]*fac_2d)
             idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, ref_data[:,:2]/fac_2d))))
-            write_csv((test_result_scr+"_ref.csv")%(t), ref_data[idx])
+            write_csv((test_reference_scr+".csv")%(t), ref_data[idx])
             idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, src_data[:,:2]))))
-            write_csv((test_result_scr+"_src.csv")%(t), src_data[idx])
+            write_csv((test_source_scr+".csv")%(t), src_data[idx])
 
             print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), len(patch_extractor.data)/len(src_data)))
 
