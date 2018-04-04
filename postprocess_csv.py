@@ -1,7 +1,7 @@
 import sys, os
 sys.path.append("manta/scenes/tools")
 
-from helpers import read_csv, write_csv, getParam, checkUnusedParam
+from helpers import read_csv, write_csv, getParam, checkUnusedParam, plot_particles
 
 import random
 import math
@@ -26,12 +26,16 @@ clip = int(getParam("clip", 0, paramUsed))
 
 # multiplicative factor
 factor = float(getParam("factor", 1.0, paramUsed))
+x = float(getParam("add_x", 0.0, paramUsed))
+y = float(getParam("add_y", 0.0, paramUsed))
 
 # extract detail
 c_x = float(getParam("cx", 0.0, paramUsed))
 c_y = float(getParam("cy", 0.0, paramUsed))
 s_x = float(getParam("sx", 0.0, paramUsed))
 s_y = float(getParam("sy", 0.0, paramUsed))
+
+show = int(getParam("show", 0, paramUsed)) != 0
 
 if csv_out is "":
     csv_out = csv_in[:-4] + "_mod.csv"
@@ -42,7 +46,7 @@ def sigmoid(x):
   return (1 - 1 / (1 + np.exp(-steepness*(x+off)))) / rdc_fac
 
 
-data = read_csv(csv_in)*factor
+data = read_csv(csv_in)*factor+np.array([[x,y,0]])
 print("data shape: {}".format(data.shape))
 
 if s_x > 0.0 and s_y > 0.0:
@@ -60,3 +64,6 @@ if clip > 0:
 
 print("new shape: {}".format(data.shape))
 write_csv(csv_out, data)
+
+if show:
+  plot_particles(data)

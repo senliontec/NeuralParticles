@@ -6,8 +6,8 @@ import shutil
 import numpy as np
 import csv
 
-import matplotlib
-matplotlib.use('Agg')
+''''import matplotlib
+matplotlib.use('Agg')'''
 import matplotlib.pyplot as plt
 
 # ======================================================================================================================
@@ -149,14 +149,16 @@ def read_csv(path):
 			data = np.concatenate((data, np.array([row]).astype(float)))
 	return data
 	
-def plot_particles(data, xlim, ylim, s, path=None, ref=None, src=None):
+def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=None):
 	if not ref is None:
 		plt.scatter(ref[:,0],ref[:,1],s=s,c='r')
 	plt.scatter(data[:,0],data[:,1],s=s,c='b')
 	if not src is None:
 		plt.scatter(src[:,0],src[:,1],s=s,c='g')
-	plt.xlim(xlim)
-	plt.ylim(ylim)
+	if not xlim is None:
+		plt.xlim(xlim)
+	if not ylim is None:
+		plt.ylim(ylim)
 	if path is None:
 		plt.show()
 	else:
@@ -182,7 +184,7 @@ def plot_sdf(data, xlim, ylim, path=None, ref=None, src=None, s=1):
 		plt.savefig(path)
 	plt.clf()
 
-def plot_vec(data, xlim, ylim, path=None, ref=None, src=None, s=1):
+def plot_vec(data, xlim=None, ylim=None, path=None, ref=None, src=None, s=1):
 	for y in range(ylim[0],ylim[1],2):
 		for x in range(xlim[0],xlim[1],2):
 			if not ref is None:
@@ -193,8 +195,10 @@ def plot_vec(data, xlim, ylim, path=None, ref=None, src=None, s=1):
 	
 	if not src is None:
 		plt.scatter(src[:,0],src[:,1],s=s,c='g')
-	plt.xlim(xlim)
-	plt.ylim(ylim)
+	if not xlim is None:
+		plt.xlim(xlim)
+	if not ylim is None:
+		plt.ylim(ylim)
 	if path is None:
 		plt.show()
 	else:

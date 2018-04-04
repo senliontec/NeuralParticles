@@ -115,6 +115,8 @@ def call_dataset_gen(var0,var1,var2,var3):
             i+=1
             i2+=1
         if i3 < var3:
+            param['wlt'] = data_config['wlt_vel']
+            param['seed'] = random.randint(0,1000000000)
             run_gen({},i)
             i+=1
             i3+=1
