@@ -159,10 +159,10 @@ def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=Non
 			#TODO: make more efficient:
 			for i in range(len(src)):
 				plt.plot([src[i,0],src[i,0]+vel[i,0]],[src[i,1],src[i,1]+vel[i,1]], 'g-')
-    if not xlim is None:
-        plt.xlim(xlim)
-    if not ylim is None:
-        plt.ylim(ylim)
+	if not xlim is None:
+		plt.xlim(xlim)
+	if not ylim is None:
+		plt.ylim(ylim)
 	if path is None:
 		plt.show()
 	else:

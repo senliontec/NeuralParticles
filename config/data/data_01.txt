@@ -1,8 +1,8 @@
 {
     "id":             "dat01",
     "prefix":         "sph_2D",
-    "fps":            30,
-    "frame_count":    10,
+    "fps":            60,
+    "frame_count":    20,
     "data_count":     20,
     "sub_res":        2,
     "res":            150,

@@ -129,8 +129,5 @@ def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0,
                     sdf, aux_sdf, par, aux_par, par_rot = load_patches(path_ref%(d,t), par_cnt_ref, patch_size_ref, positions=positions*fac_2d)[:5]
                     reference = np.append(reference, par if use_particles else np.tanh(sdf*h_fac) if use_tanh else sdf*h_fac, axis=0)
                     ref_rot = np.append(ref_rot, par_rot, axis=0)
-
-    if len(features) > 0:
-        main = [main, aux]
     
-    return main, reference, main_rot, ref_rot, pos
+    return [main, aux] if len(features) > 0 else [main], reference, main_rot, ref_rot, pos

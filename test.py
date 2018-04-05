@@ -492,7 +492,7 @@ elif loss_mode == 'emd_loss':
 elif loss_mode == 'chamfer_loss':
     particle_loss = chamfer_loss
 
-inputs = [Input((particle_cnt_src,3), name="main")]
+inputs = [Input((particle_cnt_src,3))]
 if feature_cnt > 0:
     aux_input = Input((particle_cnt_src, feature_cnt))
     inputs.append(aux_input)
@@ -507,7 +507,7 @@ inter_model = Model(inputs=inputs[0], outputs=trans_input)
 inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=0.001))
 
 if pre_train_stn:
-    history = inter_model.fit(x=src[0] if feature_cnt > 0 else src,y=rotated_src,epochs=epochs,batch_size=batch_size)
+    history = inter_model.fit(x=src[0],y=rotated_src,epochs=epochs,batch_size=batch_size)
     stn_model.trainable = False
 
 if feature_cnt > 0:
@@ -685,13 +685,18 @@ if not grid_out and gen_grid:
     train_model.compile(loss=[particle_loss, lambda x,y: K.mean(y,axis=-1)], optimizer=keras.optimizers.adam(lr=0.001), loss_weights=[1., 1.])
     history = train_model.fit(x=[src,sdf_dst],y=[dst,np.empty((dst.shape[0],dst.shape[1]))],epochs=epochs,batch_size=batch_size)
 elif train_config["adv_fac"] <= 0.:
-    model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=0.001))
+    model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
     history = model.fit(x=src,y=y,epochs=epochs,batch_size=batch_size)
 else:
     model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
 
     # GAN
-    z = [Input(shape=(particle_cnt_src,3), name='main')]
+    z = inputs
+    
+    '''TODO: WHY NOT WORKING?!!!!!:
+    z =[Input((particle_cnt_src,3))]
+    if feature_cnt > 0:
+        z.append(Input((particle_cnt_src, feature_cnt)))'''
     img = model(z)
 
     # For the combined model we will only train the generator
@@ -707,9 +712,9 @@ else:
 
     half_batch = batch_size//2
 
-    train_cnt = int(len(src)*(1-train_config['val_split']))//batch_size*batch_size
+    train_cnt = int(len(src[0])*(1-train_config['val_split']))//batch_size*batch_size
     print('train count: %d' % train_cnt)
-    eval_cnt = int(len(src)*train_config['val_split'])//batch_size*batch_size
+    eval_cnt = int(len(src[0])*train_config['val_split'])//batch_size*batch_size
     print('eval count: %d' % eval_cnt)
 
     cnt_inv = batch_size/train_cnt
@@ -734,7 +739,7 @@ else:
         
         for i in range(0,train_cnt,batch_size):
             print("Train epoch {}, batch {}/{}".format(ep+1, i+batch_size, train_cnt), end="\r", flush=True)
-            x = src[idx0[i:i+half_batch]]
+            x = [s[idx0[i:i+half_batch]] for s in src]
             y = dst[idx0[i+half_batch:i+batch_size]]
             x = model.predict(x)
 
@@ -742,10 +747,10 @@ else:
             d_loss_real = discriminator.train_on_batch(y, np.ones((half_batch, 1)))
             d_loss = np.add(d_loss, cnt_inv * 0.5 * np.add(d_loss_real, d_loss_fake))
             
-            x = src[idx1[i:i+batch_size]]
+            x = [s[idx1[i:i+batch_size]] for s in src]
             y = dst[idx1[i:i+batch_size]]
             g_loss = np.add(g_loss, cnt_inv * np.array(combined.train_on_batch(x, [y, np.ones((batch_size, 1))])))
-        
+
         print("\r", flush=True)
         # eval
         np.random.shuffle(val_idx0)
@@ -753,7 +758,7 @@ else:
         g_val_loss = [0.,0.,0.]
         d_val_loss = [0.,0.]
     
-        x = src[val_idx0]
+        x = [s[val_idx0] for s in src]
         y = dst[val_idx0]
         x = model.predict(x)
         
@@ -761,7 +766,7 @@ else:
         d_loss_real = discriminator.evaluate(y, np.ones((eval_cnt, 1)), batch_size=half_batch, verbose=0)
         d_val_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
         
-        x = src[val_idx1]
+        x = [s[val_idx1] for s in src]
         y = dst[val_idx1]
         g_val_loss = combined.evaluate(x, [y,np.ones((eval_cnt, 1))], batch_size=batch_size, verbose=0)
         
