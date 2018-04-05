@@ -178,10 +178,37 @@ if start_checkpoint == 0:
         if train_config["adv_fac"] > 0.:
             generator = model
 
-            inputs = Input((particle_cnt_src,3), name="main")
-            x = Flatten()(inputs)
-            x = Dropout(dropout)(x)
-            x = Dense(fac*32, activation='tanh')(x)
+            disc_input = Input((particle_cnt_dst,3))
+
+            disc_stn_input = Input((particle_cnt_dst,3))
+            disc_stn = SpatialTransformer(disc_stn_input,particle_cnt_dst,dropout=dropout,quat=True,norm=True)
+            disc_stn_model = Model(inputs=disc_stn_input, outputs=disc_stn, name="disc_stn")
+            disc_stn = disc_stn_model(disc_input)
+
+            disc_transformed = stn_transform(disc_stn,disc_input,quat=True, name="disc_trans")
+
+            x = [(Lambda(lambda v: v[:,i:i+1,:])(disc_transformed)) for i in range(particle_cnt_dst)]
+
+            x = split_layer(Dropout(dropout),x)
+            x = split_layer(Dense(fac, activation='tanh'),x)
+            x = split_layer(Dropout(dropout),x)
+            x = split_layer(Dense(fac, activation='tanh'),x)
+
+            x = concatenate(x, axis=1)
+            x = stn_transform(SpatialTransformer(x,particle_cnt_dst,fac,1),x)
+
+            x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_dst)]
+
+            x = split_layer(Dropout(dropout),x)
+            x = split_layer(Dense(fac, activation='tanh'),x)
+            x = split_layer(Dropout(dropout),x)
+            x = split_layer(Dense(fac*2, activation='tanh'),x)
+            x = split_layer(Dropout(dropout),x)
+            x = split_layer(Dense(k, activation='tanh'),x)
+
+            x = add(x)
+
+            x = Flatten()(x)
             x = Dropout(dropout)(x)
             x = Dense(fac*16, activation='tanh')(x)
             x = Dropout(dropout)(x)
@@ -191,7 +218,20 @@ if start_checkpoint == 0:
             x = Dropout(dropout)(x)
             x = Dense(1, activation='sigmoid')(x)
 
-            discriminator = Model(inputs=inputs, outputs=x)
+            '''disc_input = Input((particle_cnt_src,3), name="main")
+            x = Flatten()(disc_input)
+            x = Dropout(dropout)(x)
+            x = Dense(fac*32, activation='tanh')(x)
+            x = Dropout(dropout)(x)
+            x = Dense(fac*16, activation='tanh')(x)
+            x = Dropout(dropout)(x)
+            x = Dense(fac*8, activation='tanh')(x)
+            x = Dropout(dropout)(x)
+            x = Dense(fac*4, activation='tanh')(x)
+            x = Dropout(dropout)(x)
+            x = Dense(1, activation='sigmoid')(x)'''
+
+            discriminator = Model(inputs=disc_input, outputs=x)
             discriminator.compile(loss='binary_crossentropy', optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]), metrics=['accuracy'])
 
             discriminator.save(model_path + '_dis.h5')
@@ -275,9 +315,9 @@ else:
 
 
 print("Load Training Data")
-src_data, ref_data, src_rot_data = gen_patches(data_path, config_path, 
+src_data, ref_data, src_rot_data, ref_rot_data = gen_patches(data_path, config_path, 
     int(data_config['data_count']*train_config['train_split']), train_config['t_end'], 
-    pre_config['var'], pre_config['par_var'], t_start=train_config['t_start'])[:3]
+    pre_config['var'], pre_config['par_var'], t_start=train_config['t_start'])[:4]
 '''train_data = Dataset(src_path, 
                      0, int(data_config['data_count']*train_config['train_split']), train_config['t_start'], train_config['t_end'], 
                      features, pre_config['var'], pre_config['par_var'], ref_path, [features[0]])'''
@@ -313,6 +353,14 @@ if pre_train_stn:
     inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['epochs'],batch_size=train_config['batch_size'])
     stn.trainable = False        
     model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
+    if train_config["adv_fac"] > 0:
+        inputs = discriminator.inputs[0]
+        stn = model.get_layer("disc_stn")
+        trans_input = model.get_layer("disc_trans")([inputs, stn(inputs)])
+        inter_model = Model(inputs=inputs, outputs=trans_input)
+        inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
+        inter_model.fit(x=ref_data,y=ref_rot_data,epochs=train_config['epochs'],batch_size=train_config['batch_size'])
+        stn.trainable = False        
 
 if train_config["adv_fac"] <= 0.:
     val_split = train_config['val_split']
