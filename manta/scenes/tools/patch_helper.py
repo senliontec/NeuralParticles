@@ -42,8 +42,17 @@ def get_positions(particle_data, sdf, patch_size, surface=1.0, bnd=0):
     positions = particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]), surface)[0]]
     return positions
 
-def get_data(prefix):
-    return readParticles(prefix + "_ps.uni")[1], readUni(prefix + "_sdf.uni")[1]
+def get_data(prefix, par_aux=[], grid_aux=[]):
+    grid_aux_data = {}
+    par_aux_data = {}
+
+    for v in grid_aux:
+        grid_aux_data[v] = readUni((prefix+"_%s.uni")%v)[1]
+
+    for v in par_aux:
+        par_aux_data[v] = readParticles((prefix+"_p%s.uni")%v, "float32")[1]
+        
+    return readParticles(prefix + "_ps.uni")[1], readUni(prefix + "_sdf.uni")[1], par_aux_data, grid_aux_data
 
 def load_patches(prefix, par_cnt, patch_size, surface = 1.0, stride = 1, grid_aux=[], par_aux=[] , bnd=0, positions=None):
     sdf_patches = np.empty((0, patch_size, patch_size, 1))

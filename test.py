@@ -475,12 +475,12 @@ epochs = train_config['epochs']
 loss_mode = train_config['loss']
 pre_train_stn = train_config['pre_train_stn']
 
-aux_features = train_config['features']
+aux_features = train_config['features'][1:]
 feature_cnt = len(aux_features)
 pVaux = False
-if 'pV' in aux_features:
+if 'v' in aux_features:
     pVaux = True
-    feature_cnt += 3
+    feature_cnt += 2
 print("feature_count: %d" % feature_cnt)
 
 particle_loss = keras.losses.mse
@@ -493,29 +493,33 @@ elif loss_mode == 'chamfer_loss':
     particle_loss = chamfer_loss
 
 inputs = [Input((particle_cnt_src,3), name="main")]
+if feature_cnt > 0:
+    aux_input = Input((particle_cnt_src, feature_cnt))
+    inputs.append(aux_input)
 
 stn_input = Input((particle_cnt_src,3))
 stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
 stn_model = Model(inputs=stn_input, outputs=stn)
-stn = stn_model(inputs)
+stn = stn_model(inputs[0])
 
 trans_input = stn_transform(stn,inputs[0],quat=True)
 inter_model = Model(inputs=inputs[0], outputs=trans_input)
 inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=0.001))
 
 if pre_train_stn:
-    history = inter_model.fit(x=src,y=rotated_src,epochs=epochs,batch_size=batch_size)
+    history = inter_model.fit(x=src[0] if feature_cnt > 0 else src,y=rotated_src,epochs=epochs,batch_size=batch_size)
     stn_model.trainable = False
 
 if feature_cnt > 0:
-    aux_input = Input((particle_cnt_src, aux_features))
-    inputs.append(aux_input)
     if pVaux:
-        #TODO: transform_vec? (inverse transposed rotation)
-        aux_input[:,:3] = stn_transform(stn, aux_input[:,:3],quat=True)
+        aux_input = Lambda(lambda a: concatenate([stn_transform(stn, a[:,:,:3],quat=True),a[:,:,3:]], axis=-1))(aux_input)
+
+        aux_inter_model = Model(inputs=inputs, outputs=aux_input)
+        aux_inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=0.001))
+
     trans_input = concatenate([trans_input, aux_input], axis=-1)
 
-x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
+x = [(Lambda(lambda v: v[:,i:i+1,:])(trans_input)) for i in range(particle_cnt_src)]
 
 x = split_layer(Dropout(dropout),x)
 x = split_layer(Dense(fac, activation='tanh'),x)
@@ -801,7 +805,7 @@ for v in range(1):
         for t in range(t_start, t_end): 
             act_d = t-t_start
             print("Run Test: {}/{}".format(act_d+1,data_cnt), end="\r", flush=True)#,"-"*act_d,"."*(data_cnt-act_d-1)), end="\r", flush=True)   
-
+            aux_data = {}
             if use_test_data:
                 src_gen.gen_random(pos=np.array([[dim/2+0.5,dim/2+0.5]]) if fixed else None, a=np.array([[t+1,t+1]]) if fixed else None)
                 src_data, ref_data = src_gen.get_grid()
@@ -812,9 +816,9 @@ for v in range(1):
                 ref_sdf_data = ref_data.cells
                 ref_data = ref_data.particles
             else:
-                (src_data, sdf_data), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v)
+                (src_data, sdf_data, aux_data, _), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v)
 
-            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, particle_cnt_src, surface, stride)
+            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, particle_cnt_src, surface, stride, aux_data=aux_data)
             sdf_f = sdf_func(np.squeeze(sdf_data))[0]
 
             plot_particles(patch_extractor.positions, [0,dim], [0,dim], 0.1, (test_source_scr+"_pos.png")%(t))
@@ -826,48 +830,64 @@ for v in range(1):
             res_accum = np.empty((0,3))
             i = 0
             while(True):
-                src = patch_extractor.get_patch()
+                src, aux = patch_extractor.get_patch()
+
                 if src is None:
                     break
+                nn_src = [np.array([src])] 
+                if feature_cnt > 0:
+                    nn_src.append(np.array([np.concatenate([aux[f] for f in aux_features])]))
                 
                 ref = extract_particles(ref_data, patch_extractor.last_pos*fac_2d, particle_cnt_dst, ref_patch_size)[0]
 
-                result = model.predict(x=np.array([src]))[0]
+                result = model.predict(x=nn_src)[0]
                 patch_extractor.set_patch(result)
 
                 i+=1
                 if [t,i] in samples:
                     print("{},{}: {}".format(t,i,patch_extractor.last_pos))
-                    inv_result = invm.predict(x=np.array([src]))[0]
-                    inter_result = inter_model.predict(x=np.array([src]))[0]
+                    inv_result = invm.predict(x=nn_src)[0]
+                    inter_result = inter_model.predict(x=nn_src[0])[0]
                     plot_particles(result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_patch.png")%(t,i), ref, src)
                     plot_particles(inv_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inv_patch.png")%(t,i))
                     plot_particles(inter_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
                     plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_i%03d.png")%(t,i), ref_data, src_data*fac_2d)
                      
-                    write_csv((test_result_scr+"_i%03d_patch_res.csv")%(t,i), result)
-                    write_csv((test_result_scr+"_i%03d_patch_ref.csv")%(t,i), ref)
-                    write_csv((test_result_scr+"_i%03d_patch_src.csv")%(t,i), src)
+                    write_csv((test_result_scr+"_i%03d_patch.csv")%(t,i), result)
+                    write_csv((test_reference_scr+"_i%03d_patch.csv")%(t,i), ref)
+                    write_csv((test_source_scr+"_i%03d_patch.csv")%(t,i), src)
+                    if pVaux:
+                        aux_inter_result = aux_inter_model.predict(x=nn_src)[0]
+                        plot_particles(inter_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_vel_patch.png")%(t,i), src=inter_result, vel=aux_inter_result/1000)
+                        plot_particles(result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_vel_patch.png")%(t,i), ref, src, vel=aux['v']/1000)
+                        
+                    for f in aux_features:
+                        write_csv((test_source_scr+"_i%03d_%s_patch.csv")%(t,i,f), aux[f])
                     write_csv((test_result_scr+"_i%03d_inv_patch.csv")%(t,i), inv_result)
                     write_csv((test_result_scr+"_i%03d_inter_patch.csv")%(t,i), inter_result)
                     idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, patch_extractor.data[:,:2]))))
-                    write_csv((test_result_scr+"_i%03d_res.csv")%(t,i), patch_extractor.data[idx]*fac_2d)
+                    write_csv((test_result_scr+"_i%03d.csv")%(t,i), patch_extractor.data[idx]*fac_2d)
 
                 src_accum = np.concatenate((src_accum, patch_extractor.transform_patch(src)))
                 ref_accum = np.concatenate((ref_accum, patch_extractor.transform_patch(ref)*fac_2d))
                 res_accum = np.concatenate((res_accum, patch_extractor.transform_patch(result)*fac_2d))
 
-            plot_particles(src_data, [0,dim], [0,dim], 0.1, (test_source_scr+".png")%(t))
             plot_particles(ref_data, [0,h_dim], [0,h_dim], 0.1, (test_reference_scr+".png")%(t))
             plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_comp.png")%(t), ref_data, src_data*fac_2d)
             plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+".png")%(t))
-            
+            if pVaux:
+                plot_particles(src_data, [0,dim], [0,dim], 0.1, (test_source_scr+"_vel.png")%(t), src=src_data, vel=aux_data['v']/1000)
+
             idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, patch_extractor.data[:,:2]))))
             write_csv((test_result_scr+".csv")%(t), patch_extractor.data[idx]*fac_2d)
             idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, ref_data[:,:2]/fac_2d))))
             write_csv((test_reference_scr+".csv")%(t), ref_data[idx])
             idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, src_data[:,:2]))))
             write_csv((test_source_scr+".csv")%(t), src_data[idx])
+
+            for f in aux_features:
+                write_csv((test_source_scr+"_%s.csv")%(t,f), aux_data[f][idx])
+                
 
             print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), len(patch_extractor.data)/len(src_data)))
 

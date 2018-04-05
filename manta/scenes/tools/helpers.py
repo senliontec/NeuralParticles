@@ -149,12 +149,16 @@ def read_csv(path):
 			data = np.concatenate((data, np.array([row]).astype(float)))
 	return data
 	
-def plot_particles(data, xlim, ylim, s, path=None, ref=None, src=None):
+def plot_particles(data, xlim, ylim, s, path=None, ref=None, src=None, vel=None):
 	if not ref is None:
 		plt.scatter(ref[:,0],ref[:,1],s=s,c='r')
 	plt.scatter(data[:,0],data[:,1],s=s,c='b')
 	if not src is None:
 		plt.scatter(src[:,0],src[:,1],s=s,c='g')
+		if not vel is None:
+			#TODO: make more efficient:
+			for i in range(len(src)):
+				plt.plot([src[i,0],src[i,0]+vel[i,0]],[src[i,1],src[i,1]+vel[i,1]], 'g-')
 	plt.xlim(xlim)
 	plt.ylim(ylim)
 	if path is None:
