@@ -46,14 +46,15 @@ def sigmoid(x):
   return (1 - 1 / (1 + np.exp(-steepness*(x+off)))) / rdc_fac
 
 
-data = read_csv(csv_in)*factor+np.array([[x,y,0]])
+data = read_csv(csv_in)*factor
+data[:,:2] += np.array([[x,y]])
 print("data shape: {}".format(data.shape))
 
 if s_x > 0.0 and s_y > 0.0:
-  c = np.array([[c_x, c_y, 0]])
-  s = np.array([[s_x, s_y, 1]])/2
-  data = data[np.where(np.all(np.concatenate(((data > c - s)[:,:2], (data < c + s)[:,:2]), axis=-1),axis=-1))[0]]
-  data = (data - c) / s
+  c = np.array([[c_x, c_y]])
+  s = np.array([[s_x, s_y]])/2
+  data = data[np.where(np.all(np.concatenate(((data[:,:2] > c - s), (data[:,:2] < c + s)), axis=-1),axis=-1))[0]]
+  data[:,:2] = (data[:,:2] - c) / s
 
 if rdc_fac > 0:
   sig = sigmoid(2*np.arange(len(data))/len(data)-1)

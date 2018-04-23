@@ -142,11 +142,14 @@ def write_csv(path, data):
 			csvwriter.writerow(d)
 
 def read_csv(path):
-	data = np.empty((0,3))
+	data = None
 	with open(path, 'r') as csvfile:
 		csvreader = csv.reader(csvfile)
 		for row in csvreader:
-			data = np.concatenate((data, np.array([row]).astype(float)))
+			if data is None:
+				data = np.array([row]).astype(float)
+			else:
+				data = np.concatenate((data, np.array([row]).astype(float)))
 	return data
 	
 def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=None, vel=None):
