@@ -1,7 +1,7 @@
 import json
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.data_helpers import *
-from neuralparticles.tools.uniio import writeNumpyBuf, finalizeNumpyBufs
+from neuralparticles.tools.uniio import writeNumpyRaw
 import numpy as np
 
 import os
@@ -50,26 +50,19 @@ if __name__ == "__main__":
 
     path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'])
     print(path)
-    for s in src[0]:
-        writeNumpyBuf(path + "s", s)
+    writeNumpyRaw(path + "s", src[0])
 
     for i in range(len(features)):
-        for s in src[i+1]:
-            writeNumpyBuf(path + features[i], s)
+        writeNumpyRaw(path + features[i], src[i+1])
     
     path = "%s%s_%s-%s_p" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id'])
     print(path)
-    for d in dst:
-        writeNumpyBuf(path + "s", d)
+    writeNumpyRaw(path + "s", dst)
     
     path = "%s%s_%s-%s_rot_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'])
     print(path)
-    for s in rotated_src:
-        writeNumpyBuf(path + "s", s)
+    writeNumpyRaw(path + "s", rotated_src)
 
     path = "%s%s_%s-%s_rot_p" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id'])
     print(path)
-    for d in rotated_dst:
-        writeNumpyBuf(path + "s", d)
-
-    finalizeNumpyBufs()
+    writeNumpyRaw(path + "s", rotated_dst)

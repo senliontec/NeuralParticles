@@ -209,7 +209,7 @@ def writeNumpyBuf(filename, content):
 		npCnt[filename] = 0
 	npBuf[filename].append(content)
 	#print("writing buffered, arrays "+format( len(npBuf[filename]) ) + ", size "+ format(content.size) )
-	if len(npBuf[filename])>100:
+	if len(npBuf[filename])>1000:
 		#print("writing buffered "+filename)
 		np.savez_compressed( filename+("_%04d.npz"%(npCnt[filename])), *npBuf[filename] )
 		npCnt[filename] += 1
@@ -257,3 +257,23 @@ class NPZBuffer:
 				return None
 			self.npz = readNumpy(path)
 			return self.next()
+
+	def read_all(self):
+		tmp = None
+		while True:
+			print("%04d"%self.c, end='\r', flush=True)
+			v = self.next()
+			if v is None:
+				break
+			tmp = np.array([v]) if tmp is None else np.append(tmp, [v], axis=0)
+		print("\r", flush=True)
+		return tmp
+
+def readNumpyAll(path):
+	return NPZBuffer(path).read_all()
+
+def writeNumpyRaw(filename, data):
+	np.save(filename + ".npy", data)
+
+def readNumpyRaw(filename):
+	return readNumpy(filename + ".npy")

@@ -132,6 +132,54 @@ def get_data(prefix, par_aux=[], grid_aux=[]):
         
     return readParticles(prefix + "_ps.uni")[1], readUni(prefix + "_sdf.uni")[1], par_aux_data, grid_aux_data
 
+def load_patches_from_file(data_path, config_path):
+    with open(config_path, 'r') as f:
+        config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
+        data_config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
+        pre_config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
+        train_config = json.loads(f.read())
+
+    src_path = data_path + "patches/source/"
+    ref_path = data_path + "patches/reference/"
+
+    features = train_config['features'][1:]
+
+    par_cnt = pre_config['par_cnt']
+    par_cnt_ref = pre_config['par_cnt_ref']
+
+    src = np.empty((0,par_cnt))
+    src_rot = np.empty((0,par_cnt))
+    ref = np.empty((0, par_cnt_ref))
+    ref_rot = np.empty((0, par_cnt_ref))
+
+    path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'])
+    print(path)
+    src = [readNumpyRaw(path + 's')]
+    for f in features:
+        src.append(readNumpyRaw(path + f))
+
+    path = "%s%s_%s-%s_p" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id'])
+    print(path)
+    ref = [readNumpyRaw(path + 's')]
+    for f in features:
+        ref.append(readNumpyRaw(path + f))
+    
+    path = "%s%s_%s-%s_rot_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'])
+    print(path)
+    src_rot = readNumpyRaw(path + 's')
+    
+    path = "%s%s_%s-%s_rot_p" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id'])
+    print(path)
+    ref_rot = readNumpyRaw(path + 's')
+
+    return src, ref, src_rot, ref_rot
+
 def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0, positions=None):
     par_patches = np.empty((0, par_cnt, 3))
     par_patches_rot = np.empty((0, par_cnt, 3))

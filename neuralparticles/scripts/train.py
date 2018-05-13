@@ -9,7 +9,7 @@ import json
 import math
 
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tools.data_helpers import gen_patches
+from neuralparticles.tools.data_helpers import load_patches_from_file
 
 import keras
 from keras.models import Model, Sequential, load_model
@@ -236,12 +236,11 @@ else:
 
 
 print("Load Training Data")
-src_data, ref_data, src_rot_data, ref_rot_data = gen_patches(data_path, config_path, 
+src_data, ref_data, src_rot_data, ref_rot_data = load_patches_from_file(data_path, config_path)
+
+'''gen_patches(data_path, config_path, 
     int(data_config['data_count']*train_config['train_split']), train_config['t_end'], 
-    pre_config['var'], pre_config['par_var'], t_start=train_config['t_start'])[:4]
-'''train_data = Dataset(src_path, 
-                     0, int(data_config['data_count']*train_config['train_split']), train_config['t_start'], train_config['t_end'], 
-                     features, pre_config['var'], pre_config['par_var'], ref_path, [features[0]])'''
+    pre_config['var'], pre_config['par_var'], t_start=train_config['t_start'])[:4]'''
 
 #print("Source Data Shape: " + str(train_data.data[features[0]].shape))
 #print("Reference Data Shape: " + str(train_data.ref_data[features[0]].shape))
