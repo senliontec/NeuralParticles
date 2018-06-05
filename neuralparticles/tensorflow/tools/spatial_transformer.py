@@ -8,10 +8,9 @@ import math
 
 import tensorflow as tf
 
-from .quaternion import *
-from .rotation import *
-
 from neuralparticles.tools.plot_helpers import plot_particles, plot_sdf
+
+from .quaternion import quaternion_norm
 
 def SpatialTransformer(inputs, cnt,features=3,kernel=(1,3),dropout=0.2,fac=64,quat=False,norm=False):
     x = Reshape((cnt,features,1))(inputs)
@@ -41,14 +40,14 @@ def SpatialTransformer(inputs, cnt,features=3,kernel=(1,3),dropout=0.2,fac=64,qu
 
 def stn_transform(transform, x, quat=False, **kwargs):
     def tmp(v):
-        from .quaternion import quaternion_rot
+        from neuralparticles.tensorflow.tools.quaternion import quaternion_rot
         import keras.backend as K
         return quaternion_rot(v[0],v[1]) if quat else K.batch_dot(v[0],v[1])
     return Lambda(tmp, **kwargs)([x,transform])
 
 def stn_transform_inv(transform, x, quat=False, **kwargs):
     def tmp(v):
-        from .quaternion import quaternion_rot, quaternion_conj
+        from neuralparticles.tensorflow.tools.quaternion import quaternion_rot, quaternion_conj
         import tensorflow as tf
         import keras.backend as K
         return quaternion_rot(v[0],quaternion_conj(v[1])) if quat else K.batch_dot(v[0],tf.matrix_inverse(v[1]))
@@ -56,7 +55,7 @@ def stn_transform_inv(transform, x, quat=False, **kwargs):
 
 def stn_grid_transform(transform, x, quat=False, **kwargs):
     def tmp(v):
-        from .rotation import transform_grid, transform_vec_grid, rotate_grid, rotate_vec_grid
+        from neuralparticles.tensorflow.tools.rotation import transform_grid, transform_vec_grid, rotate_grid, rotate_vec_grid
         if len(v[0].get_shape()) < 4:
             return rotate_grid(v[0],v[1]) if quat else transform_grid(v[0],v[1])
         else:
@@ -65,7 +64,8 @@ def stn_grid_transform(transform, x, quat=False, **kwargs):
 
 def stn_grid_transform_inv(transform, x, quat=False, **kwargs):
     def tmp(v):
-        from .rotation import transform_grid, transform_vec_grid, rotate_grid, rotate_vec_grid
+        from neuralparticles.tensorflow.tools.rotation import transform_grid, transform_vec_grid, rotate_grid, rotate_vec_grid
+        from neuralparticles.tensorflow.tools.quaternion import quaternion_conj
         import tensorflow as tf
         if len(v[0].get_shape()) < 4:
             return rotate_grid(v[0],quaternion_conj(v[1])) if quat else transform_grid(v[0],tf.matrix_inverse(v[1]))

@@ -120,17 +120,13 @@ def get_positions(particle_data, sdf, patch_size, surface=1.0, bnd=0):
     positions = particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]), surface)[0]]
     return positions
 
-def get_data(prefix, par_aux=[], grid_aux=[]):
-    grid_aux_data = {}
+def get_data(prefix, par_aux=[]):
     par_aux_data = {}
-
-    for v in grid_aux:
-        grid_aux_data[v] = readUni((prefix+"_%s.uni")%v)[1]
 
     for v in par_aux:
         par_aux_data[v] = readParticles((prefix+"_p%s.uni")%v, "float32")[1]
         
-    return readParticles(prefix + "_ps.uni")[1], readUni(prefix + "_sdf.uni")[1], par_aux_data, grid_aux_data
+    return readParticles(prefix + "_ps.uni")[1], readUni(prefix + "_sdf.uni")[1], par_aux_data
 
 def load_patches_from_file(data_path, config_path):
     with open(config_path, 'r') as f:
@@ -232,9 +228,8 @@ def get_data_pair(data_path, config_path, dataset, timestep, var):
     print(path_ref)
     
     features = train_config['features'][1:]
-    use_particles = train_config['explicit'] != 0
 
-    return get_data(path_src%(dataset,var,timestep),grid_aux=features if not use_particles else [], par_aux=features if use_particles else []), get_data(path_ref%(dataset,timestep))[:2]
+    return get_data(path_src%(dataset,var,timestep), par_aux=features), get_data(path_ref%(dataset,timestep))[:2]
 
 def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0, t_start=0):
     with open(config_path, 'r') as f:

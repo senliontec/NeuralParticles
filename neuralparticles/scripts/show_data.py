@@ -39,42 +39,44 @@ with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
 with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
     train_config = json.loads(f.read())
 
+if manta_path != "":
+    param = {}
 
-param = {}
+    res = data_config['res']
+    if data_type == "ref":
+        data_path += "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
+        param['in'] = data_path + "_%03d_ps.uni"
+        param['sdf'] = data_path + "_%03d_sdf.uni"
+    elif data_type == "real":
+        data_path += "real/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
+        res = int(res/math.sqrt(pre_config['factor']))
+        param['in'] = data_path + "_%03d_ps.uni"
+        param['sdf'] = data_path + "_%03d_sdf.uni"
+    elif data_type == "src":
+        data_path += "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
+        res = int(res/math.sqrt(pre_config['factor']))
+        param['in'] = data_path + "_%03d_ps.uni"
+        param['sdf'] = data_path + "_%03d_sdf.uni"
+    elif data_type == "res":
+        data_path += "result/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
+        param['in' if train_config['explicit'] else 'sdf'] = data_path + "_%03d_result.uni"
+    elif data_type == "res_real":
+        data_path += "result/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
+        param['in' if train_config['explicit'] else 'sdf'] = data_path + "_%03d_result.uni"
+    else:
+        print("data type not supported!")
+        exit()
 
-res = data_config['res']
-if data_type == "ref":
-    data_path += "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
-    param['in'] = data_path + "_%03d_ps.uni"
-    param['sdf'] = data_path + "_%03d_sdf.uni"
-elif data_type == "real":
-    data_path += "real/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
-    res = int(res/math.sqrt(pre_config['factor']))
-    param['in'] = data_path + "_%03d_ps.uni"
-    param['sdf'] = data_path + "_%03d_sdf.uni"
-elif data_type == "src":
-    data_path += "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
-    res = int(res/math.sqrt(pre_config['factor']))
-    param['in'] = data_path + "_%03d_ps.uni"
-    param['sdf'] = data_path + "_%03d_sdf.uni"
-elif data_type == "res":
-    data_path += "result/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
-    param['in' if train_config['explicit'] else 'sdf'] = data_path + "_%03d_result.uni"
-elif data_type == "res_real":
-    data_path += "result/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
-    param['in' if train_config['explicit'] else 'sdf'] = data_path + "_%03d_result.uni"
+    if t_start < 0:
+        t_start = train_config['t_start']
+    if t_end < 0:
+        t_end = train_config['t_end']
+
+    param['t_start'] = t_start
+    param['t_end'] = t_end
+    param['res'] = res
+    param['scr'] = scr
+
+    run_manta(manta_path, "scenes/show_particles.py", param, verbose)
 else:
-    print("data type not supported!")
-    exit()
-
-if t_start < 0:
-    t_start = train_config['t_start']
-if t_end < 0:
-    t_end = train_config['t_end']
-
-param['t_start'] = t_start
-param['t_end'] = t_end
-param['res'] = res
-param['scr'] = scr
-
-run_manta(manta_path, "scenes/show_particles.py", param, verbose)
+    

@@ -9,10 +9,16 @@ import matplotlib.pyplot as plt
 
 import keras
 from keras.models import Model, load_model
+import keras.backend as K
 
-from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair
+from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tools.uniio import writeParticles
+from neuralparticles.tools.uniio import writeParticles, writeNumpyRaw
+
+from neuralparticles.tools.plot_helpers import plot_particles, write_csv
+
+from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
+from neuralparticles.tensorflow.losses.tf_nndistance import chamfer_loss
 
 import json
 #from uniio import *
@@ -20,7 +26,6 @@ import json
 import math
 import numpy as np
 
-src_path = getParam("src", "")
 t_start = int(getParam("t_start", -1))
 t_end = int(getParam("t_end", -1))
 dst_path = getParam("dst", "")
@@ -35,8 +40,17 @@ checkpoint = int(getParam("checkpoint", -1))
 
 checkUnusedParams()
 
-if dst_path == "" and not os.path.exists(data_path + "result"):
+if not os.path.exists(data_path + "result"):
 	os.makedirs(data_path + "result")
+
+if not os.path.exists(data_path + "result/npy"):
+	os.makedirs(data_path + "result/npy")
+
+if not os.path.exists(data_path + "result/csv"):
+	os.makedirs(data_path + "result/csv")
+
+if not os.path.exists(data_path + "result/pdf"):
+	os.makedirs(data_path + "result/pdf")
 
 with open(config_path, 'r') as f:
     config = json.loads(f.read())
@@ -60,17 +74,29 @@ if verbose:
 if dataset < 0:
     dataset = int(data_config['data_count']*train_config['train_split'])
 
-if src_path == "":
-    src_path = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d"
+file_name = "%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
 if dst_path == "":
-    dst_path = data_path + "result/%s_result.uni" % os.path.basename(src_path)
+    dst_path = data_path + "result/%s_result"%file_name + "_%03d.uni"
 if t_start < 0:
     t_start = train_config['t_start']
 if t_end < 0:
     t_end = train_config['t_end']
 
+npy_path = data_path + "result/npy/%s"%file_name
+pdf_path = data_path + "result/pdf/%s"%file_name
+csv_path = data_path + "result/csv/%s"%file_name
+
+def write_out_particles(particles, t, suffix, xlim=None, ylim=None, s=1):
+    writeNumpyRaw((npy_path + suffix + "_%03d")%t, particles)
+    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.png")%t)
+    write_csv((csv_path + suffix + "_%03d.csv")%t, particles)
+
+def write_out_vel(particles, vel, t, suffix, xlim=None, ylim=None, s=1):
+    writeNumpyRaw((npy_path + suffix + "_%03d")%t, vel)
+    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.png")%t, src=particles, vel=vel)
+    write_csv((csv_path + suffix + "_%03d.csv")%t, vel)
+
 if verbose:
-    print(src_path)
     print(dst_path)
     print(t_start)
     print(t_end)
@@ -83,10 +109,8 @@ if loss_mode == 'hungarian_loss':
     from neuralparticles.tensorflow.losses.hungarian_loss import hungarian_loss
     particle_loss = hungarian_loss
 elif loss_mode == 'emd_loss':
-    from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
     particle_loss = emd_loss
 elif loss_mode == 'chamfer_loss':
-    from neuralparticles.tensorflow.losses.tf_nndistance import chamfer_loss
     particle_loss = chamfer_loss
 else:
     print("No matching loss specified! Fallback to MSE loss.")
@@ -108,20 +132,58 @@ features = train_config['features'][1:]
 if checkpoint > 0:
     model_path = data_path + "models/checkpoints/%s_%s_%04d.h5" % (data_config['prefix'], config['id'], checkpoint)
 else:
-    model_path = data_path + "models/%s_%s.h5" % (data_config['prefix'], config['id'])
+    model_path = data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id'])
 
 model = load_model(model_path, custom_objects={loss_mode: particle_loss})
 
-for t in range(t_start, t_end):
-    (src_data, sdf_data), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
+avg_chamfer_loss = 0
+avg_emd_loss = 0
 
-    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], 4)
+for t in range(t_start, t_end):
+    (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
+
+    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux)
+
+    write_out_particles(patch_extractor.positions, t, "_pos", [0,low_res], [0,low_res], 0.1)
+
+    src_accum = np.empty((0,3))
+    ref_accum = np.empty((0,3))
+    res_accum = np.empty((0,3))
+    
+    src_patches = np.empty((0,par_cnt,3))
+    ref_patches = np.empty((0,par_cnt_dst,3))
+    res_patches = np.empty((0,par_cnt_dst,3))
+    vel_patches = np.empty((0,par_cnt_dst,3))
+
+    patch_pos = np.empty((0,3))
+    
     while(True):
-        src = patch_extractor.get_patch()
+        src, aux = patch_extractor.get_patch()
         if src is None:
             break
-        patch_extractor.set_patch(model.predict(x=np.array([src]))[0])
-    result = patch_extractor.data
+        nn_src = [np.array([src])]
+        if len(features) > 0:
+            nn_src.append(np.array([np.concatenate([aux[f] for f in features])]))
+
+        result = model.predict(x=nn_src)[0]
+        patch_extractor.set_patch(result)
+
+        ref = extract_particles(ref_data, patch_extractor.last_pos*factor_2D, par_cnt_dst, ref_patch_size)[0]
+
+        src_accum = np.concatenate((src_accum, patch_extractor.transform_patch(src)))
+        ref_accum = np.concatenate((ref_accum, patch_extractor.transform_patch(ref)*factor_2D))
+        res_accum = np.concatenate((res_accum, patch_extractor.transform_patch(result)*factor_2D))
+
+        src_patches = np.concatenate((src_patches, np.array([src])))
+        ref_patches = np.concatenate((ref_patches, np.array([ref])))
+        res_patches = np.concatenate((res_patches, np.array([result])))
+
+        if 'v' in features:
+            vel_patches = np.concatenate((vel_patches, np.array([aux['v']])))
+
+        patch_pos = np.concatenate((patch_pos, np.array([patch_extractor.last_pos])))
+
+    result = patch_extractor.data*factor_2D
     
     hdr = OrderedDict([ ('dim',len(result)),
                         ('dimX',res),
@@ -132,3 +194,36 @@ for t in range(t_start, t_end):
                         ('info',b'\0'*256),
                         ('timestamp',(int)(time.time()*1e6))])
     writeParticles(dst_path%t, hdr, result)
+
+    writeNumpyRaw(npy_path + "_src_patches_%03d"%t, src_patches)
+    writeNumpyRaw(npy_path + "_ref_patches_%03d"%t, ref_patches)
+    writeNumpyRaw(npy_path + "_res_patches_%03d"%t, res_patches)
+    writeNumpyRaw(npy_path + "_patch_pos_%03d"%t, patch_pos)
+
+    write_out_particles(src_data, t, "_src", [0,low_res], [0,low_res], 0.1)
+    write_out_particles(ref_data, t, "_ref", [0,res], [0,res], 0.1)
+    write_out_particles(result, t, "_res", [0,res], [0,res], 0.1)
+    if 'v' in features:
+        writeNumpyRaw(npy_path + "_vel_patches_%03d"%t, vel_patches)
+        write_out_vel(src_data, par_aux['v']/1000, t, "_vel", [0,low_res],[0,low_res], 0.1)
+
+    min_cnt = min(len(ref_accum), len(res_accum))
+    np.random.shuffle(ref_accum)
+    np.random.shuffle(res_accum)
+    ref_accum = K.constant(np.array([ref_accum[:min_cnt]]))
+    res_accum = K.constant(np.array([res_accum[:min_cnt]]))
+
+    print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), (len(patch_extractor.data/len(src_data)))))
+
+    call_f = lambda f,x,y: K.eval(f(x,y))[0]
+    loss = call_f(chamfer_loss, ref_accum, res_accum)
+    avg_chamfer_loss += loss
+    print("global chamfer loss: %f" % loss)
+    loss = call_f(emd_loss, ref_accum, res_accum)
+    avg_emd_loss += loss
+    print("global emd loss: %f" % loss)
+
+print("avg chamfer loss: %f" % (avg_chamfer_loss/(t_end-t_start)))
+print("avg emd loss: %f" % (avg_emd_loss/(t_end-t_start)))
+
+
