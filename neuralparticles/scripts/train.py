@@ -70,7 +70,7 @@ if verbose:
 
 features = train_config['features']
 feature_cnt = len(features)
-if 'vel' in features:
+if 'v' in features:
     feature_cnt += 2
 print("feature_count: %d" % feature_cnt)
 
@@ -119,7 +119,7 @@ if start_checkpoint == 0:
     particle_cnt_dst = pre_config['par_cnt_ref']
 
     inputs = [Input((particle_cnt_src,3), name='main_input')]
-    if feature_cnt > 0:
+    if feature_cnt > 1:
         aux_input = Input((particle_cnt_src, feature_cnt), name='aux_input')
         inputs.append(aux_input)
 
@@ -130,7 +130,7 @@ if start_checkpoint == 0:
 
     transformed = stn_transform(stn,inputs[0],quat=True, name='trans')
     
-    if feature_cnt > 0:
+    if feature_cnt > 1:
         if 'v' in features:
             aux_input = Lambda(lambda a: concatenate([stn_transform(stn, a[:,:,:3],quat=True),a[:,:,3:]], axis=-1), name='aux_trans')(aux_input)
         transformed = concatenate([transformed, aux_input], axis=-1)
