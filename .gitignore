@@ -5,3 +5,5 @@ build
 *.so
 doc
 2D_data
+
+neuralparticles/\.vscode/

@@ -24,7 +24,6 @@ from neuralparticles.tensorflow.tools.split_layer import *
 import numpy as np
 
 data_path = getParam("data", "data/")
-manta_path = getParam("manta", "manta/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 gpu = getParam("gpu", "")
