@@ -8,8 +8,10 @@ import json
 
 import math
 
+import tensorflow as tf
+
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tools.data_helpers import load_patches_from_file
+from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles
 
 import keras
 from keras.models import Model, Sequential, load_model
@@ -40,11 +42,19 @@ ref_path = data_path + "patches/reference/"
 
 model_path = data_path + "models/"
 if not os.path.exists(model_path):
-	os.makedirs(model_path)
+	os.mkdir(model_path)
 
 checkpoint_path = model_path + "checkpoints/"
 if not os.path.exists(checkpoint_path):
-	os.makedirs(checkpoint_path)
+	os.mkdir(checkpoint_path)
+
+tmp_folder = backupSources(data_path)
+tmp_model_path = tmp_folder + "models/"
+os.mkdir(tmp_model_path)
+tmp_checkpoint_path = tmp_model_path + "checkpoints/"
+os.mkdir(tmp_checkpoint_path)
+tmp_eval_path = tmp_folder + "eval/"
+os.mkdir(tmp_eval_path)
 
 if not gpu is "":
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu
@@ -68,6 +78,11 @@ if verbose:
     print(pre_config)
     print(train_config)
 
+# copy config files into tmp
+
+np.random.seed(data_config['seed'])
+tf.set_random_seed(data_config['seed'])
+
 features = train_config['features']
 feature_cnt = len(features)
 if 'v' in features:
@@ -76,11 +91,18 @@ print("feature_count: %d" % feature_cnt)
 
 patch_size = pre_config['patch_size']
 ref_patch_size = pre_config['patch_size_ref']
+par_cnt = pre_config['par_cnt']
+ref_par_cnt = pre_config['par_cnt_ref']
 
-model_path = '%s%s_%s' % (model_path, data_config['prefix'], config['id'])
-checkpoint_path = '%s%s_%s' % (checkpoint_path, data_config['prefix'], config['id'])
-print(model_path)
-fig_path = '%s_loss' % model_path
+factor_2D = math.sqrt(pre_config['factor'])
+
+hdim = data_config['res']
+dim = int(hdim/factor_2D)
+
+tmp_model_path = '%s%s_%s' % (tmp_model_path, data_config['prefix'], config['id'])
+tmp_checkpoint_path = '%s%s_%s' % (tmp_checkpoint_path, data_config['prefix'], config['id'])
+print(tmp_model_path)
+fig_path = '%s_loss' % tmp_model_path
 
 src_path = "%s%s_%s-%s" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_pvar%02d_%03d"
 ref_path = "%s%s_%s-%s" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_pvar%02d_%03d"
@@ -170,7 +192,7 @@ if start_checkpoint == 0:
     model = Model(inputs=inputs, outputs=out)
     model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=learning_rate))
 
-    model.save(model_path + '.h5')
+    model.save(tmp_model_path + '.h5')
     
     if verbose: 
         model.summary()
@@ -221,7 +243,7 @@ if start_checkpoint == 0:
         discriminator = Model(inputs=disc_input, outputs=x)
         discriminator.compile(loss='binary_crossentropy', optimizer=keras.optimizers.adam(lr=learning_rate), metrics=['accuracy'])
 
-        discriminator.save(model_path + '_dis.h5')
+        discriminator.save(tmp_model_path + '_dis.h5')
 
         if verbose: 
             discriminator.summary()
@@ -235,7 +257,25 @@ else:
 
 
 print("Load Training Data")
+
 src_data, ref_data, src_rot_data, ref_rot_data = load_patches_from_file(data_path, config_path)
+
+idx = np.arange(src_data[0].shape[0])
+np.random.shuffle(idx)
+src_data = [s[idx] for s in src_data]
+ref_data = [r[idx] for r in ref_data]
+src_rot_data = src_rot_data[idx]
+ref_rot_data = ref_rot_data[idx]
+
+print("Load Eval Data")
+eval_dataset = 18
+eval_t = 10
+eval_var = 0
+eval_patch = 5
+(eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset, eval_t, eval_var) 
+patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features)
+eval_src_patch = patch_extractor.get_patch_idx(eval_patch)
+eval_ref_patch = extract_particles(eval_ref_data, patch_extractor.positions[eval_patch] * factor_2D, ref_par_cnt, ref_patch_size)[0]
 
 '''gen_patches(data_path, config_path, 
     int(data_config['data_count']*train_config['train_split']), train_config['t_end'], 
@@ -260,6 +300,35 @@ class NthLogger(keras.callbacks.Callback):
             model.save(path)
             print('Saved Checkpoint: %s' % path)
 
+class EvalCallback(keras.callbacks.Callback):
+    def __init__(self, path, model, src, ref):
+        self.path = path
+        self.model = model
+        self.src = src
+        self.ref = ref
+    
+    def on_epoch_end(self,ep,logs={}):
+        print("Eval Patch")
+        result = self.model.predict(self.src)[0]
+        plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=self.path%ep, ref=self.ref)
+
+class EvalCompleteCallback(keras.callbacks.Callback):
+    def __init__(self, path, model, patch_extractor, ref):
+        self.path = path
+        self.model = model
+        self.patch_extractor = patch_extractor
+        self.ref = ref
+    
+    def on_epoch_end(self,ep,logs={}):
+        print("Eval")
+        while(True):
+            src = self.patch_extractor.get_patch()
+            if src is None:
+                break
+            result = self.model.predict(x=src)[0]
+            self.patch_extractor.set_patch(result)
+        plot_particles(self.patch_extractor.data * factor_2D, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=self.path%ep, ref=self.ref)
+        patch_extractor.reset()
 
 print("Start Training")
 
@@ -269,7 +338,8 @@ if pre_train_stn:
     trans_input = model.get_layer("trans")([inputs, stn(inputs)])
     inter_model = Model(inputs=inputs, outputs=trans_input)
     inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
-    inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['epochs'],batch_size=train_config['batch_size'])
+    inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['epochs'],batch_size=train_config['batch_size'], 
+        verbose=1, callbacks=[EvalCallback(tmp_eval_path + "inter_eval_patch_%03d", inter_model, eval_src_patch, eval_ref_patch)])
     stn.trainable = False        
     model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
     if train_config["adv_fac"] > 0:
@@ -286,9 +356,11 @@ if train_config["adv_fac"] <= 0.:
 
     history = model.fit(x=src_data,y=ref_data, validation_split=val_split, 
                         epochs=train_config['epochs'] - start_checkpoint*checkpoint_interval, batch_size=train_config['batch_size'], 
-                        verbose=1, callbacks=[NthLogger(log_interval, checkpoint_interval, checkpoint_path, start_checkpoint*checkpoint_interval)])
+                        verbose=1, callbacks=[NthLogger(log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
+                                              EvalCallback(tmp_eval_path + "eval_patch_%03d", model, eval_src_patch, eval_ref_patch),
+                                              EvalCompleteCallback(tmp_eval_path + "eval_%03d", model, patch_extractor, eval_ref_data)])
 
-    m_p = "%s_trained.h5" % model_path
+    m_p = "%s_trained.h5" % tmp_model_path
     model.save(m_p)
     print("Saved Model: %s" % m_p)
 
@@ -401,14 +473,14 @@ else:
             print ("\teval.: [D loss: %f, acc.: %.2f%%] [G loss: %f, mse: %f, adv: %f]" % (d_val_loss[0], 100*d_val_loss[1], g_val_loss[0], g_val_loss[1], g_val_loss[2]))
         
         if (ep+1) % checkpoint_interval == 0:
-            path = "%s_%04d.h5" % (checkpoint_path, (ep+1)//checkpoint_interval)
+            path = "%s_%04d.h5" % (tmp_checkpoint_path, (ep+1)//checkpoint_interval)
             generator.save(path)
             print('Saved Generator Checkpoint: %s' % path)
-            path = "%s_%04d_dis.h5" % (checkpoint_path, (ep+1)//checkpoint_interval)
+            path = "%s_%04d_dis.h5" % (tmp_checkpoint_path, (ep+1)//checkpoint_interval)
             discriminator.save(path)
             print('Saved Generator Checkpoint: %s' % path)
 
-    gen_p = "%s_trained.h5" % model_path
+    gen_p = "%s_trained.h5" % tmp_model_path
     generator.save(gen_p)
     print("Saved Model: %s" % gen_p)
 
@@ -437,3 +509,12 @@ else:
 
     plt.savefig(fig_path+"_dis.png")
     plt.savefig(fig_path+"_dis.pdf")
+
+while(True):
+    char = input("\nTrained Model only saved temporarily, do you want to save it? [y/n]\n")
+    if char == "y" or char == "Y":
+        from distutils.dir_util import copy_tree
+        copy_tree(os.path.dirname(tmp_model_path), model_path)
+        break
+    elif char == "n" or char == "N":
+        break

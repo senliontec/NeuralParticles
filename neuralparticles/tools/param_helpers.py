@@ -5,6 +5,7 @@
 import sys
 import os
 import shutil
+import datetime
 
 # global for checking used params
 paramUsed = []
@@ -34,7 +35,7 @@ def checkUnusedParams():
 	if err:
 		exit(1);
 
-def backupSources(name):
+'''def backupSources(name):
 	#return; # off
 	# save scene file
 	#shutil.copyfile( sceneSrcFile, '%s_source.py' % (name) )
@@ -46,10 +47,31 @@ def backupSources(name):
 	callfile.write("\n");
 	callfile.write(str(" ".join(sys.argv) ) );
 	callfile.write("\n\n");
-	callfile.close();
+	callfile.close();'''
 
 # ======================================================================================================================
 # others / directory handling
+
+# copies files and config_files into a temporary folder
+# returns the path to the temporary folder
+def backupSources(data_path):
+	tmp_path = data_path + "tmp/"
+	if not os.path.exists(tmp_path):
+		os.mkdir(tmp_path)
+	tmp_path += datetime.datetime.now().isoformat() + "/"
+	os.mkdir(tmp_path)
+
+	print("temporary folder: %s" % tmp_path)
+
+	shutil.copytree("config", tmp_path + "config")
+	shutil.copytree(os.path.dirname(sys.argv[0]), tmp_path + "scripts")
+
+	shutil.copy(sys.argv[0], tmp_path)
+	
+	with open(tmp_path + "call.txt", 'w') as callfile:
+		callfile.write(str(" ".join(sys.argv)))
+
+	return tmp_path
 
 
 # search & create next output dir

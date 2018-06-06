@@ -290,32 +290,54 @@ def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0,
 
 
 class PatchExtractor:
-    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=0, bnd=0, aux_data={}):
+    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=0, bnd=0, aux_data={}, features=[]):
         self.src_data = src_data
-        self.data = src_data.copy()
-        self.positions = get_positions(src_data, np.squeeze(sdf_data), patch_size, surface, bnd)
-        np.random.shuffle(self.positions)
-        self.last_pos = None
         self.radius = patch_size/2
         self.cnt = cnt
         self.stride = stride if stride > 0 else self.radius
         self.aux_data = aux_data
+        self.features = features
+
+        self.pos_backup = get_positions(src_data, np.squeeze(sdf_data), patch_size, surface, bnd)
+        np.random.shuffle(self.pos_backup)
+
+        self.reset()
     
+    def reset(self):
+        self.data = self.src_data.copy()
+        self.positions = self.pos_backup
+        self.last_pos = None
+
     def transform_patch(self, patch):
         return np.add(patch * self.radius, self.last_pos)
 
     def inv_transform_patch(self, patch):
         return np.subtract(patch, self.last_pos) / self.radius
 
+    def get_patch_idx(self, idx):
+        if len(self.positions) <= idx:
+            return None
+        
+        patch, aux = extract_particles(self.src_data, self.positions[idx], self.cnt, self.radius, self.aux_data)
+
+        if len(aux) > 0:
+            return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features])])]
+        else:
+            return [np.array([patch])]
+
     def get_patch(self):
         if len(self.positions) == 0:
-            return None, None
+            return None
 
         self.last_pos = self.positions[0]
         self.positions = remove_particles(self.positions, self.last_pos, self.stride)[0]
         self.data = remove_particles(self.data, self.last_pos, self.stride)[0]
         patch, aux = extract_particles(self.src_data, self.last_pos, self.cnt, self.radius, self.aux_data)
-        return patch, aux
+
+        if len(aux) > 0:
+            return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features])])]
+        else:
+            return [np.array([patch])]
 
     def set_patch(self, patch):
         self.data = np.concatenate((self.data, self.transform_patch(patch)))

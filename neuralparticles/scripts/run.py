@@ -142,7 +142,7 @@ avg_emd_loss = 0
 for t in range(t_start, t_end):
     (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
 
-    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux)
+    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features)
 
     write_out_particles(patch_extractor.positions, t, "_pos", [0,low_res], [0,low_res], 0.1)
 
@@ -158,28 +158,25 @@ for t in range(t_start, t_end):
     patch_pos = np.empty((0,3))
     
     while(True):
-        src, aux = patch_extractor.get_patch()
+        src = patch_extractor.get_patch()
         if src is None:
             break
-        nn_src = [np.array([src])]
-        if len(features) > 0:
-            nn_src.append(np.array([np.concatenate([aux[f] for f in features])]))
 
-        result = model.predict(x=nn_src)[0]
+        result = model.predict(x=src)[0]
         patch_extractor.set_patch(result)
 
         ref = extract_particles(ref_data, patch_extractor.last_pos*factor_2D, par_cnt_dst, ref_patch_size)[0]
 
-        src_accum = np.concatenate((src_accum, patch_extractor.transform_patch(src)))
+        src_accum = np.concatenate((src_accum, patch_extractor.transform_patch(src[0][0])))
         ref_accum = np.concatenate((ref_accum, patch_extractor.transform_patch(ref)*factor_2D))
         res_accum = np.concatenate((res_accum, patch_extractor.transform_patch(result)*factor_2D))
 
-        src_patches = np.concatenate((src_patches, np.array([src])))
+        src_patches = np.concatenate((src_patches, np.array([src[0][0]])))
         ref_patches = np.concatenate((ref_patches, np.array([ref])))
         res_patches = np.concatenate((res_patches, np.array([result])))
 
         if 'v' in features:
-            vel_patches = np.concatenate((vel_patches, np.array([aux['v']])))
+            vel_patches = np.concatenate((vel_patches, np.array([src[1][features.index('v')]])))
 
         patch_pos = np.concatenate((patch_pos, np.array([patch_extractor.last_pos])))
 
