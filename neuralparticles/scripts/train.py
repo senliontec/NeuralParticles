@@ -1,7 +1,7 @@
 import os
 
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import json
@@ -23,12 +23,19 @@ from keras import regularizers
 from neuralparticles.tensorflow.tools.spatial_transformer import *
 from neuralparticles.tensorflow.tools.split_layer import *
 
+from neuralparticles.tensorflow.tools.eval_helpers import *
+
 import numpy as np
 
 data_path = getParam("data", "data/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 gpu = getParam("gpu", "")
+
+eval_dataset = int(getParam("eval_d", 18))
+eval_t = int(getParam("eval_t", 10))
+eval_var = int(getParam("eval_v", 0))
+eval_patch_idx = int(getParam("eval_i", 8))
 
 log_interval = int(getParam("log_interval", 1))
 checkpoint_interval = int(getParam("checkpoint_interval", 1))
@@ -83,7 +90,7 @@ if verbose:
 np.random.seed(data_config['seed'])
 tf.set_random_seed(data_config['seed'])
 
-features = train_config['features']
+features = train_config['features'][1:]
 feature_cnt = len(features)
 if 'v' in features:
     feature_cnt += 2
@@ -141,7 +148,7 @@ if start_checkpoint == 0:
     particle_cnt_dst = pre_config['par_cnt_ref']
 
     inputs = [Input((particle_cnt_src,3), name='main_input')]
-    if feature_cnt > 1:
+    if feature_cnt > 0:
         aux_input = Input((particle_cnt_src, feature_cnt), name='aux_input')
         inputs.append(aux_input)
 
@@ -152,7 +159,7 @@ if start_checkpoint == 0:
 
     transformed = stn_transform(stn,inputs[0],quat=True, name='trans')
     
-    if feature_cnt > 1:
+    if feature_cnt > 0:
         if 'v' in features:
             aux_input = Lambda(lambda a: concatenate([stn_transform(stn, a[:,:,:3],quat=True),a[:,:,3:]], axis=-1), name='aux_trans')(aux_input)
         transformed = concatenate([transformed, aux_input], axis=-1)
@@ -196,6 +203,7 @@ if start_checkpoint == 0:
     
     if verbose: 
         model.summary()
+        stn_model.summary()
         
     if train_config["adv_fac"] > 0.:
         generator = model
@@ -260,22 +268,19 @@ print("Load Training Data")
 
 src_data, ref_data, src_rot_data, ref_rot_data = load_patches_from_file(data_path, config_path)
 
+print(src_data[0].shape)
 idx = np.arange(src_data[0].shape[0])
 np.random.shuffle(idx)
 src_data = [s[idx] for s in src_data]
-ref_data = [r[idx] for r in ref_data]
+ref_data = ref_data[idx]
 src_rot_data = src_rot_data[idx]
 ref_rot_data = ref_rot_data[idx]
 
 print("Load Eval Data")
-eval_dataset = 18
-eval_t = 10
-eval_var = 0
-eval_patch = 5
 (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset, eval_t, eval_var) 
 patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features)
-eval_src_patch = patch_extractor.get_patch_idx(eval_patch)
-eval_ref_patch = extract_particles(eval_ref_data, patch_extractor.positions[eval_patch] * factor_2D, ref_par_cnt, ref_patch_size)[0]
+eval_src_patch = patch_extractor.get_patch_idx(eval_patch_idx)
+eval_ref_patch = extract_particles(eval_ref_data, patch_extractor.positions[eval_patch_idx] * factor_2D, ref_par_cnt, ref_patch_size)[0]
 
 '''gen_patches(data_path, config_path, 
     int(data_config['data_count']*train_config['train_split']), train_config['t_end'], 
@@ -284,61 +289,14 @@ eval_ref_patch = extract_particles(eval_ref_data, patch_extractor.positions[eval
 #print("Source Data Shape: " + str(train_data.data[features[0]].shape))
 #print("Reference Data Shape: " + str(train_data.ref_data[features[0]].shape))
 
-class NthLogger(keras.callbacks.Callback):
-    def __init__(self,li=10,cpi=100,cpt_path="model", offset=0):
-        self.act = offset
-        self.li = li
-        self.cpi = cpi
-        self.cpt_path = cpt_path
-
-    def on_epoch_end(self,batch,logs={}):
-        self.act += 1
-        if self.act % self.li == 0 or self.act == 1:
-            print('%d/%d - loss: %f val_loss: %f' % (self.act, self.params['epochs'], logs['loss'], logs['val_loss']))
-        if self.act % self.cpi == 0:
-            path = "%s_%04d.h5" % (self.cpt_path, self.act//self.cpi)
-            model.save(path)
-            print('Saved Checkpoint: %s' % path)
-
-class EvalCallback(keras.callbacks.Callback):
-    def __init__(self, path, model, src, ref):
-        self.path = path
-        self.model = model
-        self.src = src
-        self.ref = ref
-    
-    def on_epoch_end(self,ep,logs={}):
-        print("Eval Patch")
-        result = self.model.predict(self.src)[0]
-        plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=self.path%ep, ref=self.ref)
-
-class EvalCompleteCallback(keras.callbacks.Callback):
-    def __init__(self, path, model, patch_extractor, ref):
-        self.path = path
-        self.model = model
-        self.patch_extractor = patch_extractor
-        self.ref = ref
-    
-    def on_epoch_end(self,ep,logs={}):
-        print("Eval")
-        while(True):
-            src = self.patch_extractor.get_patch()
-            if src is None:
-                break
-            result = self.model.predict(x=src)[0]
-            self.patch_extractor.set_patch(result)
-        plot_particles(self.patch_extractor.data * factor_2D, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=self.path%ep, ref=self.ref)
-        patch_extractor.reset()
-
 print("Start Training")
-
 if pre_train_stn:
     inputs = model.inputs[0]
     stn = model.get_layer("stn")
     trans_input = model.get_layer("trans")([inputs, stn(inputs)])
     inter_model = Model(inputs=inputs, outputs=trans_input)
     inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
-    inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['epochs'],batch_size=train_config['batch_size'], 
+    inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'], 
         verbose=1, callbacks=[EvalCallback(tmp_eval_path + "inter_eval_patch_%03d", inter_model, eval_src_patch, eval_ref_patch)])
     stn.trainable = False        
     model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
@@ -348,17 +306,17 @@ if pre_train_stn:
         trans_input = model.get_layer("disc_trans")([inputs, stn(inputs)])
         inter_model = Model(inputs=inputs, outputs=trans_input)
         inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
-        inter_model.fit(x=ref_data,y=ref_rot_data,epochs=train_config['epochs'],batch_size=train_config['batch_size'])
+        inter_model.fit(x=ref_data,y=ref_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'])
         stn.trainable = False        
 
 if train_config["adv_fac"] <= 0.:
     val_split = train_config['val_split']
 
     history = model.fit(x=src_data,y=ref_data, validation_split=val_split, 
-                        epochs=train_config['epochs'] - start_checkpoint*checkpoint_interval, batch_size=train_config['batch_size'], 
-                        verbose=1, callbacks=[NthLogger(log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
-                                              EvalCallback(tmp_eval_path + "eval_patch_%03d", model, eval_src_patch, eval_ref_patch),
-                                              EvalCompleteCallback(tmp_eval_path + "eval_%03d", model, patch_extractor, eval_ref_data)])
+                        epochs=epochs - start_checkpoint*checkpoint_interval, batch_size=train_config['batch_size'], 
+                        verbose=1, callbacks=[NthLogger(model, log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
+                                              EvalCallback(tmp_eval_path + "eval_patch_%03d", model, eval_src_patch, eval_ref_patch, features),
+                                              EvalCompleteCallback(tmp_eval_path + "eval_%03d", model, patch_extractor, eval_ref_data, factor_2D, hdim)])
 
     m_p = "%s_trained.h5" % tmp_model_path
     model.save(m_p)
@@ -376,8 +334,8 @@ if train_config["adv_fac"] <= 0.:
 else:
     # GAN
     z = [Input(shape=(particle_cnt_src,3), name='gan_input')]
-    if feature_cnt > 1:
-        z = np.append(z, [Input(shape=(particle_cnt_src,feature_cnt-1), name='gan_aux')])
+    if feature_cnt > 0:
+        z = np.append(z, [Input(shape=(particle_cnt_src,feature_cnt), name='gan_aux')])
 
     img = generator(z)
 
@@ -416,7 +374,7 @@ else:
     idx0, val_idx0 = np.split(idx0,[train_cnt])
     idx1, val_idx1 = np.split(idx1,[train_cnt])
 
-    for ep in range(start_checkpoint*checkpoint_interval,train_config['epochs']):    
+    for ep in range(start_checkpoint*checkpoint_interval,epochs):    
         # train
         np.random.shuffle(idx0)
         np.random.shuffle(idx1)
@@ -479,6 +437,10 @@ else:
             path = "%s_%04d_dis.h5" % (tmp_checkpoint_path, (ep+1)//checkpoint_interval)
             discriminator.save(path)
             print('Saved Generator Checkpoint: %s' % path)
+
+        print("Eval")
+        eval_patch(generator, eval_src_patch, tmp_eval_path + "eval_patch_%03d"%ep, eval_ref_patch, features)
+        eval_frame(generator, patch_extractor, factor_2D, "eval_%03d"%ep, patch_extractor.src_data, patch_extractor.aux_data, eval_ref_data, hdim)
 
     gen_p = "%s_trained.h5" % tmp_model_path
     generator.save(gen_p)

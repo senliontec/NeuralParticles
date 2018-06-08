@@ -89,8 +89,9 @@ def normals(sdf):
     y = np.expand_dims(y,axis=-1)
     g = np.concatenate([x,y],axis=-1)
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-    return np.nan_to_num(g/np.linalg.norm(g,axis=-1,keepdims=True))
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        result = np.nan_to_num(g/np.linalg.norm(g,axis=-1,keepdims=True))
+    return result
 
 def nor_func(sdf):
     nor = normals(sdf)
@@ -141,38 +142,61 @@ def load_patches_from_file(data_path, config_path):
     with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
         train_config = json.loads(f.read())
 
-    src_path = data_path + "patches/source/"
-    ref_path = data_path + "patches/reference/"
-
     features = train_config['features'][1:]
 
-    par_cnt = pre_config['par_cnt']
-    par_cnt_ref = pre_config['par_cnt_ref']
+    data_cnt = int(data_config['data_count'] * train_config['train_split'])
+    t_start = train_config['t_start']
+    t_end = train_config['t_end']
 
-    src = np.empty((0,par_cnt))
-    src_rot = np.empty((0,par_cnt))
-    ref = np.empty((0, par_cnt_ref))
-    ref_rot = np.empty((0, par_cnt_ref))
+    print("load %d dataset from timestep %d to %d" % (data_cnt, t_start, t_end))
 
-    path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'])
-    print(path)
-    src = [readNumpyRaw(path + 's')]
-    for f in features:
-        src.append(readNumpyRaw(path + f))
+    tmp_path = data_path + "tmp/patches_%s_d%03d_%03d-%03d_s%s/" % (os.path.splitext(os.path.basename(config_path))[0], data_cnt, t_start, t_end, ''.join(features))
+    if not os.path.exists(tmp_path):
+        src_path = data_path + "patches/source/"
+        ref_path = data_path + "patches/reference/"
 
-    path = "%s%s_%s-%s_p" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id'])
-    print(path)
-    ref = [readNumpyRaw(path + 's')]
-    for f in features:
-        ref.append(readNumpyRaw(path + f))
-    
-    path = "%s%s_%s-%s_rot_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'])
-    print(path)
-    src_rot = readNumpyRaw(path + 's')
-    
-    path = "%s%s_%s-%s_rot_p" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id'])
-    print(path)
-    ref_rot = readNumpyRaw(path + 's')
+        rot_src_path = "%s%s_%s-%s_rot_ps" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+        src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
+        rot_ref_path = "%s%s_%s-%s_rot_ps" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+        ref_path = "%s%s_%s-%s_ps" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+
+        par_cnt = pre_config['par_cnt']
+        par_cnt_ref = pre_config['par_cnt_ref']
+
+        src = [np.empty((0,par_cnt,3))]
+        if len(features) > 0:
+            src.append(np.empty((0,par_cnt,len(features) + 2 if 'v' in features else 0)))
+        src_rot = np.empty((0,par_cnt,3))
+        ref = np.empty((0, par_cnt_ref,3))
+        ref_rot = np.empty((0, par_cnt_ref,3))
+        
+        for d in range(data_cnt):
+            for t in range(t_start, t_end):
+                print("load patch: dataset: %03d timestep: %03d" % (d,t), end="\r", flush=True)
+                src[0] = np.append(src[0], readNumpyRaw(src_path % ('s',d,t)), axis=0)
+                if len(features) > 0:
+                    src[1] = np.append(src[1], np.concatenate([readNumpyRaw(src_path%(f,d,t)) for f in features], axis=-1), axis=0)
+                src_rot = np.append(src_rot, readNumpyRaw(rot_src_path%(d,t)), axis=0)
+                ref = np.append(ref,readNumpyRaw(ref_path%(d,t)), axis=0)
+                ref_rot = np.append(ref_rot,readNumpyRaw(rot_ref_path%(d,t)), axis=0)
+
+        print("\r", flush=True)
+        print("cache patch buffer")
+        os.makedirs(tmp_path)
+        writeNumpyRaw(tmp_path + "src", src[0])
+        if len(features) > 0:
+            writeNumpyRaw(tmp_path + "aux", src[1])
+        writeNumpyRaw(tmp_path + "ref", ref)
+        writeNumpyRaw(tmp_path + "src_rot", src_rot)
+        writeNumpyRaw(tmp_path + "ref_rot", ref_rot)
+    else:
+        print("found and loaded cached buffer file")
+        src = [readNumpyRaw(tmp_path + "src")]
+        if len(features) > 0:
+            src.append(readNumpyRaw(tmp_path + "aux"))
+        ref = readNumpyRaw(tmp_path + "ref")
+        src_rot = readNumpyRaw(tmp_path + "src_rot")
+        ref_rot = readNumpyRaw(tmp_path + "ref_rot")
 
     return src, ref, src_rot, ref_rot
 
@@ -231,7 +255,7 @@ def get_data_pair(data_path, config_path, dataset, timestep, var):
 
     return get_data(path_src%(dataset,var,timestep), par_aux=features), get_data(path_ref%(dataset,timestep))[:2]
 
-def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0, t_start=0):
+def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_stop=None, v_start=0, v_stop=None, pv_start=0, pv_stop=None, features=None):
     with open(config_path, 'r') as f:
         config = json.loads(f.read())
 
@@ -241,9 +265,6 @@ def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0,
     with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
         pre_config = json.loads(f.read())
 
-    with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
-        train_config = json.loads(f.read())
-
     fac_2d = math.sqrt(pre_config['factor'])
     patch_size = pre_config['patch_size']
     patch_size_ref = pre_config['patch_size_ref']
@@ -251,7 +272,16 @@ def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0,
     par_cnt = pre_config['par_cnt']
     par_cnt_ref = pre_config['par_cnt_ref']
 
-    features = train_config['features'][1:]
+    if d_stop is None:
+        d_stop = data_config['data_count']
+    if t_stop is None:
+        t_stop = data_config['frame_count']
+    if v_stop is None:
+        v_stop = pre_config['var']
+    if pv_stop is None:
+        pv_stop = pre_config['par_var']
+    if features is None:
+        features = ['v','d','p']
 
     # tolerance of surface
     surface = pre_config['surf']
@@ -271,15 +301,15 @@ def gen_patches(data_path, config_path, d_stop, t_stop, var, par_var, d_start=0,
     pos = np.empty([0, 3])
 
     for d in range(d_start, d_stop):
-        for v in range(var):
+        for v in range(v_start, v_stop):
             for t in range(t_start, t_stop):
-                for r in range(par_var):
+                for r in range(pv_start, pv_stop):
                     par, aux_par, par_rot, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, par_aux=features)
                     main = np.append(main, par, axis=0)
                     main_rot = np.append(main_rot, par_rot, axis=0)
                     pos = np.append(pos, positions, axis=0)
                     if len(features) > 0:
-                        tmp = np.concatenate([(aux_par[f]) for f in features])
+                        tmp = np.concatenate([(aux_par[f]) for f in features], axis=-1)
                         aux = tmp if aux is None else np.append(aux, tmp, axis=0)
 
                     par, aux_par, par_rot = load_patches(path_ref%(d,t), par_cnt_ref, patch_size_ref, positions=positions*fac_2d)[:3]
@@ -319,7 +349,6 @@ class PatchExtractor:
             return None
         
         patch, aux = extract_particles(self.src_data, self.positions[idx], self.cnt, self.radius, self.aux_data)
-
         if len(aux) > 0:
             return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features])])]
         else:
@@ -335,7 +364,7 @@ class PatchExtractor:
         patch, aux = extract_particles(self.src_data, self.last_pos, self.cnt, self.radius, self.aux_data)
 
         if len(aux) > 0:
-            return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features])])]
+            return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features],axis=-1)])]
         else:
             return [np.array([patch])]
 

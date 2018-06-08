@@ -276,7 +276,7 @@ while (s.timeTotal<t_end): # main loop
 		pT.save(path + "_pt.uni")
 		pV.save(path + "_pv.uni")
 		pD.save(path + "_pd.uni")
-		pP.save(path + "_pP.uni")
+		pP.save(path + "_pp.uni")
 
 		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
 		extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)

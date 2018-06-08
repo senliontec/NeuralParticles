@@ -15,26 +15,6 @@ if __name__ == "__main__":
     config_path = getParam("config", "config/version_00.txt")
     checkUnusedParams()
 
-    with open(config_path, 'r') as f:
-        config = json.loads(f.read())
-
-    with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
-        data_config = json.loads(f.read())
-
-    with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
-        pre_config = json.loads(f.read())
-
-    with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
-        train_config = json.loads(f.read())
-
-    t_start = train_config['t_start']
-    t_end = train_config['t_end']
-    var = pre_config['var']
-    repetitions = pre_config['par_var']
-    data_cnt = int(data_config['data_count'] * train_config['train_split'])
-
-    features = train_config['features'][1:]
-
     if not os.path.exists(data_path + "patches/"):
         os.makedirs(data_path + "patches/")
 
@@ -46,23 +26,36 @@ if __name__ == "__main__":
     if not os.path.exists(dst_path):
         os.makedirs(dst_path)
 
-    src, dst, rotated_src, rotated_dst, positions = gen_patches(data_path, config_path, data_cnt, t_end, var, repetitions, t_start=t_start)
+    with open(config_path, 'r') as f:
+        config = json.loads(f.read())
 
-    path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'])
-    print(path)
-    writeNumpyRaw(path + "s", src[0])
+    with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
+        data_config = json.loads(f.read())
 
-    for i in range(len(features)):
-        writeNumpyRaw(path + features[i], src[i+1])
-    
-    path = "%s%s_%s-%s_p" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id'])
-    print(path)
-    writeNumpyRaw(path + "s", dst)
-    
-    path = "%s%s_%s-%s_rot_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'])
-    print(path)
-    writeNumpyRaw(path + "s", rotated_src)
+    with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
+        pre_config = json.loads(f.read())
 
-    path = "%s%s_%s-%s_rot_p" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id'])
-    print(path)
-    writeNumpyRaw(path + "s", rotated_dst)
+    data_cnt = data_config['data_count']
+    frame_cnt = data_config['frame_count']
+    features = ['v','d','p']
+
+    rot_src_path = "%s%s_%s-%s_rot_ps" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+    src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
+    rot_dst_path = "%s%s_%s-%s_rot_ps" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+    dst_path = "%s%s_%s-%s_ps" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+
+    for d in range(data_cnt):
+        for t in range(frame_cnt):
+            src, dst, rotated_src, rotated_dst, positions = gen_patches(data_path, config_path, d_start=d, d_stop=d+1, t_start=t, t_stop=t+1)
+            writeNumpyRaw(src_path % ('s',d,t), src[0])
+            i = 0
+            for f in features:
+                if f == 'v':
+                    writeNumpyRaw(src_path % (f,d,t), src[1][:,:,i:i+3])
+                    i+=3
+                else:
+                    writeNumpyRaw(src_path % (f,d,t), src[1][:,:,i:i+1])
+                    i+=1
+            writeNumpyRaw(rot_src_path % (d,t), rotated_src)
+            writeNumpyRaw(dst_path % (d,t), dst)
+            writeNumpyRaw(rot_dst_path % (d,t), rotated_dst)

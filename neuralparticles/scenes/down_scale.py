@@ -93,7 +93,7 @@ for i in range(t):
 	pT.load(path + "_pt.uni")
 	pV.load(path + "_pv.uni")
 	pD.load(path + "_pd.uni")
-	pP.load(path + "_pP.uni")
+	pP.load(path + "_pp.uni")
 
 	high_pp.load(path + "_ps.uni")
 
@@ -114,7 +114,7 @@ for i in range(t):
 		pp.save(path + "_ps.uni")
 		pV.save(path + "_pv.uni")
 		pD.save(path + "_pd.uni")
-		pP.save(path + "_pP.uni")
+		pP.save(path + "_pp.uni")
 
 		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
 

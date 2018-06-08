@@ -1,26 +1,26 @@
 from manta import *
-from tools.helpers import *
-paramUsed = []
+import tools.global_tools
+from param_helpers import *
 
 guion = True
 
-in_path = getParam("in", "", paramUsed)
-sdf_path = getParam("sdf", "", paramUsed)
+in_path = getParam("in", "")
+sdf_path = getParam("sdf", "")
 
-res  = int(getParam("res", 150, paramUsed))
-sres = int(getParam("sres", 2, paramUsed))
+res  = int(getParam("res", 150))
+sres = int(getParam("sres", 2))
 
-t = int(getParam("t", 50, paramUsed))
-t_start = int(getParam("t_start", 0, paramUsed))
-t_end = int(getParam("t_end", t, paramUsed))
+t = int(getParam("t", 50))
+t_start = int(getParam("t_start", 0))
+t_end = int(getParam("t_end", t))
 
 t = t_end - t_start
 
-screenshot = getParam("scr", "", paramUsed)
+screenshot = getParam("scr", "")
+
+checkUnusedParams()
 
 pause = screenshot == ""
-
-checkUnusedParam(paramUsed)
 
 gs = vec3(res, res, 1)
 

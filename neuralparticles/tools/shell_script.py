@@ -18,9 +18,12 @@ def run_manta(manta_path, scene, param={},verbose=False,logfile=""):
 
     proc = Popen(command, stdin=None, stdout=PIPE, stderr=PIPE)
 
-    if verbose:
-        for line in proc.stdout:
+    for line in proc.stdout:
+        if verbose:
             print(line.decode('utf-8'))
+        else:
+            line.decode('utf-8')
+
     for line in proc.stderr:
         print(line.decode('utf-8'))
 
