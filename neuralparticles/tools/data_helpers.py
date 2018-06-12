@@ -172,7 +172,7 @@ def load_patches_from_file(data_path, config_path):
         
         for d in range(data_cnt):
             for t in range(t_start, t_end):
-                print("load patch: dataset: %03d timestep: %03d" % (d,t), end="\r", flush=True)
+                print("load patch: datasets: %03d timestep: %03d" % (d,t), end="\r", flush=True)
                 src[0] = np.append(src[0], readNumpyRaw(src_path % ('s',d,t)), axis=0)
                 if len(features) > 0:
                     src[1] = np.append(src[1], np.concatenate([readNumpyRaw(src_path%(f,d,t)) for f in features], axis=-1), axis=0)

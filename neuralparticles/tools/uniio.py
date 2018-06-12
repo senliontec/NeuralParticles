@@ -21,6 +21,7 @@ import shutil
 from datetime import date
 from collections import namedtuple
 import numpy as np
+import h5py
 
 PY3K = sys.version_info >= (3, 0)
 
@@ -277,3 +278,28 @@ def writeNumpyRaw(filename, data):
 
 def readNumpyRaw(filename):
 	return readNumpy(filename + ".npy")
+
+def readNumpyXYZ(filename):
+	'''result = None
+	with open(filename + ".xyz", "r") as f:
+		for l in f.readlines():
+			pl = [float(el) for el in l.split(" ")]
+			if len(pl) >= 3:
+				result = np.array([pl]) if result is None else np.append(result, np.array([pl], axis=0))
+	return result'''
+	return np.loadtxt(filename)
+	
+def writeNumpyXYZ(filename, data):
+	with open(filename + ".xyz", "w") as f:
+		f.writelines(" ".join(str(el) for el in d) + "\n" for d in data)
+
+def readNumpyH5(filename, data_key):
+	with h5py.File(filename+'.h5', 'r') as f:
+		return f[data_key][:]
+
+def writeNumpyH5(filename, data, data_key):
+	with h5py.File(filename+'.h5', 'r+') as f:
+		if data_key in f.keys():
+			f[data_key][:] = data
+		else:
+			f.create_dataset(data_key, data=data)

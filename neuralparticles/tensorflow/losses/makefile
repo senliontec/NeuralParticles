@@ -1,4 +1,3 @@
-nvcc = /usr/local/cuda-9.0/bin/nvcc
 cudalib =  /usr/local/cuda-9.0/lib64
 EIGEN_INC = thirt_party/eigen3
 

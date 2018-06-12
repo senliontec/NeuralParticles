@@ -5,10 +5,11 @@ from neuralparticles.tools.param_helpers import *
 import random
 
 data_path = getParam("data", "data/")
-manta_path = getParam("manta", "manta/")
+manta_path = getParam("manta", "neuralparticles/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 gui = int(getParam("gui", 0))
+pause = int(getParam("pause", 0))
 
 checkUnusedParams()
 
@@ -40,6 +41,7 @@ param['sres'] = data_config['sub_res']
  
 param['factor'] = pre_config['factor']
 param['gui'] = gui
+param['pause'] = pause
 param['t'] = data_config['frame_count']
 param['min_n'] = pre_config['min_n']
 

@@ -161,7 +161,7 @@ if start_checkpoint == 0:
     
     if feature_cnt > 0:
         if 'v' in features:
-            aux_input = Lambda(lambda a: concatenate([stn_transform(stn, a[:,:,:3],quat=True),a[:,:,3:]], axis=-1), name='aux_trans')(aux_input)
+            aux_input = Lambda(lambda a: concatenate([stn_transform(stn, a[:,:,:3]/100,quat=True),a[:,:,3:]], axis=-1), name='aux_trans')(aux_input)
         transformed = concatenate([transformed, aux_input], axis=-1)
 
     x = [(Lambda(lambda v: v[:,i:i+1,:])(transformed)) for i in range(particle_cnt_src)]
@@ -268,7 +268,6 @@ print("Load Training Data")
 
 src_data, ref_data, src_rot_data, ref_rot_data = load_patches_from_file(data_path, config_path)
 
-print(src_data[0].shape)
 idx = np.arange(src_data[0].shape[0])
 np.random.shuffle(idx)
 src_data = [s[idx] for s in src_data]
@@ -282,24 +281,30 @@ patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_c
 eval_src_patch = patch_extractor.get_patch_idx(eval_patch_idx)
 eval_ref_patch = extract_particles(eval_ref_data, patch_extractor.positions[eval_patch_idx] * factor_2D, ref_par_cnt, ref_patch_size)[0]
 
-'''gen_patches(data_path, config_path, 
-    int(data_config['data_count']*train_config['train_split']), train_config['t_end'], 
-    pre_config['var'], pre_config['par_var'], t_start=train_config['t_start'])[:4]'''
-
-#print("Source Data Shape: " + str(train_data.data[features[0]].shape))
-#print("Reference Data Shape: " + str(train_data.ref_data[features[0]].shape))
+val_split = train_config['val_split']
 
 print("Start Training")
 if pre_train_stn:
-    inputs = model.inputs[0]
+    inputs = model.inputs
     stn = model.get_layer("stn")
-    trans_input = model.get_layer("trans")([inputs, stn(inputs)])
+    trans_input = model.get_layer("trans")([inputs[0], stn(inputs[0])])
     inter_model = Model(inputs=inputs, outputs=trans_input)
     inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
-    inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'], 
+    history = inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'], validation_split=val_split,
         verbose=1, callbacks=[EvalCallback(tmp_eval_path + "inter_eval_patch_%03d", inter_model, eval_src_patch, eval_ref_patch)])
     stn.trainable = False        
     model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
+
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'validation'], loc='upper left')
+
+    plt.savefig(fig_path+"_stn.png")
+    plt.savefig(fig_path+"_stn.pdf")
+
     if train_config["adv_fac"] > 0:
         inputs = discriminator.inputs[0]
         stn = model.get_layer("disc_stn")
@@ -307,10 +312,19 @@ if pre_train_stn:
         inter_model = Model(inputs=inputs, outputs=trans_input)
         inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
         inter_model.fit(x=ref_data,y=ref_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'])
-        stn.trainable = False        
+        stn.trainable = False  
+
+        plt.plot(history.history['loss'])
+        plt.plot(history.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'validation'], loc='upper left')
+
+        plt.savefig(fig_path+"_dis_stn.png")
+        plt.savefig(fig_path+"_dis_stn.pdf")      
 
 if train_config["adv_fac"] <= 0.:
-    val_split = train_config['val_split']
 
     history = model.fit(x=src_data,y=ref_data, validation_split=val_split, 
                         epochs=epochs - start_checkpoint*checkpoint_interval, batch_size=train_config['batch_size'], 

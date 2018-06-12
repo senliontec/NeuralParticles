@@ -9,7 +9,7 @@ import random
 import math
 
 data_path = getParam("data", "data/")
-manta_path = getParam("manta", "manta/")
+manta_path = getParam("manta", "neuralparticles/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 

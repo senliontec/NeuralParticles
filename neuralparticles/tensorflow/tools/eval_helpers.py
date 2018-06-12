@@ -11,7 +11,7 @@ def eval_patch(model, src, path="", ref=None, features=[]):
         for i in range(1,len(features)):
             if features[i] == 'v':
                 aux_src = src[1][:,_i:_i+3]
-                vel_src = aux_src
+                vel_src = aux_src/100
                 _i += 3
             else:
                 aux_src = src[1][:,_i:_i+1]
@@ -38,7 +38,7 @@ def eval_frame(model, patch_extractor, factor_2D, path="", src=None, aux=None, r
         for k in aux:
             aux_src = aux[k]
             if k == 'v':
-                vel_src = aux_src
+                vel_src = aux_src/100
             write_csv(path + "_%s.csv"%k, aux_src)
 
         plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".pdf", ref=ref, src=src*factor_2D, vel=vel_src)
