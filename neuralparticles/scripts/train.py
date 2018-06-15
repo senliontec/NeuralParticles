@@ -16,12 +16,12 @@ from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtr
 import keras
 from keras.models import Model, Sequential, load_model
 from keras.layers import Conv2D, Conv2DTranspose, BatchNormalization, Input, ZeroPadding2D, Dense, MaxPooling2D
-from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, Activation, Flatten, Lambda, Dropout
+from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, average, Activation, Flatten, Lambda, Dropout, Multiply
 from keras.layers.advanced_activations import LeakyReLU
 from keras import regularizers
 
 from neuralparticles.tensorflow.tools.spatial_transformer import *
-from neuralparticles.tensorflow.tools.split_layer import *
+from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
 
 from neuralparticles.tensorflow.tools.eval_helpers import *
 
@@ -103,6 +103,8 @@ ref_par_cnt = pre_config['par_cnt_ref']
 
 factor_2D = math.sqrt(pre_config['factor'])
 
+pad_val = -2.0
+
 hdim = data_config['res']
 dim = int(hdim/factor_2D)
 
@@ -132,6 +134,9 @@ elif loss_mode == 'chamfer_loss':
 else:
     print("No matching loss specified! Fallback to MSE loss.")
 
+def mask_loss(y_true, y_pred):
+    return particle_loss(y_true * zero_mask(y_true, pad_val), y_pred)
+
 if start_checkpoint == 0:
     print("Generate Network")
     
@@ -148,45 +153,60 @@ if start_checkpoint == 0:
     particle_cnt_dst = pre_config['par_cnt_ref']
 
     inputs = [Input((particle_cnt_src,3), name='main_input')]
+
+    mask = Lambda(lambda v: zero_mask(v, pad_val))(inputs[0])
+
+    x = Multiply()([inputs[0], mask])
+
     if feature_cnt > 0:
         aux_input = Input((particle_cnt_src, feature_cnt), name='aux_input')
         inputs.append(aux_input)
+        aux_input = Multiply()([aux_input, mask])
 
     stn_input = Input((particle_cnt_src,3))
     stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
     stn_model = Model(inputs=stn_input, outputs=stn, name="stn")
-    stn = stn_model(inputs[0])
+    stn = stn_model(x)
 
-    transformed = stn_transform(stn,inputs[0],quat=True, name='trans')
+    transformed = stn_transform(stn,x,quat=True, name='trans')
     
     if feature_cnt > 0:
         if 'v' in features:
             aux_input = Lambda(lambda a: concatenate([stn_transform(stn, a[:,:,:3]/100,quat=True),a[:,:,3:]], axis=-1), name='aux_trans')(aux_input)
         transformed = concatenate([transformed, aux_input], axis=-1)
 
-    x = [(Lambda(lambda v: v[:,i:i+1,:])(transformed)) for i in range(particle_cnt_src)]
+    x = [Lambda(lambda v: v[:,i,:])(transformed) for i in range(particle_cnt_src)]
 
-    x = split_layer(Dropout(dropout),x)
-    x = split_layer(Dense(fac, activation='tanh'),x)
-    x = split_layer(Dropout(dropout),x)
-    x = split_layer(Dense(fac, activation='tanh'),x)
+    x = list(map(Dropout(dropout),x))
+    x = list(map(Dense(fac, activation='tanh'),x))
+    x = list(map(Dropout(dropout),x))
+    x = list(map(Dense(fac, activation='tanh'),x))
 
+    x = list(map(Lambda(lambda v: K.expand_dims(v, axis=1)),x))
     x = concatenate(x, axis=1)
+
     x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x)
 
-    x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
+    x = [Lambda(lambda v: v[:,i,:])(x) for i in range(particle_cnt_src)]
 
-    x = split_layer(Dropout(dropout),x)
-    x = split_layer(Dense(fac, activation='tanh'),x)
-    x = split_layer(Dropout(dropout),x)
-    x = split_layer(Dense(fac*2, activation='tanh'),x)
-    x = split_layer(Dropout(dropout),x)
-    x = split_layer(Dense(k, activation='tanh'),x)
+    x = list(map(Dropout(dropout),x))
+    x = list(map(Dense(fac, activation='tanh'),x))
+    x = list(map(Dropout(dropout),x))
+    x = list(map(Dense(fac*2, activation='tanh'),x))
+    x = list(map(Dropout(dropout),x))
+    x = list(map(Dense(k, activation='tanh'),x))
+    
+    x = [Lambda(lambda v: v * mask[:,i])(x[i]) for i in range(particle_cnt_src)]
 
-    x = add(x)
+    latent = add(x)
 
-    x = Flatten()(x)
+    x = Dropout(dropout)(latent)
+    x = Dense(fac)(x)
     x = Dropout(dropout)(x)
+    trunc = Dense(1)(x)
+    out_mask = Lambda(lambda v: trunc_mask(v,particle_cnt_dst))(trunc)
+
+    x = Dropout(dropout)(latent)
     x = Dense(particle_cnt_dst, activation='tanh')(x)
     x = Dropout(dropout)(x)
     x = Dense(particle_cnt_dst, activation='tanh')(x)
@@ -196,8 +216,10 @@ if start_checkpoint == 0:
     inv_par_out = Reshape((particle_cnt_dst,3))(x)
     out = stn_transform_inv(stn,inv_par_out,quat=True)
 
-    model = Model(inputs=inputs, outputs=out)
-    model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=learning_rate))
+    #out = Multiply()([out, Reshape((particle_cnt_dst,1))(out_mask)])
+
+    model = Model(inputs=inputs, outputs=[out,trunc])
+    model.compile(loss=[mask_loss, 'mse'], optimizer=keras.optimizers.adam(lr=learning_rate), loss_weights=[1.0,0.0])
 
     model.save(tmp_model_path + '.h5')
     
@@ -219,22 +241,22 @@ if start_checkpoint == 0:
 
         x = [(Lambda(lambda v: v[:,i:i+1,:])(disc_transformed)) for i in range(particle_cnt_dst)]
 
-        x = split_layer(Dropout(dropout),x)
-        x = split_layer(Dense(fac, activation='tanh'),x)
-        x = split_layer(Dropout(dropout),x)
-        x = split_layer(Dense(fac, activation='tanh'),x)
+        x = list(map(Dropout(dropout),x))
+        x = list(map(Dense(fac, activation='tanh'),x))
+        x = list(map(Dropout(dropout),x))
+        x = list(map(Dense(fac, activation='tanh'),x))
 
         x = concatenate(x, axis=1)
         x = stn_transform(SpatialTransformer(x,particle_cnt_dst,fac,1),x)
 
         x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_dst)]
 
-        x = split_layer(Dropout(dropout),x)
-        x = split_layer(Dense(fac, activation='tanh'),x)
-        x = split_layer(Dropout(dropout),x)
-        x = split_layer(Dense(fac*2, activation='tanh'),x)
-        x = split_layer(Dropout(dropout),x)
-        x = split_layer(Dense(k, activation='tanh'),x)
+        x = list(map(Dropout(dropout),x))
+        x = list(map(Dense(fac, activation='tanh'),x))
+        x = list(map(Dropout(dropout),x))
+        x = list(map(Dense(fac*2, activation='tanh'),x))
+        x = list(map(Dropout(dropout),x))
+        x = list(map(Dense(k, activation='tanh'),x))
 
         x = add(x)
 
@@ -257,9 +279,9 @@ if start_checkpoint == 0:
             discriminator.summary()
 else:
     if train_config["adv_fac"] <= 0.:
-        model = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={loss_mode: particle_loss})
+        model = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={loss_mode: mask_loss})
     else:
-        generator = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={loss_mode: particle_loss})
+        generator = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={loss_mode: mask_loss})
         model = generator
         discriminator = load_model("%s_dis_%04d.h5" % (checkpoint_path, start_checkpoint))
 
@@ -281,19 +303,24 @@ patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_c
 eval_src_patch = patch_extractor.get_patch_idx(eval_patch_idx)
 eval_ref_patch = extract_particles(eval_ref_data, patch_extractor.positions[eval_patch_idx] * factor_2D, ref_par_cnt, ref_patch_size)[0]
 
+print("Eval trunc src: %.02f" % (np.count_nonzero(eval_src_patch[0][:,:,:1] != pad_val)/particle_cnt_src))
+print("Eval trunc ref: %.02f" % (np.count_nonzero(eval_ref_patch[:,:1] != pad_val)/particle_cnt_dst))
+
 val_split = train_config['val_split']
 
 print("Start Training")
-if pre_train_stn:
-    inputs = model.inputs
+if pre_train_stn and False:
+    inputs = model.inputs[0]
+    mask = Lambda(lambda v: zero_mask(v, pad_val))(inputs)
+    x = Multiply()([inputs,mask])
     stn = model.get_layer("stn")
-    trans_input = model.get_layer("trans")([inputs[0], stn(inputs[0])])
+    trans_input = model.get_layer("trans")([x, stn(x)])
     inter_model = Model(inputs=inputs, outputs=trans_input)
-    inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
-    history = inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'], validation_split=val_split,
+    inter_model.compile(loss=mask_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
+    history = inter_model.fit(x=src_data[0],y=src_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'], validation_split=val_split,
         verbose=1, callbacks=[EvalCallback(tmp_eval_path + "inter_eval_patch_%03d", inter_model, eval_src_patch, eval_ref_patch)])
     stn.trainable = False        
-    model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
+    model.compile(loss=mask_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
 
     plt.plot(history.history['loss'])
     plt.plot(history.history['val_loss'])
@@ -310,7 +337,7 @@ if pre_train_stn:
         stn = model.get_layer("disc_stn")
         trans_input = model.get_layer("disc_trans")([inputs, stn(inputs)])
         inter_model = Model(inputs=inputs, outputs=trans_input)
-        inter_model.compile(loss=particle_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
+        inter_model.compile(loss=mask_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
         inter_model.fit(x=ref_data,y=ref_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'])
         stn.trainable = False  
 
@@ -325,12 +352,12 @@ if pre_train_stn:
         plt.savefig(fig_path+"_dis_stn.pdf")      
 
 if train_config["adv_fac"] <= 0.:
-
-    history = model.fit(x=src_data,y=ref_data, validation_split=val_split, 
+    trunc_ref = np.count_nonzero(ref_data[:,:,:1] != pad_val, axis=1)/particle_cnt_dst
+    history = model.fit(x=src_data,y=[ref_data, trunc_ref], validation_split=val_split, 
                         epochs=epochs - start_checkpoint*checkpoint_interval, batch_size=train_config['batch_size'], 
-                        verbose=1, callbacks=[NthLogger(model, log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
-                                              EvalCallback(tmp_eval_path + "eval_patch_%03d", model, eval_src_patch, eval_ref_patch, features),
-                                              EvalCompleteCallback(tmp_eval_path + "eval_%03d", model, patch_extractor, eval_ref_data, factor_2D, hdim)])
+                        verbose=1)#, callbacks=[NthLogger(model, log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
+                                  #            EvalCallback(tmp_eval_path + "eval_patch_%03d", model, eval_src_patch, eval_ref_patch, features),
+                                  #            EvalCompleteCallback(tmp_eval_path + "eval_%03d", model, patch_extractor, eval_ref_data, factor_2D, hdim)])
 
     m_p = "%s_trained.h5" % tmp_model_path
     model.save(m_p)

@@ -58,10 +58,10 @@ elif data_type == "src":
     param['sdf'] = data_path + "_%03d_sdf.uni"
 elif data_type == "res":
     data_path += "result/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
-    param['in' if train_config['explicit'] else 'sdf'] = data_path + "_%03d_result.uni"
+    param['in' if train_config['explicit'] else 'sdf'] = data_path + "_result_%03d.uni"
 elif data_type == "res_real":
     data_path += "result/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
-    param['in' if train_config['explicit'] else 'sdf'] = data_path + "_%03d_result.uni"
+    param['in' if train_config['explicit'] else 'sdf'] = data_path + "_result_%03d.uni"
 else:
     print("data type not supported!")
     exit()

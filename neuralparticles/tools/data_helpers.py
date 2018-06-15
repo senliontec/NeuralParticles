@@ -12,71 +12,76 @@ import scipy
 from scipy import interpolate
 
 def particle_range(arr, pos, r):
-	return np.where(np.all(np.abs(np.subtract(arr,pos)) < r, axis=-1))[0]
+    return np.where(np.all(np.abs(np.subtract(arr,pos)) < r, axis=-1))[0]
 
 def particle_radius(arr, pos, radius):
-	return np.where(np.linalg.norm(np.subtract(arr,pos), axis=1) < radius)[0]
+    return np.where(np.linalg.norm(np.subtract(arr,pos), axis=1) < radius)[0]
 
 def insert_patch(data, patch, pos, func):
-	patch_size = patch.shape[0]//2
-	x0=int(pos[0])-patch_size
-	x1=int(pos[0])+patch_size+1
-	y0=int(pos[1])-patch_size
-	y1=int(pos[1])+patch_size+1
+    patch_size = patch.shape[0]//2
+    x0=int(pos[0])-patch_size
+    x1=int(pos[0])+patch_size+1
+    y0=int(pos[1])-patch_size
+    y1=int(pos[1])+patch_size+1
 
-	data[0,y0:y1,x0:x1] = func(data[0,y0:y1,x0:x1], patch)
+    data[0,y0:y1,x0:x1] = func(data[0,y0:y1,x0:x1], patch)
 
 def remove_particles(data, pos, constraint, aux_data={}):
-	par_idx = particle_radius(data, pos, constraint)
-	par_aux = {}
-	for k, v in aux_data.items():
-		par_aux[k] = np.delete(v, par_idx, axis=0)
-		
-	return np.delete(data, par_idx, axis=0), par_aux
+    par_idx = particle_radius(data, pos, constraint)
+    par_aux = {}
+    for k, v in aux_data.items():
+        par_aux[k] = np.delete(v, par_idx, axis=0)
+        
+    return np.delete(data, par_idx, axis=0), par_aux
 
 '''def extract_remove_particles(data, pos, cnt, constraint, aux_data={}):
-	par_idx = particle_radius(data, pos, constraint)
-	np.random.shuffle(par_idx)
-	par_idx = par_idx[:min(cnt,len(par_idx))]
+    par_idx = particle_radius(data, pos, constraint)
+    np.random.shuffle(par_idx)
+    par_idx = par_idx[:min(cnt,len(par_idx))]
 
-	par_pos = np.subtract(data[par_idx],pos)/constraint
-	data = np.delete(data, par_idx, axis=0)
-	par_aux = {}
-	for k, v in aux_data.items():
-		par_aux[k] = v[par_idx]
-		v = np.delete(v, par_idx, axis=0)
+    par_pos = np.subtract(data[par_idx],pos)/constraint
+    data = np.delete(data, par_idx, axis=0)
+    par_aux = {}
+    for k, v in aux_data.items():
+        par_aux[k] = v[par_idx]
+        v = np.delete(v, par_idx, axis=0)
 
-	if len(par_pos) < cnt:
-		par_pos = np.concatenate((par_pos,np.zeros((cnt-len(par_pos),par_pos.shape[-1]))))
-		for k, v in par_aux.items():
-			par_aux[k] = np.concatenate((v,np.zeros((cnt-len(v),v.shape[-1]))))
-	
-	return data, par_pos, aux_data, par_aux'''
+    if len(par_pos) < cnt:
+        par_pos = np.concatenate((par_pos,np.zeros((cnt-len(par_pos),par_pos.shape[-1]))))
+        for k, v in par_aux.items():
+            par_aux[k] = np.concatenate((v,np.zeros((cnt-len(v),v.shape[-1]))))
+    
+    return data, par_pos, aux_data, par_aux'''
 
 def extract_particles(data, pos, cnt, constraint, aux_data={}):
-	par_idx = particle_radius(data, pos, constraint)
-	np.random.shuffle(par_idx)
-	par_idx = par_idx[:min(cnt,len(par_idx))]
+    par_idx = particle_radius(data, pos, constraint)
+    np.random.shuffle(par_idx)
+    par_idx = par_idx[:min(cnt,len(par_idx))]
 
-	par_pos = np.subtract(data[par_idx],pos)/constraint
-	par_aux = {}
-	for k, v in aux_data.items():
-		par_aux[k] = v[par_idx]
+    par_pos = np.subtract(data[par_idx],pos)/constraint
+    par_aux = {}
+    for k, v in aux_data.items():
+        par_aux[k] = v[par_idx]
 
-	if len(par_pos) < cnt:
-		par_pos = np.concatenate((par_pos,np.zeros((cnt-len(par_pos),par_pos.shape[-1]))))
-		for k, v in par_aux.items():
-			par_aux[k] = np.concatenate((v,np.zeros((cnt-len(v),v.shape[-1]))))
-			
-	return par_pos, par_aux
+    if len(par_pos) < cnt:
+        #idx = np.random.randint(0,len(par_pos),cnt-len(par_pos))
+        #pad = par_pos[idx]
+        pad = -2 * np.ones((cnt-len(par_pos), par_pos.shape[-1]))
+        par_pos = np.concatenate((par_pos, pad))
+        for k, v in par_aux.items():
+            #pad = v[idx]
+            pad = -2 * np.ones((cnt-len(v), v.shape[-1]))
+            par_aux[k] = np.concatenate((v, pad))
+            
+    return par_pos, par_aux
 
 def extract_patch(data, pos, patch_size):
-	patch_size = patch_size//2
-	x0 = int(pos[0])-patch_size
-	x1 = int(pos[0])+patch_size+1
-	y0 = int(pos[1])-patch_size
-	y1 = int(pos[1])+patch_size+1
-	return data[0,y0:y1,x0:x1]
+    patch_size = patch_size//2
+    x0 = int(pos[0])-patch_size
+    x1 = int(pos[0])+patch_size+1
+    y0 = int(pos[1])-patch_size
+    y1 = int(pos[1])+patch_size+1
+    return data[0,y0:y1,x0:x1]
 
 def sdf_func(sdf):
     x_v = np.arange(0.5, sdf.shape[1]+0.5)

@@ -17,7 +17,11 @@ def eval_patch(model, src, path="", ref=None, features=[]):
                 aux_src = src[1][:,_i:_i+1]
                 _i += 1
             write_csv(path + "_%s.csv"%features[i], aux_src)
-            
+        
+        if type(result) is list:
+            print("Truncate points at %d" % result[1])
+            result = result[0][:int(result[1])]
+
         plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".pdf", ref=ref, src=src[0][0], vel=vel_src)
         plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".png", ref=ref, src=src[0][0], vel=vel_src)
         write_csv(path + "_res.csv", result)
@@ -31,7 +35,10 @@ def eval_frame(model, patch_extractor, factor_2D, path="", src=None, aux=None, r
         s = patch_extractor.get_patch()
         if s is None:
             break
-        patch_extractor.set_patch(model.predict(x=s)[0])
+        result = model.predict(x=s)[0]
+        if type(result) is list:
+            result = result[0][:int(result[1])]
+        patch_extractor.set_patch(result)
     result = patch_extractor.data * factor_2D
     if path != "":
         vel_src = None
