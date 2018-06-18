@@ -1,6 +1,7 @@
 {
     "id":             "dat01",
     "prefix":         "sph_2D",
+    "dim":            2,
     "fps":            60,
     "frame_count":    20,
     "data_count":     50,

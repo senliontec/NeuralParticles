@@ -44,6 +44,7 @@ param['gui'] = gui
 param['pause'] = pause
 param['t'] = data_config['frame_count']
 param['min_n'] = pre_config['min_n']
+param['dim'] = data_config['data']
 
 random.seed(data_config['seed'])
 

@@ -1,5 +1,5 @@
 {
-    "id":                 "t00",
+    "id":                 "t01",
     "train_split":        0.9,
     "val_split":          0.2,
     "t_start":            1,
@@ -16,6 +16,6 @@
     "dropout":            0.2,
     "pre_train_stn":      true,
     "loss":               "emd_loss",
-    "mask":               false,
-    "truncate":           false
+    "mask":               true,
+    "truncate":           true
 }

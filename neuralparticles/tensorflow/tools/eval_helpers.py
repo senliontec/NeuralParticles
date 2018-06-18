@@ -4,7 +4,7 @@ from neuralparticles.tools.plot_helpers import plot_particles, write_csv
 from neuralparticles.tools.data_helpers import PatchExtractor
 
 def eval_patch(model, src, path="", ref=None, features=[]):
-    result = model.predict(src)[0]
+    result = model.predict(src)
     if path != "":
         _i = 0
         vel_src = None
@@ -19,8 +19,10 @@ def eval_patch(model, src, path="", ref=None, features=[]):
             write_csv(path + "_%s.csv"%features[i], aux_src)
         
         if type(result) is list:
-            print("Truncate points at %d" % result[1])
-            result = result[0][:int(result[1])]
+            print("Truncate points at %d" % int(result[1][0] * result[0].shape[1]))
+            result = result[0][0,:int(result[1][0] * result[0].shape[1])]
+        else:
+            result = result[0]
 
         plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".pdf", ref=ref, src=src[0][0], vel=vel_src)
         plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".png", ref=ref, src=src[0][0], vel=vel_src)
@@ -35,9 +37,11 @@ def eval_frame(model, patch_extractor, factor_2D, path="", src=None, aux=None, r
         s = patch_extractor.get_patch()
         if s is None:
             break
-        result = model.predict(x=s)[0]
+        result = model.predict(x=s)
         if type(result) is list:
-            result = result[0][:int(result[1])]
+            result = result[0][0,:int(result[1][0] * result[0].shape[1])]
+        else:
+            result = result[0]
         patch_extractor.set_patch(result)
     result = patch_extractor.data * factor_2D
     if path != "":
@@ -80,11 +84,13 @@ class EvalCallback(keras.callbacks.Callback):
         self.src = src
         self.ref = ref
         self.features = features
-        eval_patch(self.model, self.src, self.path%0, self.ref, self.features)
+        for i in range(len(self.src)):
+            eval_patch(self.model, self.src[i], self.path%(i,0), self.ref[i], self.features)
     
     def on_epoch_end(self,ep,logs={}):
         print("Eval Patch")
-        eval_patch(self.model, self.src, self.path%(ep+1), self.ref, self.features)
+        for i in range(len(self.src)):
+            eval_patch(self.model, self.src[i], self.path%(i,ep+1), self.ref[i], self.features)
 
 class EvalCompleteCallback(keras.callbacks.Callback):
     def __init__(self, path, model, patch_extractor, ref, factor_2D, hdim):
@@ -94,8 +100,10 @@ class EvalCompleteCallback(keras.callbacks.Callback):
         self.ref = ref
         self.factor_2D = factor_2D
         self.hdim = hdim
-        eval_frame(self.model, self.patch_extractor, self.factor_2D, self.path%0, self.patch_extractor.src_data, self.patch_extractor.aux_data, self.ref, self.hdim)
+        for i in range(len(self.patch_extractor)):
+            eval_frame(self.model, self.patch_extractor[i], self.factor_2D, self.path%(i,0), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)
     
     def on_epoch_end(self,ep,logs={}):
         print("Eval")
-        eval_frame(self.model, self.patch_extractor, self.factor_2D, self.path%(ep+1), self.patch_extractor.src_data, self.patch_extractor.aux_data, self.ref, self.hdim)
+        for i in range(len(self.patch_extractor)):
+            eval_frame(self.model, self.patch_extractor[i], self.factor_2D, self.path%(i,ep+1), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)

@@ -12,5 +12,6 @@
     "var":            1,
     "par_cnt":        50,
     "par_cnt_ref":    200,
-    "par_var":        5
+    "par_var":        5,
+    "pad_val":        0.0
 }

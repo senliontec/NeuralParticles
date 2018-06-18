@@ -20,6 +20,8 @@ from neuralparticles.tools.plot_helpers import plot_particles, write_csv
 from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
 from neuralparticles.tensorflow.losses.tf_nndistance import chamfer_loss
 
+from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
+
 import json
 #from uniio import *
 
@@ -101,6 +103,10 @@ if verbose:
     print(t_start)
     print(t_end)
 
+pad_val = pre_config['pad_val']
+use_mask = train_config['mask']
+truncate = train_config['truncate']
+
 loss_mode = train_config['loss']
 
 particle_loss = keras.losses.mse
@@ -114,6 +120,9 @@ elif loss_mode == 'chamfer_loss':
     particle_loss = chamfer_loss
 else:
     print("No matching loss specified! Fallback to MSE loss.")
+
+def mask_loss(y_true, y_pred):
+   return particle_loss(y_true * zero_mask(y_true, pad_val), y_pred) if use_mask else particle_loss(y_true, y_pred)
 
 factor_2D = math.sqrt(pre_config['factor'])
 patch_size = pre_config['patch_size']
@@ -134,15 +143,16 @@ if checkpoint > 0:
 else:
     model_path = data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id'])
 
-model = load_model(model_path, custom_objects={loss_mode: particle_loss})
+model = load_model(model_path, custom_objects={'mask_loss': mask_loss})
 
 avg_chamfer_loss = 0
 avg_emd_loss = 0
 
+
 for t in range(t_start, t_end):
     (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
 
-    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features)
+    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val)
 
     write_out_particles(patch_extractor.positions, t, "_pos", [0,low_res], [0,low_res], 0.1)
 
@@ -156,16 +166,29 @@ for t in range(t_start, t_end):
     vel_patches = np.empty((0,par_cnt_dst,3))
 
     patch_pos = np.empty((0,3))
+
+    avg_trunc = 0
+    avg_ref_trunc = 0
     
     while(True):
         src = patch_extractor.get_patch()
         if src is None:
             break
 
-        result = model.predict(x=src)[0]
-        patch_extractor.set_patch(result)
+        ref = extract_particles(ref_data, patch_extractor.last_pos*factor_2D, par_cnt_dst, ref_patch_size/2, pad_val)[0]
 
-        ref = extract_particles(ref_data, patch_extractor.last_pos*factor_2D, par_cnt_dst, ref_patch_size)[0]
+        if truncate:
+            result, trunc = model.predict(x=src)
+            trunc = int(trunc[0]*par_cnt_dst)
+            raw_result = result[0]
+            result = result[0][:trunc]
+            avg_trunc += trunc
+            avg_ref_trunc += np.count_nonzero(ref != pad_val)/3
+        else:
+            result = model.predict(x=src)[0]
+            raw_result = result
+        
+        patch_extractor.set_patch(result)
 
         src_accum = np.concatenate((src_accum, patch_extractor.transform_patch(src[0][0])))
         ref_accum = np.concatenate((ref_accum, patch_extractor.transform_patch(ref)*factor_2D))
@@ -173,12 +196,16 @@ for t in range(t_start, t_end):
 
         src_patches = np.concatenate((src_patches, np.array([src[0][0]])))
         ref_patches = np.concatenate((ref_patches, np.array([ref])))
-        res_patches = np.concatenate((res_patches, np.array([result])))
+        res_patches = np.concatenate((res_patches, np.array([raw_result])))
 
         if 'v' in features:
             vel_patches = np.concatenate((vel_patches, np.array([src[1][features.index('v')]])))
 
         patch_pos = np.concatenate((patch_pos, np.array([patch_extractor.last_pos])))
+
+    if truncate:
+        print("Avg truncation position: %.1f" % (avg_trunc/len(src_patches)))
+        print("Avg truncation position ref: %.1f" % (avg_ref_trunc/len(src_patches)))
 
     result = patch_extractor.data*factor_2D
     
@@ -210,7 +237,7 @@ for t in range(t_start, t_end):
     ref_accum = K.constant(np.array([ref_accum[:min_cnt]]))
     res_accum = K.constant(np.array([res_accum[:min_cnt]]))
 
-    print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), (len(patch_extractor.data/len(src_data)))))
+    print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), (len(patch_extractor.data)/len(src_data))))
 
     call_f = lambda f,x,y: K.eval(f(x,y))[0]
     loss = call_f(chamfer_loss, ref_accum, res_accum)

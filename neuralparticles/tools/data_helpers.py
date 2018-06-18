@@ -53,7 +53,7 @@ def remove_particles(data, pos, constraint, aux_data={}):
     
     return data, par_pos, aux_data, par_aux'''
 
-def extract_particles(data, pos, cnt, constraint, aux_data={}):
+def extract_particles(data, pos, cnt, constraint, pad_val=0.0, aux_data={}):
     par_idx = particle_radius(data, pos, constraint)
     np.random.shuffle(par_idx)
     par_idx = par_idx[:min(cnt,len(par_idx))]
@@ -66,11 +66,11 @@ def extract_particles(data, pos, cnt, constraint, aux_data={}):
     if len(par_pos) < cnt:
         #idx = np.random.randint(0,len(par_pos),cnt-len(par_pos))
         #pad = par_pos[idx]
-        pad = -2 * np.ones((cnt-len(par_pos), par_pos.shape[-1]))
+        pad = pad_val * np.ones((cnt-len(par_pos), par_pos.shape[-1]))
         par_pos = np.concatenate((par_pos, pad))
         for k, v in par_aux.items():
             #pad = v[idx]
-            pad = -2 * np.ones((cnt-len(v), v.shape[-1]))
+            pad = pad_val * np.ones((cnt-len(v), v.shape[-1]))
             par_aux[k] = np.concatenate((v, pad))
             
     return par_pos, par_aux
@@ -205,7 +205,7 @@ def load_patches_from_file(data_path, config_path):
 
     return src, ref, src_rot, ref_rot
 
-def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0, positions=None):
+def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0, pad_val=0.0, positions=None):
     par_patches = np.empty((0, par_cnt, 3))
     par_patches_rot = np.empty((0, par_cnt, 3))
     par_aux_patches = {}
@@ -223,7 +223,7 @@ def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0,
     nor_f = nor_func(np.squeeze(sdf))
 
     for pos in positions:
-        data, aux = extract_particles(particle_data, pos, par_cnt, patch_size/2, par_aux_data)
+        data, aux = extract_particles(particle_data, pos, par_cnt, patch_size/2, pad_val, par_aux_data)
         par_patches = np.append(par_patches, [data], axis=0)
         for k, v in aux.items():
             par_aux_patches[k] = np.append(par_aux_patches[k], [v], axis=0)
@@ -277,6 +277,8 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
     par_cnt = pre_config['par_cnt']
     par_cnt_ref = pre_config['par_cnt_ref']
 
+    pad_val = pre_config['pad_val']
+
     if d_stop is None:
         d_stop = data_config['data_count']
     if t_stop is None:
@@ -309,7 +311,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
         for v in range(v_start, v_stop):
             for t in range(t_start, t_stop):
                 for r in range(pv_start, pv_stop):
-                    par, aux_par, par_rot, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, par_aux=features)
+                    par, aux_par, par_rot, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, pad_val=pad_val, par_aux=features)
                     main = np.append(main, par, axis=0)
                     main_rot = np.append(main_rot, par_rot, axis=0)
                     pos = np.append(pos, positions, axis=0)
@@ -317,7 +319,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
                         tmp = np.concatenate([(aux_par[f]) for f in features], axis=-1)
                         aux = tmp if aux is None else np.append(aux, tmp, axis=0)
 
-                    par, aux_par, par_rot = load_patches(path_ref%(d,t), par_cnt_ref, patch_size_ref, positions=positions*fac_2d)[:3]
+                    par, aux_par, par_rot = load_patches(path_ref%(d,t), par_cnt_ref, patch_size_ref, pad_val=pad_val, positions=positions*fac_2d)[:3]
                     reference = np.append(reference, par, axis=0)
                     ref_rot = np.append(ref_rot, par_rot, axis=0)
     
@@ -325,13 +327,14 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
 
 
 class PatchExtractor:
-    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=0, bnd=0, aux_data={}, features=[]):
+    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=0, bnd=0, pad_val=0.0, aux_data={}, features=[]):
         self.src_data = src_data
         self.radius = patch_size/2
         self.cnt = cnt
         self.stride = stride if stride > 0 else self.radius
         self.aux_data = aux_data
         self.features = features
+        self.pad_val = pad_val
 
         self.pos_backup = get_positions(src_data, np.squeeze(sdf_data), patch_size, surface, bnd)
         np.random.shuffle(self.pos_backup)
@@ -353,7 +356,7 @@ class PatchExtractor:
         if len(self.positions) <= idx:
             return None
         
-        patch, aux = extract_particles(self.src_data, self.positions[idx], self.cnt, self.radius, self.aux_data)
+        patch, aux = extract_particles(self.src_data, self.positions[idx], self.cnt, self.radius, self.pad_val, self.aux_data)
         if len(aux) > 0:
             return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features])])]
         else:
@@ -366,7 +369,7 @@ class PatchExtractor:
         self.last_pos = self.positions[0]
         self.positions = remove_particles(self.positions, self.last_pos, self.stride)[0]
         self.data = remove_particles(self.data, self.last_pos, self.stride)[0]
-        patch, aux = extract_particles(self.src_data, self.last_pos, self.cnt, self.radius, self.aux_data)
+        patch, aux = extract_particles(self.src_data, self.last_pos, self.cnt, self.radius, self.pad_val, self.aux_data)
 
         if len(aux) > 0:
             return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features],axis=-1)])]

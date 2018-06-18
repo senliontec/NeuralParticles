@@ -32,10 +32,10 @@ config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 gpu = getParam("gpu", "")
 
-eval_dataset = int(getParam("eval_d", 18))
-eval_t = int(getParam("eval_t", 10))
-eval_var = int(getParam("eval_v", 0))
-eval_patch_idx = int(getParam("eval_i", 8))
+eval_dataset = list(map(int,getParam("eval_d", '18,18,18,19,19').split(',')))
+eval_t = list(map(int,getParam("eval_t", '5,5,6,6,7').split(',')))
+eval_var = list(map(int,getParam("eval_v", '0,0,0,0,0').split(',')))
+eval_patch_idx = list(map(int,getParam("eval_i", '11,77,16,21,45').split(',')))
 
 log_interval = int(getParam("log_interval", 1))
 checkpoint_interval = int(getParam("checkpoint_interval", 1))
@@ -103,7 +103,9 @@ ref_par_cnt = pre_config['par_cnt_ref']
 
 factor_2D = math.sqrt(pre_config['factor'])
 
-pad_val = -2.0
+pad_val = pre_config['pad_val']
+use_mask = train_config['mask']
+truncate = train_config['truncate']
 
 hdim = data_config['res']
 dim = int(hdim/factor_2D)
@@ -135,7 +137,7 @@ else:
     print("No matching loss specified! Fallback to MSE loss.")
 
 def mask_loss(y_true, y_pred):
-    return particle_loss(y_true * zero_mask(y_true, pad_val), y_pred)
+   return particle_loss(y_true * zero_mask(y_true, pad_val), y_pred) if use_mask else particle_loss(y_true, y_pred)
 
 if start_checkpoint == 0:
     print("Generate Network")
@@ -154,14 +156,15 @@ if start_checkpoint == 0:
 
     inputs = [Input((particle_cnt_src,3), name='main_input')]
 
-    mask = Lambda(lambda v: zero_mask(v, pad_val))(inputs[0])
+    mask = zero_mask(inputs[0], pad_val)
 
-    x = Multiply()([inputs[0], mask])
+    x = Multiply()([inputs[0], mask]) if use_mask else inputs[0]
 
     if feature_cnt > 0:
         aux_input = Input((particle_cnt_src, feature_cnt), name='aux_input')
         inputs.append(aux_input)
-        aux_input = Multiply()([aux_input, mask])
+        if use_mask:
+            aux_input = Multiply()([aux_input, mask])
 
     stn_input = Input((particle_cnt_src,3))
     stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
@@ -196,17 +199,21 @@ if start_checkpoint == 0:
     x = list(map(Dropout(dropout),x))
     x = list(map(Dense(k, activation='tanh'),x))
     
-    x = [Lambda(lambda v: v * mask[:,i])(x[i]) for i in range(particle_cnt_src)]
+    if use_mask:
+        x = [Lambda(lambda v: v[0] * v[1][:,i])([x[i],mask]) for i in range(particle_cnt_src)]
 
-    latent = add(x)
+    if truncate:
+        x_t = add(x)
 
-    x = Dropout(dropout)(latent)
-    x = Dense(fac)(x)
+        x_t = Dropout(dropout)(x_t)
+        x_t = Dense(fac)(x_t)
+        x_t = Dropout(dropout)(x_t)
+        trunc = Dense(1)(x_t)
+        out_mask = trunc_mask(trunc,particle_cnt_dst)
+
+    x = average(x)
+
     x = Dropout(dropout)(x)
-    trunc = Dense(1)(x)
-    out_mask = Lambda(lambda v: trunc_mask(v,particle_cnt_dst))(trunc)
-
-    x = Dropout(dropout)(latent)
     x = Dense(particle_cnt_dst, activation='tanh')(x)
     x = Dropout(dropout)(x)
     x = Dense(particle_cnt_dst, activation='tanh')(x)
@@ -216,12 +223,18 @@ if start_checkpoint == 0:
     inv_par_out = Reshape((particle_cnt_dst,3))(x)
     out = stn_transform_inv(stn,inv_par_out,quat=True)
 
-    #out = Multiply()([out, Reshape((particle_cnt_dst,1))(out_mask)])
-
-    model = Model(inputs=inputs, outputs=[out,trunc])
-    model.compile(loss=[mask_loss, 'mse'], optimizer=keras.optimizers.adam(lr=learning_rate), loss_weights=[1.0,0.0])
+    if truncate:
+        out = Multiply()([out, Reshape((particle_cnt_dst,1))(out_mask)])
+        model = Model(inputs=inputs, outputs=[out,trunc])
+        model.compile(loss=[mask_loss, 'mse'], optimizer=keras.optimizers.adam(lr=learning_rate), loss_weights=[1.0,1.0])
+    else:
+        model = Model(inputs=inputs, outputs=out)
+        model.compile(loss=mask_loss, optimizer=keras.optimizers.adam(lr=learning_rate))
 
     model.save(tmp_model_path + '.h5')
+
+    # load model to check if loadable
+    #model = load_model(tmp_model_path + '.h5', custom_objects={'mask_loss': mask_loss})
     
     if verbose: 
         model.summary()
@@ -274,17 +287,17 @@ if start_checkpoint == 0:
         discriminator.compile(loss='binary_crossentropy', optimizer=keras.optimizers.adam(lr=learning_rate), metrics=['accuracy'])
 
         discriminator.save(tmp_model_path + '_dis.h5')
+        discriminator = load_model(tmp_model_path + '_dis.h5')
 
         if verbose: 
             discriminator.summary()
 else:
     if train_config["adv_fac"] <= 0.:
-        model = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={loss_mode: mask_loss})
+        model = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'mask_loss': mask_loss})
     else:
-        generator = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={loss_mode: mask_loss})
+        generator = load_model("%s_%04d.h5" % (checkpoint_path, start_checkpoint), custom_objects={'mask_loss': mask_loss})
         model = generator
         discriminator = load_model("%s_dis_%04d.h5" % (checkpoint_path, start_checkpoint))
-
 
 print("Load Training Data")
 
@@ -298,29 +311,36 @@ src_rot_data = src_rot_data[idx]
 ref_rot_data = ref_rot_data[idx]
 
 print("Load Eval Data")
-(eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset, eval_t, eval_var) 
-patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features)
-eval_src_patch = patch_extractor.get_patch_idx(eval_patch_idx)
-eval_ref_patch = extract_particles(eval_ref_data, patch_extractor.positions[eval_patch_idx] * factor_2D, ref_par_cnt, ref_patch_size)[0]
 
-print("Eval trunc src: %.02f" % (np.count_nonzero(eval_src_patch[0][:,:,:1] != pad_val)/particle_cnt_src))
-print("Eval trunc ref: %.02f" % (np.count_nonzero(eval_ref_patch[:,:1] != pad_val)/particle_cnt_dst))
+eval_patch_extractors = []
+eval_ref_datas = []
+eval_src_patches = []
+eval_ref_patches = []
+for i in range(len(eval_dataset)):
+    (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
+    eval_ref_datas.append(eval_ref_data)
+    eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features, pad_val=pad_val))
+    eval_src_patches.append(eval_patch_extractors[i].get_patch_idx(eval_patch_idx[i]))
+    eval_ref_patches.append(extract_particles(eval_ref_data, eval_patch_extractors[i].positions[eval_patch_idx[i]] * factor_2D, ref_par_cnt, ref_patch_size/2, pad_val)[0])
+
+    print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patches[i][0][:,:,:1] != pad_val)))
+    print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patches[i][:,:1] != pad_val)))
 
 val_split = train_config['val_split']
 
 print("Start Training")
-if pre_train_stn and False:
-    inputs = model.inputs[0]
-    mask = Lambda(lambda v: zero_mask(v, pad_val))(inputs)
-    x = Multiply()([inputs,mask])
+if pre_train_stn:
+    inputs = model.inputs
+    mask = zero_mask(inputs[0], pad_val)
+    x = Multiply()([inputs[0],mask]) if use_mask else inputs[0]
     stn = model.get_layer("stn")
     trans_input = model.get_layer("trans")([x, stn(x)])
     inter_model = Model(inputs=inputs, outputs=trans_input)
     inter_model.compile(loss=mask_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
-    history = inter_model.fit(x=src_data[0],y=src_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'], validation_split=val_split,
-        verbose=1, callbacks=[EvalCallback(tmp_eval_path + "inter_eval_patch_%03d", inter_model, eval_src_patch, eval_ref_patch)])
+    history = inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'], validation_split=val_split,
+        verbose=1, callbacks=[EvalCallback(tmp_eval_path + "inter_eval_patch_%03d_%03d", inter_model, eval_src_patches, eval_ref_patches)])
     stn.trainable = False        
-    model.compile(loss=mask_loss, optimizer=keras.optimizers.adam(lr=train_config["learning_rate"]))
+    model.compile(loss=model.loss_functions, optimizer=model.optimizer, loss_weights=model.loss_weights)
 
     plt.plot(history.history['loss'])
     plt.plot(history.history['val_loss'])
@@ -353,11 +373,11 @@ if pre_train_stn and False:
 
 if train_config["adv_fac"] <= 0.:
     trunc_ref = np.count_nonzero(ref_data[:,:,:1] != pad_val, axis=1)/particle_cnt_dst
-    history = model.fit(x=src_data,y=[ref_data, trunc_ref], validation_split=val_split, 
+    history = model.fit(x=src_data,y=[ref_data, trunc_ref] if truncate else ref_data, validation_split=val_split, 
                         epochs=epochs - start_checkpoint*checkpoint_interval, batch_size=train_config['batch_size'], 
-                        verbose=1)#, callbacks=[NthLogger(model, log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
-                                  #            EvalCallback(tmp_eval_path + "eval_patch_%03d", model, eval_src_patch, eval_ref_patch, features),
-                                  #            EvalCompleteCallback(tmp_eval_path + "eval_%03d", model, patch_extractor, eval_ref_data, factor_2D, hdim)])
+                        verbose=1,callbacks=[NthLogger(model, log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
+                                            EvalCallback(tmp_eval_path + "eval_patch_%03d_%03d", model, eval_src_patches, eval_ref_patches, features),
+                                            EvalCompleteCallback(tmp_eval_path + "eval_%03d_%03d", model, eval_patch_extractors, eval_ref_datas, factor_2D, hdim)])
 
     m_p = "%s_trained.h5" % tmp_model_path
     model.save(m_p)
@@ -479,9 +499,9 @@ else:
             discriminator.save(path)
             print('Saved Generator Checkpoint: %s' % path)
 
-        print("Eval")
-        eval_patch(generator, eval_src_patch, tmp_eval_path + "eval_patch_%03d"%ep, eval_ref_patch, features)
-        eval_frame(generator, patch_extractor, factor_2D, "eval_%03d"%ep, patch_extractor.src_data, patch_extractor.aux_data, eval_ref_data, hdim)
+        #print("Eval")
+        #eval_patch(generator, eval_src_patch, tmp_eval_path + "eval_patch_%03d"%ep, eval_ref_patch, features)
+        #eval_frame(generator, patch_extractor, factor_2D, "eval_%03d"%ep, patch_extractor.src_data, patch_extractor.aux_data, eval_ref_data, hdim)
 
     gen_p = "%s_trained.h5" % tmp_model_path
     generator.save(gen_p)
