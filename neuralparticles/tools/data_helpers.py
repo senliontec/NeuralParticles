@@ -117,8 +117,7 @@ def in_bound(pos, bnd_min, bnd_max):
 def get_positions(particle_data, sdf, patch_size, surface=1.0, bnd=0):
     sdf_f = interpol_grid(sdf)
     particle_data_bound = particle_data[in_bound(particle_data[:,:2] if sdf.shape[0] == 1 else particle_data, bnd+patch_size/2,sdf.shape[1]-(bnd+patch_size/2))]
-    positions = particle_data_bound[np.where(sdf_f(particle_data_bound) < surface)[0]]#particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]), surface)[0]]
-    print(positions.shape)
+    positions = particle_data_bound[np.where(abs(sdf_f(particle_data_bound)) < surface)[0]]#particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]), surface)[0]]
     return positions
 
 def get_data(prefix, par_aux=[]):
