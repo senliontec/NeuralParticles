@@ -18,15 +18,17 @@ t = t_end - t_start
 
 screenshot = getParam("scr", "")
 
+dim = int(getParam("dim", 2))
+
 checkUnusedParams()
 
 pause = screenshot == ""
 
-gs = vec3(res, res, 1)
+gs = vec3(res, res, 1 if dim == 2 else res)
 
-gs_show = vec3(res, res, 3)
+gs_show = vec3(res, res, 3 if dim == 2 else res)
 
-s = Solver(name='IISPH', gridSize=gs, dim=2)
+s = Solver(name='IISPH', gridSize=gs, dim=dim)
 s_show = Solver(name="show", gridSize=gs_show, dim=3)
 
 pp = s.create(BasicParticleSystem)
@@ -62,9 +64,13 @@ for i in range(t_start,t_end):
 		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
 		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=sdf, radiusFactor=1.0)
 
-	placeGrid2d(sdf,sdf_show,dstz=1) 
-	sdf_show.createMesh(mesh)
+	if dim == 2:
+		placeGrid2d(sdf,sdf_show,dstz=1) 
+		sdf_show.createMesh(mesh)
+	else:
+		sdf.createMesh(mesh)
 	
+
 	if in_path != "":
 		pp.load(in_path % i)
 	elif sdf_path != "":

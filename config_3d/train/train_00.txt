@@ -3,7 +3,7 @@
     "train_split":        0.5,
     "val_split":          0.2,
     "t_start":            1,
-    "t_end":              20,
+    "t_end":              10,
     "features":           ["s"],
     "batch_size":         32,
     "learning_rate":      1e-3,

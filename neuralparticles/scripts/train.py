@@ -101,14 +101,15 @@ ref_patch_size = pre_config['patch_size_ref']
 par_cnt = pre_config['par_cnt']
 ref_par_cnt = pre_config['par_cnt_ref']
 
-factor_2D = math.sqrt(pre_config['factor'])
-
 pad_val = pre_config['pad_val']
 use_mask = train_config['mask']
 truncate = train_config['truncate']
 
-hdim = data_config['res']
-dim = int(hdim/factor_2D)
+dim = data_config['dim']
+factor_d = math.pow(pre_config['factor'], 1/dim)
+
+hres = data_config['res']
+res = int(hres/factor_d)
 
 tmp_model_path = '%s%s_%s' % (tmp_model_path, data_config['prefix'], config['id'])
 tmp_checkpoint_path = '%s%s_%s' % (tmp_checkpoint_path, data_config['prefix'], config['id'])
@@ -139,6 +140,7 @@ else:
 def mask_loss(y_true, y_pred):
    return particle_loss(y_true * zero_mask(y_true, pad_val), y_pred) if use_mask else particle_loss(y_true, y_pred)
 
+use_stn = True
 if start_checkpoint == 0:
     print("Generate Network")
     
@@ -171,10 +173,10 @@ if start_checkpoint == 0:
     stn_model = Model(inputs=stn_input, outputs=stn, name="stn")
     stn = stn_model(x)
 
-    transformed = stn_transform(stn,x,quat=True, name='trans')
+    transformed = stn_transform(stn,x,quat=True, name='trans') if use_stn else x
     
     if feature_cnt > 0:
-        if 'v' in features:
+        if 'v' in features and use_stn:
             aux_input = Lambda(lambda a: concatenate([stn_transform(stn, a[:,:,:3]/100,quat=True),a[:,:,3:]], axis=-1), name='aux_trans')(aux_input)
         transformed = concatenate([transformed, aux_input], axis=-1)
 
@@ -188,7 +190,7 @@ if start_checkpoint == 0:
     x = list(map(Lambda(lambda v: K.expand_dims(v, axis=1)),x))
     x = concatenate(x, axis=1)
 
-    x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x)
+    x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x) if use_stn else x
 
     x = [Lambda(lambda v: v[:,i,:])(x) for i in range(particle_cnt_src)]
 
@@ -202,16 +204,16 @@ if start_checkpoint == 0:
     if use_mask:
         x = [Lambda(lambda v: v[0] * v[1][:,i])([x[i],mask]) for i in range(particle_cnt_src)]
 
-    if truncate:
-        x_t = add(x)
+    x = add(x)
+    if use_mask:
+        x = Lambda(lambda v: v[0]/K.sum(v[1],axis=1))([x, mask])
 
-        x_t = Dropout(dropout)(x_t)
+    if truncate:
+        x_t = Dropout(dropout)(x)
         x_t = Dense(fac)(x_t)
         x_t = Dropout(dropout)(x_t)
         trunc = Dense(1)(x_t)
         out_mask = trunc_mask(trunc,particle_cnt_dst)
-
-    x = average(x)
 
     x = Dropout(dropout)(x)
     x = Dense(particle_cnt_dst, activation='tanh')(x)
@@ -221,7 +223,7 @@ if start_checkpoint == 0:
     x = Dense(3*particle_cnt_dst, activation='tanh')(x)
 
     inv_par_out = Reshape((particle_cnt_dst,3))(x)
-    out = stn_transform_inv(stn,inv_par_out,quat=True)
+    out = stn_transform_inv(stn,inv_par_out,quat=True) if use_stn else inv_par_out
 
     if truncate:
         out = Multiply()([out, Reshape((particle_cnt_dst,1))(out_mask)])
@@ -321,7 +323,7 @@ for i in range(len(eval_dataset)):
     eval_ref_datas.append(eval_ref_data)
     eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features, pad_val=pad_val))
     eval_src_patches.append(eval_patch_extractors[i].get_patch_idx(eval_patch_idx[i]))
-    eval_ref_patches.append(extract_particles(eval_ref_data, eval_patch_extractors[i].positions[eval_patch_idx[i]] * factor_2D, ref_par_cnt, ref_patch_size/2, pad_val)[0])
+    eval_ref_patches.append(extract_particles(eval_ref_data, eval_patch_extractors[i].positions[eval_patch_idx[i]] * factor_d, ref_par_cnt, ref_patch_size/2, pad_val)[0])
 
     print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patches[i][0][:,:,:1] != pad_val)))
     print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patches[i][:,:1] != pad_val)))
@@ -377,7 +379,7 @@ if train_config["adv_fac"] <= 0.:
                         epochs=epochs - start_checkpoint*checkpoint_interval, batch_size=train_config['batch_size'], 
                         verbose=1,callbacks=[NthLogger(model, log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
                                             EvalCallback(tmp_eval_path + "eval_patch_%03d_%03d", model, eval_src_patches, eval_ref_patches, features),
-                                            EvalCompleteCallback(tmp_eval_path + "eval_%03d_%03d", model, eval_patch_extractors, eval_ref_datas, factor_2D, hdim)])
+                                            EvalCompleteCallback(tmp_eval_path + "eval_%03d_%03d", model, eval_patch_extractors, eval_ref_datas, factor_d, hres)])
 
     m_p = "%s_trained.h5" % tmp_model_path
     model.save(m_p)
@@ -501,7 +503,7 @@ else:
 
         #print("Eval")
         #eval_patch(generator, eval_src_patch, tmp_eval_path + "eval_patch_%03d"%ep, eval_ref_patch, features)
-        #eval_frame(generator, patch_extractor, factor_2D, "eval_%03d"%ep, patch_extractor.src_data, patch_extractor.aux_data, eval_ref_data, hdim)
+        #eval_frame(generator, patch_extractor, factor_d, "eval_%03d"%ep, patch_extractor.src_data, patch_extractor.aux_data, eval_ref_data, hres)
 
     gen_p = "%s_trained.h5" % tmp_model_path
     generator.save(gen_p)

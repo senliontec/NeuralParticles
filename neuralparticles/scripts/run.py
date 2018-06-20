@@ -124,14 +124,15 @@ else:
 def mask_loss(y_true, y_pred):
    return particle_loss(y_true * zero_mask(y_true, pad_val), y_pred) if use_mask else particle_loss(y_true, y_pred)
 
-factor_2D = math.sqrt(pre_config['factor'])
+dim = data_config['dim']
+factor_d = math.pow(pre_config['factor'], 1/dim)
 patch_size = pre_config['patch_size']
 ref_patch_size = pre_config['patch_size_ref']
 par_cnt = pre_config['par_cnt']
 par_cnt_dst = pre_config['par_cnt_ref']
 
 res = data_config['res']
-low_res = int(res/factor_2D)
+low_res = int(res/factor_d)
 
 half_ps = ref_patch_size//2
 #border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
@@ -175,7 +176,7 @@ for t in range(t_start, t_end):
         if src is None:
             break
 
-        ref = extract_particles(ref_data, patch_extractor.last_pos*factor_2D, par_cnt_dst, ref_patch_size/2, pad_val)[0]
+        ref = extract_particles(ref_data, patch_extractor.last_pos*factor_d, par_cnt_dst, ref_patch_size/2, pad_val)[0]
 
         if truncate:
             result, trunc = model.predict(x=src)
@@ -191,8 +192,8 @@ for t in range(t_start, t_end):
         patch_extractor.set_patch(result)
 
         src_accum = np.concatenate((src_accum, patch_extractor.transform_patch(src[0][0])))
-        ref_accum = np.concatenate((ref_accum, patch_extractor.transform_patch(ref)*factor_2D))
-        res_accum = np.concatenate((res_accum, patch_extractor.transform_patch(result)*factor_2D))
+        ref_accum = np.concatenate((ref_accum, patch_extractor.transform_patch(ref)*factor_d))
+        res_accum = np.concatenate((res_accum, patch_extractor.transform_patch(result)*factor_d))
 
         src_patches = np.concatenate((src_patches, np.array([src[0][0]])))
         ref_patches = np.concatenate((ref_patches, np.array([ref])))
@@ -207,7 +208,7 @@ for t in range(t_start, t_end):
         print("Avg truncation position: %.1f" % (avg_trunc/len(src_patches)))
         print("Avg truncation position ref: %.1f" % (avg_ref_trunc/len(src_patches)))
 
-    result = patch_extractor.data*factor_2D
+    result = patch_extractor.data*factor_d
     
     hdr = OrderedDict([ ('dim',len(result)),
                         ('dimX',res),
@@ -240,10 +241,10 @@ for t in range(t_start, t_end):
     print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), (len(patch_extractor.data)/len(src_data))))
 
     call_f = lambda f,x,y: K.eval(f(x,y))[0]
-    loss = call_f(chamfer_loss, ref_accum, res_accum)
+    loss = 0#call_f(chamfer_loss, ref_accum, res_accum)
     avg_chamfer_loss += loss
     print("global chamfer loss: %f" % loss)
-    loss = call_f(emd_loss, ref_accum, res_accum)
+    loss = 0#call_f(emd_loss, ref_accum, res_accum)
     avg_emd_loss += loss
     print("global emd loss: %f" % loss)
 

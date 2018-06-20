@@ -32,7 +32,7 @@ def eval_patch(model, src, path="", ref=None, features=[]):
 
     return result
 
-def eval_frame(model, patch_extractor, factor_2D, path="", src=None, aux=None, ref=None, hdim=0):
+def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, ref=None, hdim=0):
     while(True):
         s = patch_extractor.get_patch()
         if s is None:
@@ -43,7 +43,7 @@ def eval_frame(model, patch_extractor, factor_2D, path="", src=None, aux=None, r
         else:
             result = result[0]
         patch_extractor.set_patch(result)
-    result = patch_extractor.data * factor_2D
+    result = patch_extractor.data * factor_d
     if path != "":
         vel_src = None
         for k in aux:
@@ -52,8 +52,8 @@ def eval_frame(model, patch_extractor, factor_2D, path="", src=None, aux=None, r
                 vel_src = aux_src/100
             write_csv(path + "_%s.csv"%k, aux_src)
 
-        plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".pdf", ref=ref, src=src*factor_2D, vel=vel_src)
-        plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".png", ref=ref, src=src*factor_2D, vel=vel_src)
+        plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".pdf", ref=ref, src=src*factor_d, vel=vel_src)
+        plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".png", ref=ref, src=src*factor_d, vel=vel_src)
         write_csv(path + "_res.csv", result)
         write_csv(path + "_ref.csv", ref)
         write_csv(path + "_src.csv", src)
@@ -93,17 +93,17 @@ class EvalCallback(keras.callbacks.Callback):
             eval_patch(self.model, self.src[i], self.path%(i,ep+1), self.ref[i], self.features)
 
 class EvalCompleteCallback(keras.callbacks.Callback):
-    def __init__(self, path, model, patch_extractor, ref, factor_2D, hdim):
+    def __init__(self, path, model, patch_extractor, ref, factor_d, hdim):
         self.path = path
         self.model = model
         self.patch_extractor = patch_extractor
         self.ref = ref
-        self.factor_2D = factor_2D
+        self.factor_d = factor_d
         self.hdim = hdim
         for i in range(len(self.patch_extractor)):
-            eval_frame(self.model, self.patch_extractor[i], self.factor_2D, self.path%(i,0), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)
+            eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,0), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)
     
     def on_epoch_end(self,ep,logs={}):
         print("Eval")
         for i in range(len(self.patch_extractor)):
-            eval_frame(self.model, self.patch_extractor[i], self.factor_2D, self.path%(i,ep+1), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)
+            eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,ep+1), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)

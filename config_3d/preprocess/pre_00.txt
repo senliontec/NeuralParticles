@@ -10,8 +10,8 @@
     "factor":         27,
     "min_n":          5,
     "var":            1,
-    "par_cnt":        50,
-    "par_cnt_ref":    1024,
+    "par_cnt":        512,
+    "par_cnt_ref":    2048,
     "par_var":        1,
     "pad_val":        0.0
 }

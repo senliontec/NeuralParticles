@@ -301,7 +301,6 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
         pre_config = json.loads(f.read())
 
     fac_d = math.pow(pre_config['factor'], 1/data_config['dim'])
-    print(fac_d)
     patch_size = pre_config['patch_size']
     patch_size_ref = pre_config['patch_size_ref']
 

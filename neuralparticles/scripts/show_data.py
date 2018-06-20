@@ -41,6 +41,7 @@ with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
 
 param = {}
 
+dim = data_config['dim']
 res = data_config['res']
 if data_type == "ref":
     data_path += "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
@@ -48,12 +49,12 @@ if data_type == "ref":
     param['sdf'] = data_path + "_%03d_sdf.uni"
 elif data_type == "real":
     data_path += "real/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset)
-    res = int(res/math.sqrt(pre_config['factor']))
+    res = int(res/math.pow(pre_config['factor'], 1/dim))
     param['in'] = data_path + "_%03d_ps.uni"
     param['sdf'] = data_path + "_%03d_sdf.uni"
 elif data_type == "src":
     data_path += "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
-    res = int(res/math.sqrt(pre_config['factor']))
+    res = int(res/math.pow(pre_config['factor'], 1/dim))
     param['in'] = data_path + "_%03d_ps.uni"
     param['sdf'] = data_path + "_%03d_sdf.uni"
 elif data_type == "res":
@@ -75,5 +76,6 @@ param['t_start'] = t_start
 param['t_end'] = t_end
 param['res'] = res
 param['scr'] = scr
+param['dim'] = dim
 
 run_manta(manta_path, "scenes/show_particles.py", param, verbose)
