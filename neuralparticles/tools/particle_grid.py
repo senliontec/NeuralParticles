@@ -5,13 +5,32 @@ import random
 import scipy
 from scipy import interpolate
 
-from neuralparticles.tools.plot_helpers import plot_sdf, plot_particles
-from neuralparticles.tools.data_helpers import extract_particles
-
 def sdf_func(sdf):
     x_v = np.arange(0.5, sdf.shape[1]+0.5)
     y_v = np.arange(0.5, sdf.shape[0]+0.5)
     return lambda x: interpolate.interp2d(x_v, y_v, sdf)(x[0],x[1])
+
+class ParticleIdxGrid:
+    def __init__(self, particles, shape):
+        #self.particles = particles
+        self.shape = shape
+        self.grid = np.empty(shape,dtype=object)
+        self.grid[:] = [[[[] for x in range(shape[2])] for y in range(shape[1])] for z in range(shape[0])]
+        for i in range(len(particles)):
+            x,y,z = particles[i].astype(dtype="int32")
+            self.grid[z,y,x].append(i)
+
+    def get_cell(self, cell_idx):
+        x,y,z = cell_idx.astype(dtype="int32")
+        return self.grid[z,y,x]
+    
+    def get_range(self, c, r):
+        sz, sy, sx = self.shape
+        x0,y0,z0 = np.clip((c-r).astype('int32'), 0, [sx,sy,sz])
+        x1,y1,z1 = np.clip((c+r).astype('int32'), 0, [sx,sy,sz])
+
+        return [v for z in self.grid[z0:z1,y0:y1,x0:x1] for y in z for x in y for v in x]
+
 
 class ParticleGrid:
     def __init__(self, dimX, dimY, sub_dim, extrapol=5):
@@ -69,6 +88,10 @@ class ParticleGrid:
                     self.set_sdf(np.array([x,y])+center, l-radius)
 
 if __name__ == '__main__':
+
+    from neuralparticles.tools.plot_helpers import plot_sdf, plot_particles
+    from neuralparticles.tools.data_helpers import extract_particles
+
     fac = 3
     src_grid = ParticleGrid(50, 50, 2)
     ref_grid = ParticleGrid(src_grid.dimX*fac, src_grid.dimY*fac, 2)

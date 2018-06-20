@@ -1,7 +1,8 @@
 import sys, os, warnings
 
 import json
-from neuralparticles.tools.uniio import *
+from .uniio import *
+from .particle_grid import ParticleIdxGrid
 import numpy as np
 
 import random
@@ -10,6 +11,7 @@ import math
 
 import scipy
 from scipy import interpolate
+
 
 def particle_range(arr, pos, r):
     return np.where(np.all(np.abs(np.subtract(arr,pos)) < r, axis=-1))[0]
@@ -83,47 +85,40 @@ def extract_patch(data, pos, patch_size):
     y1 = int(pos[1])+patch_size+1
     return data[0,y0:y1,x0:x1]
 
-def sdf_func(sdf):
-    x_v = np.arange(0.5, sdf.shape[1]+0.5)
-    y_v = np.arange(0.5, sdf.shape[0]+0.5)
-    return lambda x: interpolate.interp2d(x_v, y_v, sdf)(x[0],x[1])
+def interpol_grid(grid):
+    x_v = np.arange(0.5, grid.shape[2]+0.5)
+    y_v = np.arange(0.5, grid.shape[1]+0.5)
+    if grid.shape[0] == 1:
+        z_v = np.array([0.0,1.0])
+        return interpolate.RegularGridInterpolator((x_v, y_v, z_v), np.transpose(np.concatenate([grid,grid]),(2,1,0,3)), bounds_error=False)
+    else:
+        z_v = np.arange(0.5, grid.shape[0]+0.5)
+        return interpolate.RegularGridInterpolator((x_v, y_v, z_v), np.transpose(grid,(2,1,0,3)), bounds_error=False)
 
 def normals(sdf):
-    y,x = np.gradient(sdf)
-    x = np.expand_dims(x,axis=-1)
-    y = np.expand_dims(y,axis=-1)
-    g = np.concatenate([x,y],axis=-1)
+    g = np.gradient(np.squeeze(sdf))
+    if sdf.shape[0] == 1:
+        g.insert(0, np.zeros_like(g[0]))
+        g = np.expand_dims(g,axis=1)
+    g = np.expand_dims(g,axis=-1)
+    g = np.concatenate([g[2],g[1],g[0]],axis=-1)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
         result = np.nan_to_num(g/np.linalg.norm(g,axis=-1,keepdims=True))
     return result
 
-def nor_func(sdf):
-    nor = normals(sdf)
-    x_v = np.arange(0.5, sdf.shape[1]+0.5)
-    y_v = np.arange(0.5, sdf.shape[0]+0.5)
-    return lambda x: np.concatenate([interpolate.interp2d(x_v, y_v, nor[:,:,0])(x[0],x[1]), interpolate.interp2d(x_v, y_v, nor[:,:,1])(x[0],x[1])])
-
 def curvature(sdf):
     dif = np.gradient(normals(sdf))
-    return (np.linalg.norm(dif[0],axis=-1)+np.linalg.norm(dif[1],axis=-1))/2
-
-def curv_func(sdf):
-    curv = curvature(sdf)
-    x_v = np.arange(0.5, curv.shape[1]+0.5)
-    y_v = np.arange(0.5, curv.shape[0]+0.5)
-    return lambda x: interpolate.interp2d(x_v, y_v, curv)(x[0],x[1])
+    return (np.linalg.norm(dif[0],axis=-1)+np.linalg.norm(dif[1],axis=-1)+np.linalg.norm(dif[2],axis=-1))/3
 
 def in_bound(pos, bnd_min, bnd_max):
     return np.where(np.all([np.all(bnd_min<=pos,axis=-1),np.all(pos<=bnd_max,axis=-1)],axis=0))
 
-def in_surface(sdf, surface):
-    return np.where(abs(sdf) < surface)
-
 def get_positions(particle_data, sdf, patch_size, surface=1.0, bnd=0):
-    sdf_f = sdf_func(sdf)
-    particle_data_bound = particle_data[in_bound(particle_data[:,:2], bnd+patch_size/2,sdf.shape[0]-(bnd+patch_size/2))]
-    positions = particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]), surface)[0]]
+    sdf_f = interpol_grid(sdf)
+    particle_data_bound = particle_data[in_bound(particle_data[:,:2] if sdf.shape[0] == 1 else particle_data, bnd+patch_size/2,sdf.shape[1]-(bnd+patch_size/2))]
+    positions = particle_data_bound[np.where(sdf_f(particle_data_bound) < surface)[0]]#particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]), surface)[0]]
+    print(positions.shape)
     return positions
 
 def get_data(prefix, par_aux=[]):
@@ -206,34 +201,70 @@ def load_patches_from_file(data_path, config_path):
     return src, ref, src_rot, ref_rot
 
 def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0, pad_val=0.0, positions=None):
-    par_patches = np.empty((0, par_cnt, 3))
-    par_patches_rot = np.empty((0, par_cnt, 3))
-    par_aux_patches = {}
-    par_aux_data = {}
 
+    par_aux_data = {}
     sdf = readUni(prefix + "_sdf.uni")[1]
     particle_data = readParticles(prefix + "_ps.uni")[1]
     for v in par_aux:
         par_aux_data[v] = readParticles((prefix+"_p%s.uni")%v, "float32")[1]
-        par_aux_patches[v] = np.empty((0, par_cnt, par_aux_data[v].shape[-1]))
 
     if positions is None:
-        positions = get_positions(particle_data, np.squeeze(sdf), patch_size, surface, bnd)
+        positions = get_positions(particle_data, sdf, patch_size, surface, bnd)
 
-    nor_f = nor_func(np.squeeze(sdf))
+    par_patches = np.empty((len(positions), par_cnt, 3))
+    par_patches_rot = np.empty((len(positions), par_cnt, 3))
+    par_aux_patches = {}
+        
+    for v in par_aux:
+        par_aux_patches[v] = np.empty((len(positions), par_cnt, par_aux_data[v].shape[-1]))
 
-    for pos in positions:
-        data, aux = extract_particles(particle_data, pos, par_cnt, patch_size/2, pad_val, par_aux_data)
-        par_patches = np.append(par_patches, [data], axis=0)
+    nor_f = interpol_grid(normals(sdf))
+
+    idx_grid = ParticleIdxGrid(particle_data, sdf.shape[:3])
+
+    #import time
+    #avg_extract = 0
+    #avg_total = 0
+    #start = time.time()
+    for i in range(len(positions)):
+        #start = time.time()
+        pos = positions[i]
+        print("gen patch: %06d/%d" % (i,len(positions)), end="\r", flush=True)
+        idx = idx_grid.get_range(pos, patch_size/2)
+        tmp_aux = {}
+        for v in par_aux_data:
+            tmp_aux[v] = par_aux_data[v][idx]
+        data, aux = extract_particles(particle_data[idx], pos, par_cnt, patch_size/2, pad_val, tmp_aux)
+
+        #end = time.time()
+        #avg_extract += end - start
+        #if i % 1000 == 0:
+        #    print("Avg Extract Time: ", avg_extract)
+        #    avg_extract = 0
+
+        par_patches[i] = data
         for k, v in aux.items():
-            par_aux_patches[k] = np.append(par_aux_patches[k], [v], axis=0)
+            par_aux_patches[k][i] = v
 
-        nor = nor_f(pos[:2])
+        nor = nor_f(pos)[0]
+
         theta = math.atan2(nor[0], nor[1])
         c, s = math.cos(-theta), math.sin(-theta)
-        mat = np.matrix([[c,-s,0],[s,c,0],[0,0,1]])
-        par_patches_rot = np.append(par_patches_rot, [data*mat], axis=0)
+        mat0 = np.matrix([[c,-s,0],[s,c,0],[0,0,1]])
 
+        theta = math.atan2(nor[2], nor[1])
+        c, s = math.cos(theta), math.sin(theta)
+        mat1 = np.matrix([[1,0,0],[0,c,-s],[0,s,c]])
+
+        par_patches_rot[i] = data*mat0*mat1
+
+        #end = time.time()
+        #avg_total += end - start
+        #if i % 1000 == 0:
+        #    print("Avg Total Time: ", avg_total)
+        #    avg_total = 0
+    #end = time.time()
+    #print(end-start)
     return par_patches, par_aux_patches, par_patches_rot, positions
 
 def get_data_pair(data_path, config_path, dataset, timestep, var):
@@ -270,7 +301,8 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
     with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
         pre_config = json.loads(f.read())
 
-    fac_2d = math.sqrt(pre_config['factor'])
+    fac_d = math.pow(pre_config['factor'], 1/data_config['dim'])
+    print(fac_d)
     patch_size = pre_config['patch_size']
     patch_size_ref = pre_config['patch_size_ref']
 
@@ -319,7 +351,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
                         tmp = np.concatenate([(aux_par[f]) for f in features], axis=-1)
                         aux = tmp if aux is None else np.append(aux, tmp, axis=0)
 
-                    par, aux_par, par_rot = load_patches(path_ref%(d,t), par_cnt_ref, patch_size_ref, pad_val=pad_val, positions=positions*fac_2d)[:3]
+                    par, aux_par, par_rot = load_patches(path_ref%(d,t), par_cnt_ref, patch_size_ref, pad_val=pad_val, positions=positions*fac_d)[:3]
                     reference = np.append(reference, par, axis=0)
                     ref_rot = np.append(ref_rot, par_rot, axis=0)
     
@@ -336,7 +368,7 @@ class PatchExtractor:
         self.features = features
         self.pad_val = pad_val
 
-        self.pos_backup = get_positions(src_data, np.squeeze(sdf_data), patch_size, surface, bnd)
+        self.pos_backup = get_positions(src_data, sdf_data, patch_size, surface, bnd)
         np.random.shuffle(self.pos_backup)
 
         self.reset()

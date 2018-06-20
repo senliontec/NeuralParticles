@@ -28,16 +28,16 @@ checkUnusedParams()
 
 backupSources(out_path)
 
-res = int(high_res/math.sqrt(factor))
+res = int(high_res/math.pow(factor,1/dim))
 
 print("grid down-scale: %d -> %d" %(high_res, res))
 
-search_r = .5*high_res/(res*sres) * 1.41
+search_r = .5*high_res/(res*sres) * math.sqrt(dim)
 
 print("search radius: %f" % search_r)
 
-high_gs = vec3(high_res, high_res, 1)
-gs = vec3(res, res, 1)
+high_gs = vec3(high_res, high_res, high_res if dim == 3 else 1)
+gs = vec3(res, res, res if dim == 3 else 1)
 
 s = Solver(name="low", gridSize=gs, dim=dim)
 high_s = Solver(name='IISPH', gridSize=high_gs, dim=dim)

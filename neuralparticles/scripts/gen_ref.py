@@ -49,7 +49,7 @@ param['fps'] = data_config['fps']
 # simulation time (how many frames)
 param['t_end'] = float(data_config['frame_count']) / data_config['fps']
 
-param['res'] = int(data_config['res']/math.sqrt(pre_config['factor'])) if lowres else data_config['res']
+param['res'] = int(data_config['res']/math.pow(pre_config['factor'], 1/data_config['dim'])) if lowres else data_config['res']
 
 param['dim'] = int(data_config['dim'])
 
