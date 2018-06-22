@@ -4,7 +4,9 @@ from neuralparticles.tools.plot_helpers import plot_particles, write_csv
 from neuralparticles.tools.data_helpers import PatchExtractor
 
 def eval_patch(model, src, path="", ref=None, features=[]):
+    #print(src)
     result = model.predict(src)
+    #print(result)
     if path != "":
         _i = 0
         vel_src = None
@@ -78,32 +80,50 @@ class NthLogger(keras.callbacks.Callback):
             print('Saved Checkpoint: %s' % path)
 
 class EvalCallback(keras.callbacks.Callback):
-    def __init__(self, path, model, src, ref, features=[]):
+    def __init__(self, path, model, src, ref, features=[], batch_intervall=0):
         self.path = path
         self.model = model
         self.src = src
         self.ref = ref
         self.features = features
+        self.batch_intervall = batch_intervall
         for i in range(len(self.src)):
             eval_patch(self.model, self.src[i], self.path%(i,0), self.ref[i], self.features)
     
     def on_epoch_end(self,ep,logs={}):
+        if self.batch_intervall > 0:
+            return
         print("Eval Patch")
         for i in range(len(self.src)):
             eval_patch(self.model, self.src[i], self.path%(i,ep+1), self.ref[i], self.features)
 
+    def on_batch_end(self,batch,logs={}):
+        if self.batch_intervall <= 0 or batch % self.batch_intervall != 0:
+            return
+        for i in range(len(self.src)):
+            eval_patch(self.model, self.src[i], self.path%(i,batch+1), self.ref[i], self.features)
+
 class EvalCompleteCallback(keras.callbacks.Callback):
-    def __init__(self, path, model, patch_extractor, ref, factor_d, hdim):
+    def __init__(self, path, model, patch_extractor, ref, factor_d, hdim, batch_intervall=0):
         self.path = path
         self.model = model
         self.patch_extractor = patch_extractor
         self.ref = ref
         self.factor_d = factor_d
         self.hdim = hdim
+        self.batch_intervall = batch_intervall
         for i in range(len(self.patch_extractor)):
             eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,0), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)
     
     def on_epoch_end(self,ep,logs={}):
+        if self.batch_intervall > 0:
+            return
         print("Eval")
         for i in range(len(self.patch_extractor)):
             eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,ep+1), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)
+
+    def on_batch_end(self,batch,logs={}):
+        if self.batch_intervall <= 0 or batch % self.batch_intervall != 0:
+            return
+        for i in range(len(self.patch_extractor)):
+            eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,batch+1), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)

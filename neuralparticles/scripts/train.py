@@ -140,11 +140,12 @@ else:
 def mask_loss(y_true, y_pred):
    return particle_loss(y_true * zero_mask(y_true, pad_val), y_pred) if use_mask else particle_loss(y_true, y_pred)
 
+    
 use_stn = True
 if start_checkpoint == 0:
     print("Generate Network")
     
-    fac = 16
+    fac = 8
         
     k = train_config['par_feature_cnt']
     dropout = train_config['dropout']
@@ -180,19 +181,30 @@ if start_checkpoint == 0:
             aux_input = Lambda(lambda a: concatenate([stn_transform(stn, a[:,:,:3]/100,quat=True),a[:,:,3:]], axis=-1), name='aux_trans')(aux_input)
         transformed = concatenate([transformed, aux_input], axis=-1)
 
-    x = [Lambda(lambda v: v[:,i,:])(transformed) for i in range(particle_cnt_src)]
+    #x = [Lambda(lambda v: v[:,i,:])(transformed) for i in range(particle_cnt_src)]
+    def stack(X):
+        import tensorflow as tf
+        return tf.stack(X,axis=1)
+
+    def unstack(X):
+        import tensorflow as tf
+        return tf.unstack(X,axis=1)
+
+    x = Lambda(unstack)(transformed)
 
     x = list(map(Dropout(dropout),x))
     x = list(map(Dense(fac, activation='tanh'),x))
     x = list(map(Dropout(dropout),x))
     x = list(map(Dense(fac, activation='tanh'),x))
 
-    x = list(map(Lambda(lambda v: K.expand_dims(v, axis=1)),x))
-    x = concatenate(x, axis=1)
+    #x = list(map(Lambda(lambda v: K.expand_dims(v, axis=1)),x))
+    #x = concatenate(x, axis=1)
+    x = Lambda(stack)(x)
 
     x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x) if use_stn else x
 
-    x = [Lambda(lambda v: v[:,i,:])(x) for i in range(particle_cnt_src)]
+    #x = [Lambda(lambda v: v[:,i,:])(x) for i in range(particle_cnt_src)]
+    x = Lambda(unstack)(x)
 
     x = list(map(Dropout(dropout),x))
     x = list(map(Dense(fac, activation='tanh'),x))
@@ -201,19 +213,23 @@ if start_checkpoint == 0:
     x = list(map(Dropout(dropout),x))
     x = list(map(Dense(k, activation='tanh'),x))
     
-    if use_mask:
-        x = [Lambda(lambda v: v[0] * v[1][:,i])([x[i],mask]) for i in range(particle_cnt_src)]
-
+    if use_mask:  
+        #x = [Lambda(lambda v: v[0] * v[1][:,i])([x[i],mask]) for i in range(particle_cnt_src)]
+        x = Lambda(stack)(x)
+        x = Multiply()([x,mask])
+        x = Lambda(unstack)(x)
+    
     x = add(x)
-    if use_mask:
-        x = Lambda(lambda v: v[0]/K.sum(v[1],axis=1))([x, mask])
 
     if truncate:
         x_t = Dropout(dropout)(x)
-        x_t = Dense(fac)(x_t)
+        x_t = Dense(fac,activation='elu')(x_t)
         x_t = Dropout(dropout)(x_t)
-        trunc = Dense(1)(x_t)
+        trunc = Dense(1,activation='elu')(x_t)
         out_mask = trunc_mask(trunc,particle_cnt_dst)
+
+    if use_mask:
+        x = Lambda(lambda v: v[0]/K.sum(v[1],axis=1))([x, mask])
 
     x = Dropout(dropout)(x)
     x = Dense(particle_cnt_dst, activation='tanh')(x)

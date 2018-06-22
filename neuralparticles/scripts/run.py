@@ -22,6 +22,8 @@ from neuralparticles.tensorflow.losses.tf_nndistance import chamfer_loss
 
 from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
 
+from neuralparticles.tensorflow.tools.eval_helpers import eval_frame, eval_patch
+
 import json
 #from uniio import *
 
@@ -91,11 +93,13 @@ csv_path = data_path + "result/csv/%s"%file_name
 def write_out_particles(particles, t, suffix, xlim=None, ylim=None, s=1):
     writeNumpyRaw((npy_path + suffix + "_%03d")%t, particles)
     plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.png")%t)
+    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.pdf")%t)
     write_csv((csv_path + suffix + "_%03d.csv")%t, particles)
 
 def write_out_vel(particles, vel, t, suffix, xlim=None, ylim=None, s=1):
     writeNumpyRaw((npy_path + suffix + "_%03d")%t, vel)
     plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.png")%t, src=particles, vel=vel)
+    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.pdf")%t, src=particles, vel=vel)
     write_csv((csv_path + suffix + "_%03d.csv")%t, vel)
 
 if verbose:
@@ -149,7 +153,6 @@ model = load_model(model_path, custom_objects={'mask_loss': mask_loss})
 avg_chamfer_loss = 0
 avg_emd_loss = 0
 
-
 for t in range(t_start, t_end):
     (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
 
@@ -182,7 +185,7 @@ for t in range(t_start, t_end):
             result, trunc = model.predict(x=src)
             trunc = int(trunc[0]*par_cnt_dst)
             raw_result = result[0]
-            result = result[0][:trunc]
+            result = raw_result[:trunc]
             avg_trunc += trunc
             avg_ref_trunc += np.count_nonzero(ref != pad_val)/3
         else:
