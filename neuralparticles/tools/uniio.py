@@ -154,7 +154,7 @@ def RP_read_content(bytestream, head, data_type=None): # data_type = {None: Basi
 
     return data
 
-def readParticles(filename, data_type=None):
+def readParticlesUni(filename, data_type=None):
     print('Reading {} ... '.format(filename) )
     with gzip.open(filename, 'rb') as bytestream:
         head = RP_read_header(bytestream)
@@ -164,7 +164,7 @@ def readParticles(filename, data_type=None):
         return head, data
 
 # use this to write a .uni file. The header has to be supplied in the same dictionary format as the output of readuni
-def writeParticles(filename, header, content):
+def writeParticlesUni(filename, header, content):
 	with gzip.open(filename, 'wb') as bytestream:
 
 		# current header
@@ -280,13 +280,6 @@ def readNumpyRaw(filename):
 	return readNumpy(filename + ".npy")
 
 def readNumpyXYZ(filename):
-	'''result = None
-	with open(filename + ".xyz", "r") as f:
-		for l in f.readlines():
-			pl = [float(el) for el in l.split(" ")]
-			if len(pl) >= 3:
-				result = np.array([pl]) if result is None else np.append(result, np.array([pl], axis=0))
-	return result'''
 	return np.loadtxt(filename)
 	
 def writeNumpyXYZ(filename, data):
@@ -298,8 +291,21 @@ def readNumpyH5(filename, data_key):
 		return f[data_key][:]
 
 def writeNumpyH5(filename, data, data_key):
-	with h5py.File(filename+'.h5', 'r+') as f:
+	with h5py.File(filename+'.h5', 'a') as f:
 		if data_key in f.keys():
 			f[data_key][:] = data
 		else:
 			f.create_dataset(data_key, data=data)
+
+
+def readGrid(filename, data_type=None):
+    if os.path.isfile(filename + ".uni"):
+        return readUni(filename+".uni")[0]
+    else:
+        return readNumpyRaw(filename)
+
+def readParticles(filename, data_type=None):
+    if os.path.isfile(filename + ".uni"):
+        return readParticlesUni(filename+".uni")[0]
+    else:
+        return readNumpyRaw(filename)

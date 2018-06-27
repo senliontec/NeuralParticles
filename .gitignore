@@ -9,3 +9,7 @@ doc
 neuralparticles/\.vscode/
 
 3D_data/
+
+test/
+
+sanity_check/

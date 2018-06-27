@@ -2,15 +2,12 @@ import sys, os, warnings
 
 import json
 from .uniio import *
-from .particle_grid import ParticleIdxGrid
+from .particle_grid import ParticleIdxGrid, interpol_grid, normals, curvature
 import numpy as np
 
 import random
 
 import math
-
-import scipy
-from scipy import interpolate
 
 
 def particle_range(arr, pos, r):
@@ -85,48 +82,25 @@ def extract_patch(data, pos, patch_size):
     y1 = int(pos[1])+patch_size+1
     return data[0,y0:y1,x0:x1]
 
-def interpol_grid(grid):
-    x_v = np.arange(0.5, grid.shape[2]+0.5)
-    y_v = np.arange(0.5, grid.shape[1]+0.5)
-    if grid.shape[0] == 1:
-        z_v = np.array([0.0,1.0])
-        return interpolate.RegularGridInterpolator((x_v, y_v, z_v), np.transpose(np.concatenate([grid,grid]),(2,1,0,3)), bounds_error=False)
-    else:
-        z_v = np.arange(0.5, grid.shape[0]+0.5)
-        return interpolate.RegularGridInterpolator((x_v, y_v, z_v), np.transpose(grid,(2,1,0,3)), bounds_error=False)
-
-def normals(sdf):
-    g = np.gradient(np.squeeze(sdf))
-    if sdf.shape[0] == 1:
-        g.insert(0, np.zeros_like(g[0]))
-        g = np.expand_dims(g,axis=1)
-    g = np.expand_dims(g,axis=-1)
-    g = np.concatenate([g[2],g[1],g[0]],axis=-1)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=RuntimeWarning)
-        result = np.nan_to_num(g/np.linalg.norm(g,axis=-1,keepdims=True))
-    return result
-
-def curvature(sdf):
-    dif = np.gradient(normals(sdf))
-    return (np.linalg.norm(dif[0],axis=-1)+np.linalg.norm(dif[1],axis=-1)+np.linalg.norm(dif[2],axis=-1))/3
-
 def in_bound(pos, bnd_min, bnd_max):
     return np.where(np.all([np.all(bnd_min<=pos,axis=-1),np.all(pos<=bnd_max,axis=-1)],axis=0))
+
+def in_surface(sdf_v, surface):
+    return np.where(abs(sdf_v) < surface)[0]
 
 def get_positions(particle_data, sdf, patch_size, surface=1.0, bnd=0):
     sdf_f = interpol_grid(sdf)
     particle_data_bound = particle_data[in_bound(particle_data[:,:2] if sdf.shape[0] == 1 else particle_data, bnd+patch_size/2,sdf.shape[1]-(bnd+patch_size/2))]
-    positions = particle_data_bound[np.where(abs(sdf_f(particle_data_bound)) < surface)[0]]#particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]), surface)[0]]
+    positions = particle_data_bound[in_surface(sdf_f(particle_data_bound), surface)]
     return positions
 
 def get_data(prefix, par_aux=[]):
     par_aux_data = {}
 
     for v in par_aux:
-        par_aux_data[v] = readParticles((prefix+"_p%s.uni")%v, "float32")[1]
+        par_aux_data[v] = readParticles((prefix+"_p%s")%v, "float32")
         
-    return readParticles(prefix + "_ps.uni")[1], readUni(prefix + "_sdf.uni")[1], par_aux_data
+    return readParticles(prefix + "_ps"), readGrid(prefix + "_sdf"), par_aux_data
 
 def load_patches_from_file(data_path, config_path):
     with open(config_path, 'r') as f:
@@ -202,10 +176,10 @@ def load_patches_from_file(data_path, config_path):
 def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0, pad_val=0.0, positions=None):
 
     par_aux_data = {}
-    sdf = readUni(prefix + "_sdf.uni")[1]
-    particle_data = readParticles(prefix + "_ps.uni")[1]
+    sdf = readGrid(prefix + "_sdf")
+    particle_data = readParticles(prefix + "_ps")
     for v in par_aux:
-        par_aux_data[v] = readParticles((prefix+"_p%s.uni")%v, "float32")[1]
+        par_aux_data[v] = readParticles((prefix+"_p%s")%v, "float32")
 
     if positions is None:
         positions = get_positions(particle_data, sdf, patch_size, surface, bnd)
@@ -221,25 +195,15 @@ def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0,
 
     idx_grid = ParticleIdxGrid(particle_data, sdf.shape[:3])
 
-    #import time
-    #avg_extract = 0
-    #avg_total = 0
-    #start = time.time()
     for i in range(len(positions)):
-        #start = time.time()
         pos = positions[i]
-        print("gen patch: %06d/%d" % (i,len(positions)), end="\r", flush=True)
+        print("gen patch: %06d/%06d" % (i+1,len(positions)), end="\r", flush=True)
         idx = idx_grid.get_range(pos, patch_size/2)
         tmp_aux = {}
         for v in par_aux_data:
             tmp_aux[v] = par_aux_data[v][idx]
         data, aux = extract_particles(particle_data[idx], pos, par_cnt, patch_size/2, pad_val, tmp_aux)
 
-        #end = time.time()
-        #avg_extract += end - start
-        #if i % 1000 == 0:
-        #    print("Avg Extract Time: ", avg_extract)
-        #    avg_extract = 0
 
         par_patches[i] = data
         for k, v in aux.items():
@@ -256,14 +220,7 @@ def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0,
         mat1 = np.matrix([[1,0,0],[0,c,-s],[0,s,c]])
 
         par_patches_rot[i] = data*mat0*mat1
-
-        #end = time.time()
-        #avg_total += end - start
-        #if i % 1000 == 0:
-        #    print("Avg Total Time: ", avg_total)
-        #    avg_total = 0
-    #end = time.time()
-    #print(end-start)
+    print("")
     return par_patches, par_aux_patches, par_patches_rot, positions
 
 def get_data_pair(data_path, config_path, dataset, timestep, var):
@@ -327,8 +284,6 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
 
     path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
     path_ref = "%sreference/%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d_%03d"
-    print(path_src)
-    print(path_ref)
 
     main = np.empty([0,par_cnt, 3])
     main_rot = np.empty([0,par_cnt, 3])
@@ -341,6 +296,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
         for v in range(v_start, v_stop):
             for t in range(t_start, t_stop):
                 for r in range(pv_start, pv_stop):
+                    print(path_src%(d,v,t) + " (%d)"%r)
                     par, aux_par, par_rot, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, pad_val=pad_val, par_aux=features)
                     main = np.append(main, par, axis=0)
                     main_rot = np.append(main_rot, par_rot, axis=0)

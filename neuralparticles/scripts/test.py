@@ -13,12 +13,11 @@ from keras.layers import Conv2D, Conv2DTranspose, Input, Dense, Dropout
 from keras.layers import Reshape, concatenate, add, Flatten, Lambda
 
 from neuralparticles.tensorflow.tools.spatial_transformer import *
-from neuralparticles.tensorflow.tools.split_layer import *
 
 import random
 import math
 
-from neuralparticles.tools.particle_grid import ParticleGrid
+from neuralparticles.tools.particle_grid import ParticleGrid, RandomParticles, interpol_grid, normals
 
 import numpy as np
 
@@ -31,13 +30,13 @@ np.random.seed(694)
 
 import tensorflow as tf
 
-from sklearn.decomposition import PCA
+#from sklearn.decomposition import PCA
 
 import keras.backend as K
 
-from neuralparticles.tensorflow.losses.hungarian_loss import hungarian_loss
+#from neuralparticles.tensorflow.losses.hungarian_loss import hungarian_loss
 
-use_test_data = False
+use_test_data = True
 
 gpu = getParam("gpu", "")
 
@@ -131,18 +130,16 @@ h_dim = dim * fac_2d
 
 def translation(par, sdf, fac):
     res = np.empty((0,3))
-    sdf_f = sdf_func(sdf)
-    nor_f = nor_func(sdf)
+    sdf_f = interpol_grid(sdf)
+    nor_f = interpol_grid(normals(sdf))
     if fac <= 0:
-        x_v = np.arange(0.5, sdf.shape[1]+0.5)
-        y_v = np.arange(0.5, sdf.shape[0]+0.5)
-        curv = lambda x: interpolate.interp2d(x_v, y_v, curvature(sdf))(x[0],x[1])
+        curv = interpol_grid(curvature(sdf))
     for p in par:
         n = (nor_f(p[:2]) if trans_mode == 1 else np.array([1,0])) * (fac if fac > 0 else ((-fac) * curv(p[:2]) / (1 - sdf_f(p[:2]))))
         res = np.append(res,np.array([[p[0]+n[0],p[1]+n[1],p[2]]]), axis=0)
     return res
 
-class RandomParticles:
+'''class RandomParticles:
     def __init__(self, dimX, dimY, fac_2d, max_size, cnt, cube_prob):
         self.dimX = dimX
         self.dimY = dimY
@@ -171,18 +168,18 @@ class RandomParticles:
                     ref_grid.sample_sphere(self.pos[i] * self.fac_2d, self.a[i,0] * self.fac_2d)
         src_grid.sample_sdf()
         ref_grid.sample_sdf()
-        return src_grid, ref_grid
+        return src_grid, ref_grid'''
 
 def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
     result = np.empty((0,par_cnt,3))
 
     #plot_particles(grid.particles, [0,grid.dimX], [0,grid.dimY], 0.1, (scr+"_not_accum.png")%t)
 
-    sdf_f = sdf_func(np.squeeze(grid.cells))
+    sdf_f = interpol_grid(grid.cells)
 
     if positions is None:
         particle_data_bound = grid.particles[in_bound(grid.particles[:,:2], bnd+patch_size/2, grid.dimX-(bnd+patch_size/2))]
-        positions = particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]),surface)[0]]
+        positions = particle_data_bound[in_surface(sdf_f(particle_data_bound),surface)]
 
     #plot_particles(positions, [0,grid.dimX], [0,grid.dimY], 0.1, (scr + "_pos.png") % t)
 
@@ -205,9 +202,9 @@ def load_test(grid, bnd, par_cnt, patch_size, scr, t, positions=None):
 
 def mean_nor(sdf, positions, t):
     res = np.empty((len(positions),2))
-    nor_f = nor_func(np.squeeze(sdf))
+    nor_f = interpol_grid(normals(sdf))
     for i in range(len(positions)):
-        res[i] = nor_f(positions[i,:2])
+        res[i] = nor_f(positions[i])[:,:2]
         #if [t,i] in samples:
         #    print(res[i])
     return res
@@ -217,14 +214,14 @@ def load_src(prefix, bnd, par_cnt, patch_size, scr, t, positions=None):
     #aux_res = {}
     #aux_data = {}
 
-    particle_data = readParticles(prefix + "_ps.uni")[1]
+    particle_data = readParticles(prefix + "_ps")
 
-    header, sdf = readUni(prefix + "_sdf.uni")
-    sdf_f = sdf_func(np.squeeze(sdf))
+    header, sdf = readGrid(prefix + "_sdf")
+    sdf_f = interpol_grid(sdf)
 
     if positions is None:    
         particle_data_bound = particle_data[in_bound(particle_data[:,:2], bnd+patch_size/2,header['dimX']-(bnd+patch_size/2))]
-        positions = particle_data_bound[in_surface(np.array([sdf_f(p) for p in particle_data_bound]), surface)[0]]
+        positions = particle_data_bound[in_surface(sdf_f(particle_data_bound), surface)[0]]
         
     plot_particles(positions, [0,header['dimX']], [0,header['dimY']], 0.1, (scr + "_pos.png") % t)
 
@@ -265,7 +262,7 @@ if use_test_data:
     for k in aux_postfix:
         aux_src[k] = np.empty((0, particle_cnt_src, 3 if k == "vel" else 1))
 
-    src_gen = RandomParticles(dim,dim,fac_2d,dim/3,obj_cnt,1.0)#if fixed else 0.6)
+    src_gen = RandomParticles(dim,dim,1,data_config['sub_res'],fac_2d,dim/3,obj_cnt,0.0)#if fixed else 0.6)
 
     data_cnt = var*dataset*(t_end-t_start)*repetitions
     for v in range(var):
@@ -313,8 +310,10 @@ if use_test_data:
                     rotated_dst = np.append(rotated_dst, res, axis=0)
 
                     dst = np.append(dst, res, axis=0)
+
+    src = [src]
 else:
-    src, dst, rotated_src, rotated_dst, positions = gen_patches(data_path, config_path, dataset, t_end, var, repetitions, t_start=t_start)
+    src, dst, rotated_src, rotated_dst, positions = gen_patches(data_path, config_path, d_stop=dataset, t_start=t_start, t_stop=t_end)
     
 fac = 16
 k = train_config['par_feature_cnt']
@@ -334,9 +333,7 @@ print("feature_count: %d" % feature_cnt)
 
 particle_loss = keras.losses.mse
 
-if loss_mode == 'hungarian_loss':
-    particle_loss = hungarian_loss
-elif loss_mode == 'emd_loss':
+if loss_mode == 'emd_loss':
     particle_loss = emd_loss
 elif loss_mode == 'chamfer_loss':
     particle_loss = chamfer_loss
@@ -370,22 +367,22 @@ if feature_cnt > 0:
 
 x = [(Lambda(lambda v: v[:,i:i+1,:])(trans_input)) for i in range(particle_cnt_src)]
 
-x = split_layer(Dropout(dropout),x)
-x = split_layer(Dense(fac, activation='tanh'),x)
-x = split_layer(Dropout(dropout),x)
-x = split_layer(Dense(fac, activation='tanh'),x)
+x = list(map(Dropout(dropout),x))
+x = list(map(Dense(fac, activation='tanh'),x))
+x = list(map(Dropout(dropout),x))
+x = list(map(Dense(fac, activation='tanh'),x))
 
 x = concatenate(x, axis=1)
 x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x)
 
 x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_src)]
 
-x = split_layer(Dropout(dropout),x)
-x = split_layer(Dense(fac, activation='tanh'),x)
-x = split_layer(Dropout(dropout),x)
-x = split_layer(Dense(fac*2, activation='tanh'),x)
-x = split_layer(Dropout(dropout),x)
-x = split_layer(Dense(k, activation='tanh'),x)
+x = list(map(Dropout(dropout),x))
+x = list(map(Dense(fac, activation='tanh'),x))
+x = list(map(Dropout(dropout),x))
+x = list(map(Dense(fac*2, activation='tanh'),x))
+x = list(map(Dropout(dropout),x))
+x = list(map(Dense(k, activation='tanh'),x))
 
 x = add(x)
 
@@ -423,22 +420,22 @@ if train_config["adv_fac"] > 0.:
 
     x = [(Lambda(lambda v: v[:,i:i+1,:])(disc_trans_input)) for i in range(particle_cnt_dst)]
 
-    x = split_layer(Dropout(dropout),x)
-    x = split_layer(Dense(fac, activation='tanh'),x)
-    x = split_layer(Dropout(dropout),x)
-    x = split_layer(Dense(fac, activation='tanh'),x)
+    x = list(map(Dropout(dropout),x))
+    x = list(map(Dense(fac, activation='tanh'),x))
+    x = list(map(Dropout(dropout),x))
+    x = list(map(Dense(fac, activation='tanh'),x))
 
     x = concatenate(x, axis=1)
     x = stn_transform(SpatialTransformer(x,particle_cnt_dst,fac,1),x)
 
     x = [(Lambda(lambda v: v[:,i:i+1,:])(x)) for i in range(particle_cnt_dst)]
 
-    x = split_layer(Dropout(dropout),x)
-    x = split_layer(Dense(fac, activation='tanh'),x)
-    x = split_layer(Dropout(dropout),x)
-    x = split_layer(Dense(fac*2, activation='tanh'),x)
-    x = split_layer(Dropout(dropout),x)
-    x = split_layer(Dense(k, activation='tanh'),x)
+    x = list(map(Dropout(dropout),x))
+    x = list(map(Dense(fac, activation='tanh'),x))
+    x = list(map(Dropout(dropout),x))
+    x = list(map(Dense(fac*2, activation='tanh'),x))
+    x = list(map(Dropout(dropout),x))
+    x = list(map(Dense(k, activation='tanh'),x))
 
     x = add(x)
 
@@ -583,7 +580,7 @@ for v in range(1):
                 (src_data, sdf_data, aux_data, _), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v)
 
             patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, particle_cnt_src, surface, stride, aux_data=aux_data)
-            sdf_f = sdf_func(np.squeeze(sdf_data))
+            sdf_f = interpol_grid(sdf_data)
 
             plot_particles(patch_extractor.positions, [0,dim], [0,dim], 0.1, (test_source_scr+"_pos.png")%(t))
             
@@ -594,45 +591,42 @@ for v in range(1):
             res_accum = np.empty((0,3))
             i = 0
             while(True):
-                src, aux = patch_extractor.get_patch()
+                src = patch_extractor.get_patch()
 
                 if src is None:
                     break
-                nn_src = [np.array([src])] 
-                if feature_cnt > 0:
-                    nn_src.append(np.array([np.concatenate([aux[f] for f in aux_features])]))
                 
                 ref = extract_particles(ref_data, patch_extractor.last_pos*fac_2d, particle_cnt_dst, ref_patch_size)[0]
 
-                result = model.predict(x=nn_src)[0]
+                result = model.predict(x=src)[0]
                 patch_extractor.set_patch(result)
 
                 i+=1
                 if [t,i] in samples:
                     print("{},{}: {}".format(t,i,patch_extractor.last_pos))
-                    inv_result = invm.predict(x=nn_src)[0]
-                    inter_result = inter_model.predict(x=nn_src[0])[0]
-                    plot_particles(result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_patch.png")%(t,i), ref, src)
+                    inv_result = invm.predict(x=src)[0]
+                    inter_result = inter_model.predict(x=src[0])[0]
+                    plot_particles(result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_patch.png")%(t,i), ref, src[0][0])
                     plot_particles(inv_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inv_patch.png")%(t,i))
                     plot_particles(inter_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_patch.png")%(t,i))
                     plot_particles(patch_extractor.data*fac_2d, [0,h_dim], [0,h_dim], 0.1, (test_result_scr+"_i%03d.png")%(t,i), ref_data, src_data*fac_2d)
                      
                     write_csv((test_result_scr+"_i%03d_patch.csv")%(t,i), result)
                     write_csv((test_reference_scr+"_i%03d_patch.csv")%(t,i), ref)
-                    write_csv((test_source_scr+"_i%03d_patch.csv")%(t,i), src)
+                    write_csv((test_source_scr+"_i%03d_patch.csv")%(t,i), src[0][0])
                     if pVaux:
-                        aux_inter_result = aux_inter_model.predict(x=nn_src)[0]
+                        aux_inter_result = aux_inter_model.predict(x=src)[0]
                         plot_particles(inter_result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_inter_vel_patch.png")%(t,i), src=inter_result, vel=aux_inter_result/1000)
-                        plot_particles(result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_vel_patch.png")%(t,i), ref, src, vel=aux['v']/1000)
+                        plot_particles(result, [-1,1], [-1,1], 5, (test_result_scr+"_i%03d_vel_patch.png")%(t,i), ref, src[0][0], vel=src[1][0][:,:3]/1000)
                         
-                    for f in aux_features:
-                        write_csv((test_source_scr+"_i%03d_%s_patch.csv")%(t,i,f), aux[f])
+                    #for f in aux_features:
+                    #    write_csv((test_source_scr+"_i%03d_%s_patch.csv")%(t,i,f), src[1][0][f])
                     write_csv((test_result_scr+"_i%03d_inv_patch.csv")%(t,i), inv_result)
                     write_csv((test_result_scr+"_i%03d_inter_patch.csv")%(t,i), inter_result)
-                    idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, patch_extractor.data[:,:2]))))
+                    idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, patch_extractor.data))))
                     write_csv((test_result_scr+"_i%03d.csv")%(t,i), patch_extractor.data[idx]*fac_2d)
 
-                src_accum = np.concatenate((src_accum, patch_extractor.transform_patch(src)))
+                src_accum = np.concatenate((src_accum, patch_extractor.transform_patch(src[0][0])))
                 ref_accum = np.concatenate((ref_accum, patch_extractor.transform_patch(ref)*fac_2d))
                 res_accum = np.concatenate((res_accum, patch_extractor.transform_patch(result)*fac_2d))
 
@@ -642,11 +636,11 @@ for v in range(1):
             if pVaux:
                 plot_particles(src_data, [0,dim], [0,dim], 0.1, (test_source_scr+"_vel.png")%(t), src=src_data, vel=aux_data['v']/1000)
 
-            idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, patch_extractor.data[:,:2]))))
+            idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, patch_extractor.data))))
             write_csv((test_result_scr+".csv")%(t), patch_extractor.data[idx]*fac_2d)
-            idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, ref_data[:,:2]/fac_2d))))
+            idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, ref_data/fac_2d))))
             write_csv((test_reference_scr+".csv")%(t), ref_data[idx])
-            idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, src_data[:,:2]))))
+            idx = np.argsort(np.abs(np.squeeze(np.apply_along_axis(sdf_f, -1, src_data))))
             write_csv((test_source_scr+".csv")%(t), src_data[idx])
 
             for f in aux_features:
@@ -664,7 +658,7 @@ for v in range(1):
             ref_accum = K.constant(np.array([ref_accum[:min_cnt]]))
             res_accum = K.constant(np.array([res_accum[:min_cnt]]))
 
-            if use_gpu:
+            if use_gpu and False:
                 loss = call_f(chamfer_loss, ref_accum, res_accum)
                 avg_chamfer_loss += loss
                 print("global chamfer loss: %f" % loss)

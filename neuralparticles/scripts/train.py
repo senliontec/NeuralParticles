@@ -15,7 +15,7 @@ from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtr
 
 import keras
 from keras.models import Model, Sequential, load_model
-from keras.layers import Conv2D, Conv2DTranspose, BatchNormalization, Input, ZeroPadding2D, Dense, MaxPooling2D
+from keras.layers import Conv1D, Conv2D, Conv2DTranspose, BatchNormalization, Input, ZeroPadding2D, Dense, MaxPooling2D
 from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, average, Activation, Flatten, Lambda, Dropout, Multiply
 from keras.layers.advanced_activations import LeakyReLU
 from keras import regularizers
@@ -24,6 +24,7 @@ from neuralparticles.tensorflow.tools.spatial_transformer import *
 from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
 
 from neuralparticles.tensorflow.tools.eval_helpers import *
+from neuralparticles.tensorflow.layers.subpixel_layer import Subpixel1D
 
 import numpy as np
 
@@ -101,6 +102,11 @@ ref_patch_size = pre_config['patch_size_ref']
 par_cnt = pre_config['par_cnt']
 ref_par_cnt = pre_config['par_cnt_ref']
 
+l2_reg = train_config["l2_reg"]
+decay = train_config["decay"]
+fac = train_config["fac"]
+activation = train_config["activation"]
+
 pad_val = pre_config['pad_val']
 use_mask = train_config['mask']
 truncate = train_config['truncate']
@@ -144,8 +150,6 @@ def mask_loss(y_true, y_pred):
 use_stn = True
 if start_checkpoint == 0:
     print("Generate Network")
-    
-    fac = 8
         
     k = train_config['par_feature_cnt']
     dropout = train_config['dropout']
@@ -193,9 +197,9 @@ if start_checkpoint == 0:
     x = Lambda(unstack)(transformed)
 
     x = list(map(Dropout(dropout),x))
-    x = list(map(Dense(fac, activation='tanh'),x))
+    x = list(map(Dense(fac, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
     x = list(map(Dropout(dropout),x))
-    x = list(map(Dense(fac, activation='tanh'),x))
+    x = list(map(Dense(fac, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
 
     #x = list(map(Lambda(lambda v: K.expand_dims(v, axis=1)),x))
     #x = concatenate(x, axis=1)
@@ -207,11 +211,11 @@ if start_checkpoint == 0:
     x = Lambda(unstack)(x)
 
     x = list(map(Dropout(dropout),x))
-    x = list(map(Dense(fac, activation='tanh'),x))
+    x = list(map(Dense(fac, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
     x = list(map(Dropout(dropout),x))
-    x = list(map(Dense(fac*2, activation='tanh'),x))
+    x = list(map(Dense(fac*2, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
     x = list(map(Dropout(dropout),x))
-    x = list(map(Dense(k, activation='tanh'),x))
+    x = list(map(Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
     
     if use_mask:  
         #x = [Lambda(lambda v: v[0] * v[1][:,i])([x[i],mask]) for i in range(particle_cnt_src)]
@@ -223,20 +227,42 @@ if start_checkpoint == 0:
 
     if truncate:
         x_t = Dropout(dropout)(x)
-        x_t = Dense(fac,activation='elu')(x_t)
+        x_t = Dense(fac,activation='elu', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
         x_t = Dropout(dropout)(x_t)
-        trunc = Dense(1,activation='elu')(x_t)
+        trunc = Dense(1,activation='elu', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
         out_mask = trunc_mask(trunc,particle_cnt_dst)
 
     if use_mask:
         x = Lambda(lambda v: v[0]/K.sum(v[1],axis=1))([x, mask])
 
+    
     x = Dropout(dropout)(x)
-    x = Dense(particle_cnt_dst, activation='tanh')(x)
+    x = Dense(particle_cnt_dst, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
     x = Dropout(dropout)(x)
-    x = Dense(particle_cnt_dst, activation='tanh')(x)
+    x = Dense(particle_cnt_dst, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
     x = Dropout(dropout)(x)
-    x = Dense(3*particle_cnt_dst, activation='tanh')(x)
+    x = Dense(3*particle_cnt_dst, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
+    
+    '''x = Dropout(dropout)(x)
+    x = Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
+    x = Dropout(dropout)(x)
+    x = Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
+    x = Reshape((k,1))(x)
+    
+    if dim == 2:
+        x = Conv1D(16,3,strides=3,padding='same')(x)
+        x = Conv1D(32,3,strides=1,padding='same')(x)
+        x = Conv1D(54,3,strides=3,padding='same')(x)
+        x = Subpixel1D(18,3,3,padding='same')(x)
+        x = Subpixel1D(6,3,3,padding='same')(x)
+        x = Subpixel1D(3,3,2,padding='same')(x)
+    else:
+        x = Conv1D(6, 3, padding='same')(x)
+        x = Conv1D(12, 3, padding='same')(x)
+        x = Conv1D(24, 3, padding='same')(x)
+        x = Subpixel1D(12, 3, 2, padding='same')(x)
+        x = Subpixel1D(6, 3, 2, padding='same')(x)
+        x = Subpixel1D(3, 3, 2, padding='same')(x)'''
 
     inv_par_out = Reshape((particle_cnt_dst,3))(x)
     out = stn_transform_inv(stn,inv_par_out,quat=True) if use_stn else inv_par_out
@@ -244,10 +270,10 @@ if start_checkpoint == 0:
     if truncate:
         out = Multiply()([out, Reshape((particle_cnt_dst,1))(out_mask)])
         model = Model(inputs=inputs, outputs=[out,trunc])
-        model.compile(loss=[mask_loss, 'mse'], optimizer=keras.optimizers.adam(lr=learning_rate), loss_weights=[1.0,1.0])
+        model.compile(loss=[mask_loss, 'mse'], optimizer=keras.optimizers.adam(lr=learning_rate, decay=decay), loss_weights=[1.0,1.0])
     else:
         model = Model(inputs=inputs, outputs=out)
-        model.compile(loss=mask_loss, optimizer=keras.optimizers.adam(lr=learning_rate))
+        model.compile(loss=mask_loss, optimizer=keras.optimizers.adam(lr=learning_rate, decay=decay))
 
     model.save(tmp_model_path + '.h5')
 

@@ -244,10 +244,10 @@ for t in range(t_start, t_end):
     print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), (len(patch_extractor.data)/len(src_data))))
 
     call_f = lambda f,x,y: K.eval(f(x,y))[0]
-    loss = 0#call_f(chamfer_loss, ref_accum, res_accum)
+    loss = call_f(chamfer_loss, ref_accum, res_accum)
     avg_chamfer_loss += loss
     print("global chamfer loss: %f" % loss)
-    loss = 0#call_f(emd_loss, ref_accum, res_accum)
+    loss = call_f(emd_loss, ref_accum, res_accum)
     avg_emd_loss += loss
     print("global emd loss: %f" % loss)
 

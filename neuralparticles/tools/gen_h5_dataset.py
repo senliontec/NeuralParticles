@@ -11,18 +11,28 @@ import os
 
 def npy_to_h5(src_path, ref_path, output_path):
     data = None
+    #i = 0
     for f in glob(src_path):
         print(f)
         tmp = np.array(readNumpyRaw(f[:-4]))
         data = tmp if data is None else np.append(data, tmp, axis=0)
-    writeNumpyH5(output_path, data, 'source')
+        #if i % 10 == 0:
+        #    writeNumpyH5(output_path, data, 'source')
+        #    data = None
+    if data is not None:
+        writeNumpyH5(output_path, data, 'source')
 
     data = None
+    #i = 0
     for f in glob(ref_path):
         print(f)
         tmp = np.array(readNumpyRaw(f[:-4]))
         data = tmp if data is None else np.append(data, tmp, axis=0)
-    writeNumpyH5(output_path, data, 'reference')
+        #if i % 10 == 0:
+        #    writeNumpyH5(output_path, data, 'reference')
+        #    data = None
+    if data is not None:
+        writeNumpyH5(output_path, data, 'reference')
 
 if __name__ == "__main__":
     src_path = getParam("src", "data/source/*")
