@@ -298,6 +298,8 @@ if use_test_data:
                     res = load_test(ref_data, 0, particle_cnt_dst, ref_patch_size, reference_scr, t, positions*fac_2d)[0]
                     #res = load_src(data_path + "reference/" + dst_file%(d,t), 4, particle_cnt_dst, ref_patch_size, reference_scr, t, positions=positions*fac_2d)[0]
 
+                    dst = np.append(dst, res, axis=0)
+
                     nor = mean_nor(ref_data.cells, positions*fac_2d, t)
                     theta = np.arctan2(nor[:,0],nor[:,1])
 
@@ -308,9 +310,6 @@ if use_test_data:
                         #if [t,i] in samples:
                         #    plot_particles(res[i],[-1,1],[-1,1],5,(source_scr+"_i%03d_rotated_patch.png")%(t,i))
                     rotated_dst = np.append(rotated_dst, res, axis=0)
-
-                    dst = np.append(dst, res, axis=0)
-
     src = [src]
 else:
     src, dst, rotated_src, rotated_dst, positions = gen_patches(data_path, config_path, d_stop=dataset, t_start=t_start, t_stop=t_end)
