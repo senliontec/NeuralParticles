@@ -300,12 +300,12 @@ def writeNumpyH5(filename, data, data_key):
 
 def readGrid(filename, data_type=None):
     if os.path.isfile(filename + ".uni"):
-        return readUni(filename+".uni")[0]
+        return readUni(filename+".uni")[1]
     else:
         return readNumpyRaw(filename)
 
 def readParticles(filename, data_type=None):
     if os.path.isfile(filename + ".uni"):
-        return readParticlesUni(filename+".uni")[0]
+        return readParticlesUni(filename+".uni")[1]
     else:
         return readNumpyRaw(filename)

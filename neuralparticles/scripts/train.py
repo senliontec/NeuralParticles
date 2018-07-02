@@ -24,7 +24,7 @@ from neuralparticles.tensorflow.tools.spatial_transformer import *
 from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
 
 from neuralparticles.tensorflow.tools.eval_helpers import *
-from neuralparticles.tensorflow.layers.subpixel_layer import Subpixel1D
+from neuralparticles.tensorflow.layers.subpixel_layer import Subpixel1D, Subpixel2D
 
 import numpy as np
 
@@ -112,7 +112,8 @@ use_mask = train_config['mask']
 truncate = train_config['truncate']
 
 dim = data_config['dim']
-factor_d = math.pow(pre_config['factor'], 1/dim)
+factor = pre_config['factor']
+factor_d = math.pow(factor, 1/dim)
 
 hres = data_config['res']
 res = int(hres/factor_d)
@@ -147,7 +148,8 @@ def mask_loss(y_true, y_pred):
    return particle_loss(y_true * zero_mask(y_true, pad_val), y_pred) if use_mask else particle_loss(y_true, y_pred)
 
     
-use_stn = True
+use_conv = True
+use_stn = True and not use_conv
 if start_checkpoint == 0:
     print("Generate Network")
         
@@ -173,19 +175,6 @@ if start_checkpoint == 0:
         if use_mask:
             aux_input = Multiply()([aux_input, mask])
 
-    stn_input = Input((particle_cnt_src,3))
-    stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
-    stn_model = Model(inputs=stn_input, outputs=stn, name="stn")
-    stn = stn_model(x)
-
-    transformed = stn_transform(stn,x,quat=True, name='trans') if use_stn else x
-    
-    if feature_cnt > 0:
-        if 'v' in features and use_stn:
-            aux_input = Lambda(lambda a: concatenate([stn_transform(stn, a[:,:,:3]/100,quat=True),a[:,:,3:]], axis=-1), name='aux_trans')(aux_input)
-        transformed = concatenate([transformed, aux_input], axis=-1)
-
-    #x = [Lambda(lambda v: v[:,i,:])(transformed) for i in range(particle_cnt_src)]
     def stack(X):
         import tensorflow as tf
         return tf.stack(X,axis=1)
@@ -194,78 +183,115 @@ if start_checkpoint == 0:
         import tensorflow as tf
         return tf.unstack(X,axis=1)
 
-    x = Lambda(unstack)(transformed)
-
-    x = list(map(Dropout(dropout),x))
-    x = list(map(Dense(fac, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
-    x = list(map(Dropout(dropout),x))
-    x = list(map(Dense(fac, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
-
-    #x = list(map(Lambda(lambda v: K.expand_dims(v, axis=1)),x))
-    #x = concatenate(x, axis=1)
-    x = Lambda(stack)(x)
-
-    x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x) if use_stn else x
-
-    #x = [Lambda(lambda v: v[:,i,:])(x) for i in range(particle_cnt_src)]
-    x = Lambda(unstack)(x)
-
-    x = list(map(Dropout(dropout),x))
-    x = list(map(Dense(fac, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
-    x = list(map(Dropout(dropout),x))
-    x = list(map(Dense(fac*2, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
-    x = list(map(Dropout(dropout),x))
-    x = list(map(Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
-    
-    if use_mask:  
-        #x = [Lambda(lambda v: v[0] * v[1][:,i])([x[i],mask]) for i in range(particle_cnt_src)]
+    if use_conv:
+        l = []
+        for i in range(factor):
+            tmp = Conv1D(256, 1)(x)
+            tmp = Conv1D(128, 1)(tmp)
+            l.append(tmp)
+        x = concatenate(l, axis=1)
+        #x = Conv1D(9, 1)(x)
+        #x = Conv1D(36, 1)(x)
+        #x = Subpixel1D(3, 1, 4, padding='same')(x)
+        #x = Lambda(unstack)(x)
+        x = Conv1D(64,1)(x)
+        x = Conv1D(3,1)(x)
+        out = x
+        '''x = list(map(Dropout(dropout), x))
+        x = list(map(Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
+        x = list(map(Dropout(dropout), x))
+        x = list(map(Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
+        x = list(map(Dropout(dropout), x))
+        x = list(map(Dense(3, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
         x = Lambda(stack)(x)
-        x = Multiply()([x,mask])
-        x = Lambda(unstack)(x)
-    
-    x = add(x)
-
-    if truncate:
-        x_t = Dropout(dropout)(x)
-        x_t = Dense(fac,activation='elu', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
-        x_t = Dropout(dropout)(x_t)
-        trunc = Dense(1,activation='elu', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
-        out_mask = trunc_mask(trunc,particle_cnt_dst)
-
-    if use_mask:
-        x = Lambda(lambda v: v[0]/K.sum(v[1],axis=1))([x, mask])
-
-    
-    x = Dropout(dropout)(x)
-    x = Dense(particle_cnt_dst, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
-    x = Dropout(dropout)(x)
-    x = Dense(particle_cnt_dst, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
-    x = Dropout(dropout)(x)
-    x = Dense(3*particle_cnt_dst, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
-    
-    '''x = Dropout(dropout)(x)
-    x = Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
-    x = Dropout(dropout)(x)
-    x = Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
-    x = Reshape((k,1))(x)
-    
-    if dim == 2:
-        x = Conv1D(16,3,strides=3,padding='same')(x)
-        x = Conv1D(32,3,strides=1,padding='same')(x)
-        x = Conv1D(54,3,strides=3,padding='same')(x)
-        x = Subpixel1D(18,3,3,padding='same')(x)
-        x = Subpixel1D(6,3,3,padding='same')(x)
-        x = Subpixel1D(3,3,2,padding='same')(x)
+        out = x'''
     else:
-        x = Conv1D(6, 3, padding='same')(x)
-        x = Conv1D(12, 3, padding='same')(x)
-        x = Conv1D(24, 3, padding='same')(x)
-        x = Subpixel1D(12, 3, 2, padding='same')(x)
-        x = Subpixel1D(6, 3, 2, padding='same')(x)
-        x = Subpixel1D(3, 3, 2, padding='same')(x)'''
+        stn_input = Input((particle_cnt_src,3))
+        stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
+        stn_model = Model(inputs=stn_input, outputs=stn, name="stn")
+        stn = stn_model(x)
 
-    inv_par_out = Reshape((particle_cnt_dst,3))(x)
-    out = stn_transform_inv(stn,inv_par_out,quat=True) if use_stn else inv_par_out
+        transformed = stn_transform(stn,x,quat=True, name='trans') if use_stn else x
+        
+        if feature_cnt > 0:
+            if 'v' in features and use_stn:
+                aux_input = Lambda(lambda a: concatenate([stn_transform(stn, a[:,:,:3]/100,quat=True),a[:,:,3:]], axis=-1), name='aux_trans')(aux_input)
+            transformed = concatenate([transformed, aux_input], axis=-1)
+
+        #x = [Lambda(lambda v: v[:,i,:])(transformed) for i in range(particle_cnt_src)]
+
+        x = Lambda(unstack)(transformed)
+
+        x = list(map(Dropout(dropout),x))
+        x = list(map(Dense(fac, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
+        x = list(map(Dropout(dropout),x))
+        x = list(map(Dense(fac, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
+
+        #x = list(map(Lambda(lambda v: K.expand_dims(v, axis=1)),x))
+        #x = concatenate(x, axis=1)
+        x = Lambda(stack)(x)
+
+        x = stn_transform(SpatialTransformer(x,particle_cnt_src,fac,1),x) if use_stn else x
+
+        #x = [Lambda(lambda v: v[:,i,:])(x) for i in range(particle_cnt_src)]
+        x = Lambda(unstack)(x)
+
+        x = list(map(Dropout(dropout),x))
+        x = list(map(Dense(fac, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
+        x = list(map(Dropout(dropout),x))
+        x = list(map(Dense(fac*2, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
+        x = list(map(Dropout(dropout),x))
+        x = list(map(Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
+        
+        if use_mask:  
+            #x = [Lambda(lambda v: v[0] * v[1][:,i])([x[i],mask]) for i in range(particle_cnt_src)]
+            x = Lambda(stack)(x)
+            x = Multiply()([x,mask])
+            x = Lambda(unstack)(x)
+        
+        x = add(x)
+
+        if truncate:
+            x_t = Dropout(dropout)(x)
+            x_t = Dense(fac,activation='elu', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
+            x_t = Dropout(dropout)(x_t)
+            trunc = Dense(1,activation='elu', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
+            out_mask = trunc_mask(trunc,particle_cnt_dst)
+
+        if use_mask:
+            x = Lambda(lambda v: v[0]/K.sum(v[1],axis=1))([x, mask])
+
+        
+        x = Dropout(dropout)(x)
+        x = Dense(particle_cnt_dst, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
+        x = Dropout(dropout)(x)
+        x = Dense(particle_cnt_dst, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
+        x = Dropout(dropout)(x)
+        x = Dense(3*particle_cnt_dst, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
+        
+        '''x = Dropout(dropout)(x)
+        x = Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
+        x = Dropout(dropout)(x)
+        x = Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg))(x)
+        x = Reshape((k,1))(x)
+        
+        if dim == 2:
+            x = Conv1D(16,3,strides=3,padding='same')(x)
+            x = Conv1D(32,3,strides=1,padding='same')(x)
+            x = Conv1D(54,3,strides=3,padding='same')(x)
+            x = Subpixel1D(18,3,3,padding='same')(x)
+            x = Subpixel1D(6,3,3,padding='same')(x)
+            x = Subpixel1D(3,3,2,padding='same')(x)
+        else:
+            x = Conv1D(6, 3, padding='same')(x)
+            x = Conv1D(12, 3, padding='same')(x)
+            x = Conv1D(24, 3, padding='same')(x)
+            x = Subpixel1D(12, 3, 2, padding='same')(x)
+            x = Subpixel1D(6, 3, 2, padding='same')(x)
+            x = Subpixel1D(3, 3, 2, padding='same')(x)'''
+
+        inv_par_out = Reshape((particle_cnt_dst,3))(x)
+        out = stn_transform_inv(stn,inv_par_out,quat=True) if use_stn else inv_par_out
 
     if truncate:
         out = Multiply()([out, Reshape((particle_cnt_dst,1))(out_mask)])
