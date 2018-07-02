@@ -184,27 +184,32 @@ if start_checkpoint == 0:
         return tf.unstack(X,axis=1)
 
     if use_conv:
+        def preprocess(x):
+            from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module
+            # extrahiere 'npoint' Gruppen aus dem Patch im Radius 'radius', die jeweils 'nsample' Punkte enthalten
+            # generiere für jede Gruppe ein Feature-vektor (mit PoinNet)
+            # resultat sind die Gruppenzentren (xyz) und 'npoint' Features (points)
+            l1_xyz, l1_points = pointnet_sa_module(x, None, particle_cnt_src, 0.1, 32, [32,32,64], None, False)[:2]
+            l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, particle_cnt_src/2, 0.2, 32, [64,64,128], None, False)[:2]
+            #l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, particle_cnt_src/4, 0.4, 32, [128,128,256], None, False)[:2]
+            #l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, particle_cnt_src/8, 0.5, 32, [256,256,512], None, False)[:2]
+            # interpoliere die features in l2_points auf die Punkte in x
+            up_l2_points = pointnet_fp_module(x, l2_xyz, None, l2_points, [64])
+            #up_l3_points = pointnet_fp_module(x, l3_xyz, None, l3_points, [64])
+            #up_l4_points = pointnet_fp_module(x, l4_xyz, None, l4_points, [64])
+            return concatenate([up_l2_points, l1_points, x], axis=-1)
+            #return concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, x], axis=-1)
+        x = Lambda(preprocess)(x)
         l = []
-        for i in range(factor):
+        for i in range(particle_cnt_dst//particle_cnt_src):
             tmp = Conv1D(256, 1)(x)
             tmp = Conv1D(128, 1)(tmp)
             l.append(tmp)
         x = concatenate(l, axis=1)
-        #x = Conv1D(9, 1)(x)
-        #x = Conv1D(36, 1)(x)
-        #x = Subpixel1D(3, 1, 4, padding='same')(x)
-        #x = Lambda(unstack)(x)
         x = Conv1D(64,1)(x)
         x = Conv1D(3,1)(x)
+        print(x.get_shape())
         out = x
-        '''x = list(map(Dropout(dropout), x))
-        x = list(map(Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
-        x = list(map(Dropout(dropout), x))
-        x = list(map(Dense(k, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
-        x = list(map(Dropout(dropout), x))
-        x = list(map(Dense(3, activation=activation, kernel_regularizer=regularizers.l2(l2_reg)),x))
-        x = Lambda(stack)(x)
-        out = x'''
     else:
         stn_input = Input((particle_cnt_src,3))
         stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
@@ -308,7 +313,8 @@ if start_checkpoint == 0:
     
     if verbose: 
         model.summary()
-        stn_model.summary()
+        if use_stn:
+            stn_model.summary()
         
     if train_config["adv_fac"] > 0.:
         generator = model
