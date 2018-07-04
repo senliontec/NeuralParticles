@@ -66,7 +66,7 @@ if __name__ == "__main__":
     patch_rot_dst_path = "%s%s_%s-%s_rot_ps" % (patch_ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
     patch_dst_path = "%s%s_%s-%s_ps" % (patch_ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
 
-    src_gen = RandomParticles(low_res, low_res, low_res if dim == 3 else 1, sres, fac_d, low_res * 0.3, 5, 0.2)
+    src_gen = RandomParticles(low_res, low_res, low_res if dim == 3 else 1, sres, fac_d, low_res * 0.3, 5, 0.5 if data_config['cos_displace'] == 0 else 0, data_config['cos_displace'])
     for d in range(data_cnt):
         for t in range(frame_cnt):
             print("dataset: %d/%d" % (d+1,data_cnt))

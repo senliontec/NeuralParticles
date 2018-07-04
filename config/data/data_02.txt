@@ -19,5 +19,5 @@
     "max_cnt":        5,
     "circ_vel":       100.0,
     "wlt_vel":        30.0,
-    "cos_displace":   0
+    "cos_displace":   4
 }

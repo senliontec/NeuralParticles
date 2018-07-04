@@ -189,8 +189,8 @@ if start_checkpoint == 0:
             # extrahiere 'npoint' Gruppen aus dem Patch im Radius 'radius', die jeweils 'nsample' Punkte enthalten
             # generiere für jede Gruppe ein Feature-vektor (mit PoinNet)
             # resultat sind die Gruppenzentren (xyz) und 'npoint' Features (points)
-            l1_xyz, l1_points = pointnet_sa_module(x, None, particle_cnt_src, 0.1, 32, [32,32,64], None, False)[:2]
-            l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, particle_cnt_src/2, 0.2, 32, [64,64,128], None, False)[:2]
+            l1_xyz, l1_points = pointnet_sa_module(x, None, particle_cnt_src, 0.25, 32, [32,32,64], None, False, pooling="weighted_avg")[:2]
+            l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, particle_cnt_src/2, 0.5, 32, [64,64,128], None, False, pooling="weighted_avg")[:2]
             #l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, particle_cnt_src/4, 0.4, 32, [128,128,256], None, False)[:2]
             #l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, particle_cnt_src/8, 0.5, 32, [256,256,512], None, False)[:2]
             # interpoliere die features in l2_points auf die Punkte in x
@@ -311,6 +311,7 @@ if start_checkpoint == 0:
     # load model to check if loadable
     #model = load_model(tmp_model_path + '.h5', custom_objects={'mask_loss': mask_loss})
     
+    keras.utils.plot_model(model, tmp_model_path + '.pdf')
     if verbose: 
         model.summary()
         if use_stn:
@@ -452,8 +453,8 @@ if train_config["adv_fac"] <= 0.:
     history = model.fit(x=src_data,y=[ref_data, trunc_ref] if truncate else ref_data, validation_split=val_split, 
                         epochs=epochs - start_checkpoint*checkpoint_interval, batch_size=train_config['batch_size'], 
                         verbose=1,callbacks=[NthLogger(model, log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
-                                            EvalCallback(tmp_eval_path + "eval_patch_%03d_%03d", model, eval_src_patches, eval_ref_patches, features),
-                                            EvalCompleteCallback(tmp_eval_path + "eval_%03d_%03d", model, eval_patch_extractors, eval_ref_datas, factor_d, hres)])
+                                            EvalCallback(tmp_eval_path + "eval_patch_%03d_%03d", model, eval_src_patches, eval_ref_patches, features, batch_intervall=10 if verbose else 0),
+                                            EvalCompleteCallback(tmp_eval_path + "eval_%03d_%03d", model, eval_patch_extractors, eval_ref_datas, factor_d, hres, batch_intervall=0 if verbose else 0)])
 
     m_p = "%s_trained.h5" % tmp_model_path
     model.save(m_p)

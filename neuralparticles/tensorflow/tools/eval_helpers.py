@@ -98,10 +98,10 @@ class EvalCallback(keras.callbacks.Callback):
             eval_patch(self.model, self.src[i], self.path%(i,ep+1), self.ref[i], self.features)
 
     def on_batch_end(self,batch,logs={}):
-        if self.batch_intervall <= 0 or batch % self.batch_intervall != 0:
+        if self.batch_intervall <= 0 or batch % self.batch_intervall != 0 or batch > 10000:
             return
         for i in range(len(self.src)):
-            eval_patch(self.model, self.src[i], self.path%(i,batch+1), self.ref[i], self.features)
+            eval_patch(self.model, self.src[i], self.path%(i,(batch//self.batch_intervall)+1), self.ref[i], self.features)
 
 class EvalCompleteCallback(keras.callbacks.Callback):
     def __init__(self, path, model, patch_extractor, ref, factor_d, hdim, batch_intervall=0):
@@ -126,4 +126,4 @@ class EvalCompleteCallback(keras.callbacks.Callback):
         if self.batch_intervall <= 0 or batch % self.batch_intervall != 0:
             return
         for i in range(len(self.patch_extractor)):
-            eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,batch+1), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)
+            eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,(batch//self.batch_intervall)+1), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim)
