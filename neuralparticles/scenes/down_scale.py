@@ -26,8 +26,6 @@ t = int(getParam("t", 50))
 
 checkUnusedParams()
 
-backupSources(out_path)
-
 res = int(high_res/math.pow(factor,1/dim))
 
 print("grid down-scale: %d -> %d" %(high_res, res))

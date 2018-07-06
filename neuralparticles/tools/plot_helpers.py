@@ -25,16 +25,26 @@ def read_csv(path):
 				data = np.concatenate((data, np.array([row]).astype(float)))
 	return data
 	
-def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=None, vel=None):
+def extract_stride(data, z, pos=None):
+	if pos is None:
+		pos = data
+	idx = np.where(pos[:,2].astype('int32') == z)[0]
+	return data[idx,0], data[idx,1]
+
+def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=None, vel=None, z=None):
+	dx,dy = (data[:,0], data[:,1]) if z is None else extract_stride(data,z)
 	if not ref is None:
-		plt.scatter(ref[:,0],ref[:,1],s=s,c='r')
-	plt.scatter(data[:,0],data[:,1],s=s,c='b')
+		rx, ry = (ref[:,0], ref[:, 1]) if z is None else extract_stride(ref, z)
+		plt.scatter(rx,ry,s=s,c='r')
+	plt.scatter(dx,dy,s=s,c='b')
 	if not src is None:
-		plt.scatter(src[:,0],src[:,1],s=s,c='g')
+		sx,sy = (src[:,0], src[:,1]) if z is None else extract_stride(src, z)
+		plt.scatter(sx,sy,s=s,c='g')
 		if not vel is None:
+			vx, vy =  (vel[:,0],vel[:,1]) if z is None else extract_stride(vel, z, src)
 			#TODO: make more efficient:
 			for i in range(len(src)):
-				plt.plot([src[i,0],src[i,0]+vel[i,0]],[src[i,1],src[i,1]+vel[i,1]], 'g-')
+				plt.plot([sx[i],sx[i]+vx[i]],[sy[i],sy[i]+vy[i]], 'g-')
 	if not xlim is None:
 		plt.xlim(xlim)
 	if not ylim is None:

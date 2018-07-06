@@ -13,7 +13,7 @@ import keras.backend as K
 
 from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tools.uniio import writeParticles, writeNumpyRaw
+from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw
 
 from neuralparticles.tools.plot_helpers import plot_particles, write_csv
 
@@ -90,16 +90,16 @@ npy_path = data_path + "result/npy/%s"%file_name
 pdf_path = data_path + "result/pdf/%s"%file_name
 csv_path = data_path + "result/csv/%s"%file_name
 
-def write_out_particles(particles, t, suffix, xlim=None, ylim=None, s=1):
+def write_out_particles(particles, t, suffix, xlim=None, ylim=None, s=1, z=None):
     writeNumpyRaw((npy_path + suffix + "_%03d")%t, particles)
-    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.png")%t)
-    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.pdf")%t)
+    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.png")%t, z=z)
+    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.pdf")%t, z=z)
     write_csv((csv_path + suffix + "_%03d.csv")%t, particles)
 
-def write_out_vel(particles, vel, t, suffix, xlim=None, ylim=None, s=1):
+def write_out_vel(particles, vel, t, suffix, xlim=None, ylim=None, s=1, z=None):
     writeNumpyRaw((npy_path + suffix + "_%03d")%t, vel)
-    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.png")%t, src=particles, vel=vel)
-    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.pdf")%t, src=particles, vel=vel)
+    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.png")%t, src=particles, vel=vel, z=z)
+    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.pdf")%t, src=particles, vel=vel, z=z)
     write_csv((csv_path + suffix + "_%03d.csv")%t, vel)
 
 if verbose:
@@ -158,7 +158,7 @@ for t in range(t_start, t_end):
 
     patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val)
 
-    write_out_particles(patch_extractor.positions, t, "_pos", [0,low_res], [0,low_res], 0.1)
+    write_out_particles(patch_extractor.positions, t, "_pos", [0,low_res], [0,low_res], 0.1, low_res//2 if dim == 3 else None)
 
     src_accum = np.empty((0,3))
     ref_accum = np.empty((0,3))
@@ -221,19 +221,19 @@ for t in range(t_start, t_end):
                         ('bytesPerElement',16),
                         ('info',b'\0'*256),
                         ('timestamp',(int)(time.time()*1e6))])
-    writeParticles(dst_path%t, hdr, result)
+    writeParticlesUni(dst_path%t, hdr, result)
 
     writeNumpyRaw(npy_path + "_src_patches_%03d"%t, src_patches)
     writeNumpyRaw(npy_path + "_ref_patches_%03d"%t, ref_patches)
     writeNumpyRaw(npy_path + "_res_patches_%03d"%t, res_patches)
     writeNumpyRaw(npy_path + "_patch_pos_%03d"%t, patch_pos)
 
-    write_out_particles(src_data, t, "_src", [0,low_res], [0,low_res], 0.1)
-    write_out_particles(ref_data, t, "_ref", [0,res], [0,res], 0.1)
-    write_out_particles(result, t, "_res", [0,res], [0,res], 0.1)
+    write_out_particles(src_data, t, "_src", [0,low_res], [0,low_res], 0.1, low_res//2 if dim == 3 else None)
+    write_out_particles(ref_data, t, "_ref", [0,res], [0,res], 0.1, low_res//2 if dim == 3 else None)
+    write_out_particles(result, t, "_res", [0,res], [0,res], 0.1, low_res//2 if dim == 3 else None)
     if 'v' in features:
         writeNumpyRaw(npy_path + "_vel_patches_%03d"%t, vel_patches)
-        write_out_vel(src_data, par_aux['v']/1000, t, "_vel", [0,low_res],[0,low_res], 0.1)
+        write_out_vel(src_data, par_aux['v']/1000, t, "_vel", [0,low_res],[0,low_res], 0.1, low_res//2 if dim == 3 else None)
 
     min_cnt = min(len(ref_accum), len(res_accum))
     np.random.shuffle(ref_accum)
@@ -243,13 +243,13 @@ for t in range(t_start, t_end):
 
     print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), (len(patch_extractor.data)/len(src_data))))
 
-    call_f = lambda f,x,y: K.eval(f(x,y))[0]
+    '''call_f = lambda f,x,y: K.eval(f(x,y))[0]
     loss = call_f(chamfer_loss, ref_accum, res_accum)
     avg_chamfer_loss += loss
     print("global chamfer loss: %f" % loss)
     loss = call_f(emd_loss, ref_accum, res_accum)
     avg_emd_loss += loss
-    print("global emd loss: %f" % loss)
+    print("global emd loss: %f" % loss)'''
 
 print("avg chamfer loss: %f" % (avg_chamfer_loss/(t_end-t_start)))
 print("avg emd loss: %f" % (avg_emd_loss/(t_end-t_start)))

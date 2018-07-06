@@ -58,7 +58,7 @@ def backupSources(data_path):
 	tmp_path = data_path + "tmp/"
 	if not os.path.exists(tmp_path):
 		os.mkdir(tmp_path)
-	tmp_path += datetime.datetime.now().isoformat() + "/"
+	tmp_path += datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + "/"
 	os.mkdir(tmp_path)
 
 	print("temporary folder: %s" % tmp_path)

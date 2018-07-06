@@ -157,7 +157,7 @@ if start_checkpoint == 0:
     dropout = train_config['dropout']
     batch_size = train_config['batch_size']
     epochs = train_config['epochs']
-    pre_train_stn = train_config['pre_train_stn']
+    pre_train_stn = train_config['pre_train_stn'] and use_stn
     learning_rate = train_config['learning_rate']
 
     particle_cnt_src = pre_config['par_cnt']
@@ -186,19 +186,21 @@ if start_checkpoint == 0:
     if use_conv:
         def preprocess(x):
             from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module
+            from keras.layers import concatenate
+            npoint = int(x.get_shape()[1])
             # extrahiere 'npoint' Gruppen aus dem Patch im Radius 'radius', die jeweils 'nsample' Punkte enthalten
             # generiere für jede Gruppe ein Feature-vektor (mit PoinNet)
             # resultat sind die Gruppenzentren (xyz) und 'npoint' Features (points)
-            l1_xyz, l1_points = pointnet_sa_module(x, None, particle_cnt_src, 0.25, 32, [32,32,64], None, False, pooling="weighted_avg")[:2]
-            l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, particle_cnt_src/2, 0.5, 32, [64,64,128], None, False, pooling="weighted_avg")[:2]
-            #l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, particle_cnt_src/4, 0.4, 32, [128,128,256], None, False)[:2]
-            #l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, particle_cnt_src/8, 0.5, 32, [256,256,512], None, False)[:2]
+            l1_xyz, l1_points = pointnet_sa_module(x, None, npoint, 0.25, 32, [32,32,64], None, False)[:2]
+            l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, npoint/2, 0.5, 32, [64,64,128], None, False)[:2]
+            l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, npoint/4, 0.4, 32, [128,128,256], None, False)[:2]
+            l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, npoint/8, 0.5, 32, [256,256,512], None, False)[:2]
             # interpoliere die features in l2_points auf die Punkte in x
             up_l2_points = pointnet_fp_module(x, l2_xyz, None, l2_points, [64])
-            #up_l3_points = pointnet_fp_module(x, l3_xyz, None, l3_points, [64])
-            #up_l4_points = pointnet_fp_module(x, l4_xyz, None, l4_points, [64])
-            return concatenate([up_l2_points, l1_points, x], axis=-1)
-            #return concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, x], axis=-1)
+            up_l3_points = pointnet_fp_module(x, l3_xyz, None, l3_points, [64])
+            up_l4_points = pointnet_fp_module(x, l4_xyz, None, l4_points, [64])
+            #return concatenate([up_l2_points, l1_points, x], axis=-1)
+            return concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, x], axis=-1)
         x = Lambda(preprocess)(x)
         l = []
         for i in range(particle_cnt_dst//particle_cnt_src):
@@ -415,7 +417,7 @@ if pre_train_stn:
     inter_model = Model(inputs=inputs, outputs=trans_input)
     inter_model.compile(loss=mask_loss, optimizer=keras.optimizers.adam(lr=train_config['learning_rate']))
     history = inter_model.fit(x=src_data,y=src_rot_data,epochs=train_config['pre_train_epochs'],batch_size=train_config['batch_size'], validation_split=val_split,
-        verbose=1, callbacks=[EvalCallback(tmp_eval_path + "inter_eval_patch_%03d_%03d", inter_model, eval_src_patches, eval_ref_patches)])
+        verbose=1, callbacks=[EvalCallback(tmp_eval_path + "inter_eval_patch", eval_src_patches, eval_ref_patches, z=None if dim == 2 else 0, verbose=3 if verbose else 1)])
     stn.trainable = False        
     model.compile(loss=model.loss_functions, optimizer=model.optimizer, loss_weights=model.loss_weights)
 
@@ -452,9 +454,9 @@ if train_config["adv_fac"] <= 0.:
     trunc_ref = np.count_nonzero(ref_data[:,:,:1] != pad_val, axis=1)/particle_cnt_dst
     history = model.fit(x=src_data,y=[ref_data, trunc_ref] if truncate else ref_data, validation_split=val_split, 
                         epochs=epochs - start_checkpoint*checkpoint_interval, batch_size=train_config['batch_size'], 
-                        verbose=1,callbacks=[NthLogger(model, log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
-                                            EvalCallback(tmp_eval_path + "eval_patch_%03d_%03d", model, eval_src_patches, eval_ref_patches, features, batch_intervall=10 if verbose else 0),
-                                            EvalCompleteCallback(tmp_eval_path + "eval_%03d_%03d", model, eval_patch_extractors, eval_ref_datas, factor_d, hres, batch_intervall=0 if verbose else 0)])
+                        verbose=1,callbacks=[NthLogger(log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
+                                            EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches, features, batch_intervall=10 if verbose else 0, z=None if dim == 2 else 0, verbose=3 if verbose else 1),
+                                            EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas, factor_d, hres, batch_intervall=0 if verbose else 0, z=None if dim == 2 else res//2, verbose=3 if verbose else 1)])
 
     m_p = "%s_trained.h5" % tmp_model_path
     model.save(m_p)
