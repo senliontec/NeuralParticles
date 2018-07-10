@@ -30,7 +30,7 @@ res = int(high_res/math.pow(factor,1/dim))
 
 print("grid down-scale: %d -> %d" %(high_res, res))
 
-search_r = .5*high_res/(res*sres) * math.sqrt(dim)
+search_r = high_res/res * 0.40#.5*high_res/(res*sres) * math.sqrt(dim)
 
 print("search radius: %f" % search_r)
 
@@ -60,6 +60,9 @@ high_neighbor = high_s.create(ParticleNeighbors)
 high_gFlags   = high_s.create(FlagGrid)
 
 high_gFlags.initDomain(FlagFluid)
+
+if dim==3:
+	mesh     = s.create(Mesh)
 
 out = {}
 if out_path != "":
@@ -101,11 +104,15 @@ for i in range(t):
 	hcnt = cntPts(t=pT, itype=FlagFluid)
 
 	#reduceParticlesRandom(pp, factor, seed)
-	reduceParticlesNeighbors(pp, high_neighbor,minN,seed)
-
+	#reduceParticlesNeighbors(pp, high_neighbor,minN,seed)
+	#reduceParticlesPoisson(pp, high_neighbor,factor,seed)
+	#reduceParticlesDens(pp, pD, factor, seed)
+	reduceParticlesNeighborsDens(pp, high_neighbor, pD, search_r, 1.0, minN, seed)
+	print(pD.getMinValue())
+	print(pD.getMaxValue())
 	lcnt = cntPts(t=pT, itype=FlagFluid)
 
-	print("particles reduced: %d -> %d" % (hcnt, lcnt))
+	print("particles reduced: %d -> %d (%.1f)" % (hcnt, lcnt, hcnt/lcnt))
 
 	if out_path != "":
 		path = out_path % i
@@ -144,5 +151,9 @@ for i in range(t):
 			out['vel'].save(path + "_vel.uni")
 			out['dens'].save(path + "_dens.uni")
 			out['pres'].save(path + "_pres.uni")
+		
+	if dim==3 and guion:
+		extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
+		out['levelset'].createMesh(mesh)
 
 	s.step()

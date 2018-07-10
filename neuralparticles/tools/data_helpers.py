@@ -297,7 +297,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
             for t in range(t_start, t_stop):
                 for r in range(pv_start, pv_stop):
                     print(path_src%(d,v,t) + " (%d)"%r)
-                    par, aux_par, par_rot, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, pad_val=pad_val, par_aux=features)
+                    par, aux_par, par_rot, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, pad_val=pad_val, par_aux=features, bnd=data_config['bnd']/fac_d)
                     main = np.append(main, par, axis=0)
                     main_rot = np.append(main_rot, par_rot, axis=0)
                     pos = np.append(pos, positions, axis=0)
@@ -361,6 +361,22 @@ class PatchExtractor:
             return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features],axis=-1)])]
         else:
             return [np.array([patch])]
-
+    
     def set_patch(self, patch):
         self.data = np.concatenate((self.data, self.transform_patch(patch)))
+
+    def get_patches(self):
+        src = np.empty((0,self.cnt,3))
+        aux = None
+        while(True):
+            patch = self.get_patch()
+            if patch is None:
+                break
+            src = np.concatenate([src, patch[0]])
+            if len(patch) > 1:
+                aux = np.concatenate([aux, patch[1]]) if aux is not None else patch[1]
+            
+        if aux is None:
+            return [src]
+        else:
+            return [src, aux]

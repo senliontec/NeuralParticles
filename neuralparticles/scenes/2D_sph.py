@@ -41,7 +41,7 @@ fps   = int(getParam("fps", 30))
 t_end = float(getParam("t_end", 5.0))
 sdt   = float(getParam("dt", 0))
 circular_vel = float(getParam("circ", 0.))
-wltstrength = float(getParam("wlt", 0.2*res))
+wltstrength = float(getParam("wlt", 0.))
 seed = int(getParam("seed", 235))
 
 np.random.seed(seed)
@@ -61,12 +61,14 @@ def stringToCube(s):
 	v = s.split(",")
 	if dim == 2:
 		if len(v) != 4:
-			print("Wrong format of cube! Format have to be: x_pos,y_pos,x_scale,y_scale")
+			print("Wrong format of cube! Format has to be: x_pos,y_pos,x_scale,y_scale")
 			exit()
 		return Cube(vec3(float(v[0]), float(v[1]), 0), vec3(float(v[2]), float(v[3]), 1))
 	else:
-		print("3D stringtocube NYI!")
-		exit()
+		if len(v) != 6:
+			print("Wrong format of cube! Format has to be: x_pos,y_pos,z_pos,x_scale,y_scale,z_scale")
+			exit()
+		return Cube(vec3(float(v[0]), float(v[1]), float(v[2])), vec3(float(v[3]), float(v[4]), float(v[5])))
 
 for i in range(cube_cnt):
 	cube.append(stringToCube(getParam("c%d"%i, "")))
@@ -101,7 +103,7 @@ if cube_cnt == 0:
 
 iisph.init_fluid(init_phi)
 
-if cube_cnt == 0:
+if wltstrength > 0:
 	wltnoise = NoiseField( parent=iisph.s, loadFromFile=False)
 	# scale according to lowres sim , smaller numbers mean larger vortices
 	wltnoise.posScale = vec3( int(1.0*iisph.gs.x) ) * 0.1
@@ -129,6 +131,9 @@ if cube_cnt == 0:
 		velNoise.multConst(vec3(1,1,0))
 
 	iisph.apply_vel(velNoise)
+
+if circular_vel > 0:
+	fillVelocityCircular(iisph.pV, iisph.pp, -circular_vel, vec3(res/2.,res/2.,0.5 if dim==2 else res/2)) 
 
 if guion:
 	gui = Gui()

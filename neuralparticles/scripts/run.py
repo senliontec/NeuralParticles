@@ -156,7 +156,7 @@ avg_emd_loss = 0
 for t in range(t_start, t_end):
     (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
 
-    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val)
+    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val, bnd=data_config['bnd']/factor_d)
 
     write_out_particles(patch_extractor.positions, t, "_pos", [0,low_res], [0,low_res], 0.1, low_res//2 if dim == 3 else None)
 
@@ -173,6 +173,11 @@ for t in range(t_start, t_end):
 
     avg_trunc = 0
     avg_ref_trunc = 0
+    
+    '''src = patch_extractor.get_patches()
+    result = model.predict(x=src)
+    patch_extractor.set_patches(result)'''
+
     
     while(True):
         src = patch_extractor.get_patch()
@@ -212,11 +217,12 @@ for t in range(t_start, t_end):
         print("Avg truncation position ref: %.1f" % (avg_ref_trunc/len(src_patches)))
 
     result = patch_extractor.data*factor_d
+    result = result[np.where(np.all([np.all(4<=result,axis=-1),np.all(result<=res-4,axis=-1)],axis=0))]
     
     hdr = OrderedDict([ ('dim',len(result)),
                         ('dimX',res),
                         ('dimY',res),
-                        ('dimZ',1),
+                        ('dimZ',1 if dim == 2 else res),
                         ('elementType',0),
                         ('bytesPerElement',16),
                         ('info',b'\0'*256),

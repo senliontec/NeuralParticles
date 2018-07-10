@@ -52,6 +52,15 @@ namespace Manta
 		}
 	}
 
+	KERNEL(pts) 
+	void knReduceParticlesDense(BasicParticleSystem &x, const ParticleDataImpl<Real> &d, const float factor, RandomStream& rs)
+	{
+		if(rs.getFloat() > d[idx] * factor)
+		{
+			x.kill(idx);
+		}
+	}
+
 	KERNEL(pts)
 	void knFillVelocityCircular(ParticleDataImpl<Vec3> &v, BasicParticleSystem &x, float magnitude, Vec3 center)
 	{
@@ -128,6 +137,51 @@ namespace Manta
 				}
 			}
 		}
+		x.doCompress();
+	}
+
+	PYTHON()
+	void reduceParticlesNeighborsDens(BasicParticleSystem &x, const ParticleNeighbors &n, const ParticleDataImpl<Real> &d, float r, const float factor=1.0, const int minN=3, const int seed=23892489)
+	{
+		std::vector<int> v = std::vector<int>(x.size());
+
+		for(int i = 0; i < x.size(); i++)
+		{
+			v[i] = i;
+		}
+ 
+		std::random_device rd;
+		std::mt19937 g(rd());
+		g.seed(seed);
+	
+		std::shuffle(v.begin(), v.end(), g);
+
+		r *= d.sumMagnitude()/d.size();//d.getMinValue();
+
+		for(const auto i : v)
+		{
+			if(x.isActive(i))
+			{
+				if(n.size(i) < minN){
+					x.kill(i);
+				}
+				for(ParticleNeighbors::Neighbors::const_iterator it=n.begin(i); it!=n.end(i); ++it) 
+				{
+					const int idx = n.neighborIdx(it);
+					if(idx != i && n.length(it) < pow(r/d[i], factor)) 
+						x.kill(idx);
+				}
+			}
+		}
+		x.doCompress();
+	}
+		
+	PYTHON()
+	void reduceParticlesDens(BasicParticleSystem &x, const ParticleDataImpl<Real> &d, const float factor, const int seed=23892489)
+	{		
+		float avg = d.sumMagnitude()/d.size();
+		RandomStream rs((long)seed);
+		knReduceParticlesDense(x, d, 1.0f / (avg * factor), rs);
 		x.doCompress();
 	}
 

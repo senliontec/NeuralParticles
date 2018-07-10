@@ -59,7 +59,9 @@ low_levelset = iisph.s.create(LevelsetGrid)
 low_vel = iisph.s.create(Vec3Grid)
 low_pres = iisph.s.create(RealGrid)
 
-radius = 1.0
+use_sdf = True
+radius = 1.0 if use_sdf else 1.2#.5*res/(low_res*sres) * math.sqrt(dim)
+print(radius)
 
 if guion:
 	gui = Gui()
@@ -74,45 +76,42 @@ pV.load(path + "_pv.uni")
 pP.load(path + "_pp.uni")
 
 for i in range(1,t):
-	'''iisph.pp.load(path + "_ps.uni")
-	iisph.pT.load(path + "_pt.uni")
-	iisph.pV.load(path + "_pv.uni")
-	iisph.pD.load(path + "_pd.uni")
-	iisph.pP.load(path + "_pp.uni")'''
-
 	gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt, notiming=True)
-	neighbor.update(pts=pp, indexSys=gIdxSys, index=gIdx, radius=radius, notiming=True)
-
-	'''reduceParticlesNeighbors(iisph.pp, neighbor,minN,seed)
-	iisph.init_sph()'''
-
-	hcnt = cntPts(t=pT, itype=FlagFluid)
 
 	unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=levelset, radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
-	extrapolateLsSimple(phi=levelset, distance=4, inside=True)
+	#extrapolateLsSimple(phi=levelset, distance=4, inside=True)
 	mapPartsToGridVec3(flags=gFlags, target=vel, parts=pp, source=pV)
 	mapPartsToGrid(flags=gFlags, target=pres, parts=pp, source=pP)
 
 	interpolateGrid(low_levelset, levelset)
 	interpolateGridVec3(low_vel, vel)
 	interpolateGrid(low_pres, pres)
+	low_levelset.multConst(1.0/factor_d)
 	low_vel.multConst(vec3(1.0/factor_d))
 	low_pres.multConst(1.0/math.pow(factor_d, 2))
 
-	iisph.init_fluid(low_levelset)
-	iisph.apply_vel(low_vel)
-	iisph.apply_pres(low_pres)
+	if use_sdf:
+		iisph.init_fluid(low_levelset)
+	else:
+		neighbor.update(pts=pp, indexSys=gIdxSys, index=gIdx, radius=radius, notiming=True)
+		iisph.init_pp(pp, pT, pV, pP, neighbor)
 
+	iisph.apply_vel(low_vel)
+	#iisph.apply_pres(low_pres)
+
+	hcnt = cntPts(t=pT, itype=FlagFluid)
 	lcnt = cntPts(t=iisph.pT, itype=FlagFluid)
 
-	print("particles reduced: %d -> %d" % (hcnt, lcnt))
+	print("particles reduced: %d -> %d (%.1d)" % (hcnt, lcnt, hcnt/lcnt))
 
 	path = in_path % i
 
 	pp.load(path + "_ps.uni")
 	pT.load(path + "_pt.uni")
 	pV.load(path + "_pv.uni")
+	pP.load(path + "_pp.uni")
 
 	while iisph.s.timeTotal*30 < i:
+		#iisph.s.step()
 		print(iisph.s.timeTotal*30)
 		iisph.update()

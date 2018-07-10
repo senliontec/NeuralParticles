@@ -8,8 +8,8 @@
     "sub_res":        2,
     "res":            90,
     "var1":           0,
-    "var2":           0,
-    "var3":           1,
+    "var2":           0.5,
+    "var3":           0.5,
     "seed":           5234244,
     "min_scale":      0.05,
     "max_scale":      0.3,
@@ -17,6 +17,7 @@
     "max_pos":        0.8,
     "max_h":          0.1,
     "max_cnt":        5,
-    "circ_vel":       100.0,
-    "wlt_vel":        15.0
+    "circ_vel":       1000.0,
+    "wlt_vel":        30.0,
+    "bnd":            4
 }

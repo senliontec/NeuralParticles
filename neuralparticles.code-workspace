@@ -3,5 +3,16 @@
 		{
 			"path": "neuralparticles"
 		}
-	]
+	],
+	"settings": {
+		"files.associations": {
+			"*.tcc": "cpp",
+			"cmath": "cpp",
+			"complex": "cpp",
+			"array": "cpp",
+			"hash_map": "cpp",
+			"initializer_list": "cpp",
+			"utility": "cpp"
+		}
+	}
 }

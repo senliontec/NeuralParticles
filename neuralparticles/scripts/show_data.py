@@ -18,7 +18,7 @@ src = getParam("src", "")
 t_start = int(getParam("t_start", -1))
 t_end = int(getParam("t_end", -1))
 
-dataset = int(getParam("dataset", 0))
+dataset = int(getParam("dataset", -1))
 var = int(getParam("var", 0))
 
 data_type = getParam("type", "ref")
@@ -40,6 +40,9 @@ with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
     train_config = json.loads(f.read())
 
 param = {}
+
+if dataset < 0:
+    dataset = int(data_config['data_count']*train_config['train_split']) if data_type == 'res' else 0
 
 dim = data_config['dim']
 res = data_config['res']
@@ -71,6 +74,7 @@ if t_start < 0:
     t_start = train_config['t_start']
 if t_end < 0:
     t_end = train_config['t_end']
+
 
 param['t_start'] = t_start
 param['t_end'] = t_end

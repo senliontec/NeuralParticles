@@ -33,7 +33,6 @@ s_show = Solver(name="show", gridSize=gs_show, dim=3)
 
 pp = s.create(BasicParticleSystem)
 
-#if sdf_path != "":
 sdf = s.create(LevelsetGrid)
 sdf_show = s_show.create(LevelsetGrid)
 sdf_show.setBound(value=0., boundaryWidth=1)
@@ -45,7 +44,7 @@ flags_show.fillGrid(TypeEmpty)
 
 gFlags   = s.create(FlagGrid)
 
-gFlags.initDomain(FlagFluid)
+gFlags.initDomain(4)
 
 gIdxSys  = s.create(ParticleIndexSystem)
 gIdx     = s.create(IntGrid)
@@ -60,9 +59,13 @@ for i in range(t_start,t_end):
 	if sdf_path != "":
 		sdf.load(sdf_path % i)
 		sdf.reinitMarching(flags=gFlags)
+		pp.clear()
+		sampleLevelsetWithParticles(phi=sdf, flags=gFlags, parts=pp, discretization=sres, randomness=0)
 	else:
+		pp.load(in_path % i)
 		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
-		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=sdf, radiusFactor=1.0)
+		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=sdf, radiusFactor=2.0, exclude=FlagObstacle)
+		extrapolateLsSimple(phi=sdf, distance=4, inside=True)
 
 	if dim == 2:
 		placeGrid2d(sdf,sdf_show,dstz=1) 
@@ -70,12 +73,6 @@ for i in range(t_start,t_end):
 	else:
 		sdf.createMesh(mesh)
 	
-
-	if in_path != "":
-		pp.load(in_path % i)
-	elif sdf_path != "":
-		pp.clear()
-		sampleLevelsetWithParticles(phi=sdf, flags=gFlags, parts=pp, discretization=sres, randomness=0)
 	s.step()
 	if screenshot != "":
 		gui.screenshot(screenshot % i if t > 1 else screenshot)

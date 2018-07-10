@@ -398,7 +398,7 @@ eval_ref_patches = []
 for i in range(len(eval_dataset)):
     (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
     eval_ref_datas.append(eval_ref_data)
-    eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features, pad_val=pad_val))
+    eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features, pad_val=pad_val, bnd=data_config['bnd']/factor_d))
     eval_src_patches.append(eval_patch_extractors[i].get_patch_idx(eval_patch_idx[i]))
     eval_ref_patches.append(extract_particles(eval_ref_data, eval_patch_extractors[i].positions[eval_patch_idx[i]] * factor_d, ref_par_cnt, ref_patch_size/2, pad_val)[0])
 

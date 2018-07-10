@@ -44,8 +44,8 @@ class IISPH:
 
         self.pp = self.s.create(BasicParticleSystem)
 
-        dummyFlags = self.s.create(FlagGrid)
-        dummyFlags.initDomain(1)
+        #dummyFlags = self.s.create(FlagGrid) dfg
+        #dummyFlags.initDomain(4)
 
         self.gIdxSys  = self.s.create(ParticleIndexSystem)
         self.gIdx     = self.s.create(IntGrid)
@@ -67,10 +67,7 @@ class IISPH:
         self.pDtmp = self.pp.create(PdataReal)
         self.pVtmp = self.pp.create(PdataVec3)
       
-    def init_sph(self):#, pp, neighbor, minN=3, seed=345245):
-        #self.pp.readParticles(pp)
-        #reduceParticlesNeighbors(self.pp, neighbor,minN,seed)
-
+    def init_sph(self):
         self.sph.bindParticleSystem(p_system=self.pp, p_type=self.pT, p_neighbor=self.neighbor, notiming=True)
         self.sph.updateSoundSpeed(math.sqrt(2.0*math.fabs(self.grav)*0.55*self.res/self.eta), notiming=True)
         self.pD.setConst(s=self.sph.density, notiming=True)
@@ -97,6 +94,21 @@ class IISPH:
 
         self.init_sph()
   
+    def init_pp(self, pp, pT, pV, pP, neighbor, minN=3, seed=345245):
+        self.pp.clear()
+        self.pp.readParticles(pp)
+        #pp.printParts()
+        #self.pp.printParts()
+        #self.pV.copyFrom(pV)
+        self.pT.copyFrom(pT)
+        #self.pP.copyFrom(pP)
+
+        #self.pV.multConst(vec3(1/3))
+        #self.pP.multConst(1/9)
+        
+        reduceParticlesNeighbors(self.pp, neighbor,minN,seed)
+
+        self.init_sph()
 
     def apply_vel(self, vel):
         mapGridToPartsVec3(source=vel, parts=self.pp, target=self.pV)
