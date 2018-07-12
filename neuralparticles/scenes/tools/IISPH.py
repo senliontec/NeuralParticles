@@ -88,7 +88,7 @@ class IISPH:
 
         self.gFlags.updateFromLevelset(init_phi)
         begin = self.pp.size()
-        sampleLevelsetWithParticles(phi=init_phi, flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0)
+        sampleLevelsetWithParticles(phi=init_phi, flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0.5)
         end = self.pp.size()
         self.pT.setConstRange(s=1, begin=begin, end=end, notiming=True)
 

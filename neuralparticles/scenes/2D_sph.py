@@ -51,8 +51,10 @@ if sdt <= 0:
 
 cube_cnt = int(getParam("c_cnt", 0))
 cube = []
+sphere_cnt = int(getParam("s_cnt", 0))
+sphere = []
 
-class Cube:
+class Volume:
 	def __init__(self, p, s):
 		self.pos = p
 		self.scale = s
@@ -63,15 +65,31 @@ def stringToCube(s):
 		if len(v) != 4:
 			print("Wrong format of cube! Format has to be: x_pos,y_pos,x_scale,y_scale")
 			exit()
-		return Cube(vec3(float(v[0]), float(v[1]), 0), vec3(float(v[2]), float(v[3]), 1))
+		return Volume(vec3(float(v[0]), float(v[1]), 0), vec3(float(v[2]), float(v[3]), 1))
 	else:
 		if len(v) != 6:
 			print("Wrong format of cube! Format has to be: x_pos,y_pos,z_pos,x_scale,y_scale,z_scale")
 			exit()
-		return Cube(vec3(float(v[0]), float(v[1]), float(v[2])), vec3(float(v[3]), float(v[4]), float(v[5])))
+		return Volume(vec3(float(v[0]), float(v[1]), float(v[2])), vec3(float(v[3]), float(v[4]), float(v[5])))
+
+def stringToSphere(s):
+	v = s.split(",")
+	if dim == 2:
+		if len(v) != 3:
+			print("Wrong format of sphere! Format has to be: x_pos,y_pos,radius")
+			exit()
+		return Volume(vec3(float(v[0]), float(v[1]), 0), float(v[2]))
+	else:
+		if len(v) != 4:
+			print("Wrong format of sphere! Format has to be: x_pos,y_pos,z_pos,radius")
+			exit()
+		return Volume(vec3(float(v[0]), float(v[1]), float(v[2])), float(v[3]))
+
 
 for i in range(cube_cnt):
 	cube.append(stringToCube(getParam("c%d"%i, "")))
+for i in range(sphere_cnt):
+	sphere.append(stringToSphere(getParam("s%d"%i, "")))
 
 checkUnusedParams();
 
@@ -97,7 +115,11 @@ for c in cube:
 	fld = iisph.s.create(Box, center=c.pos*iisph.gs, size=c.scale*iisph.gs)
 	init_phi.join(fld.computeLevelset())
 
-if cube_cnt == 0:
+for s in sphere:
+	fld = iisph.s.create(Sphere, center=s.pos*iisph.gs, radius=s.scale*res)
+	init_phi.join(fld.computeLevelset())
+
+if cube_cnt == 0 and sphere_cnt == 0:
 	fld = iisph.s.create(Box, center=iisph.gs*vec3(0.5,0.1,1), size=iisph.gs*vec3(1.0, 0.1,1))
 	init_phi.join(fld.computeLevelset())
 
@@ -139,6 +161,28 @@ if guion:
 	gui = Gui()
 	gui.show()
 	if pause: gui.pause()
+
+if out_path != "" and t_end == 0:
+	path = out_path % out['frame']
+	iisph.pp.save(path + "_ps.uni")
+	iisph.pT.save(path + "_pt.uni")
+	iisph.pV.save(path + "_pv.uni")
+	iisph.pD.save(path + "_pd.uni")
+	iisph.pP.save(path + "_pp.uni")
+
+	unionParticleLevelset(parts=iisph.pp, indexSys=iisph.gIdxSys, flags=iisph.gFlags, index=iisph.gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=iisph.pT, exclude=FlagObstacle)
+	extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
+	out['levelset'].save(path + "_sdf.uni")
+
+	mapPartsToGridVec3(flags=iisph.gFlags, target=out['vel'], parts=iisph.pp, source=iisph.pV)
+	out['vel'].save(path + "_vel.uni")
+
+	mapPartsToGrid(flags=iisph.gFlags, target=out['dens'], parts=iisph.pp, source=iisph.pD)
+	out['dens'].save(path + "_dens.uni")
+
+	mapPartsToGrid(flags=iisph.gFlags, target=out['pres'], parts=iisph.pp, source=iisph.pP)
+	out['pres'].save(path + "_pres.uni")
+
 
 while (iisph.s.timeTotal<t_end): # main loop
 	iisph.update()

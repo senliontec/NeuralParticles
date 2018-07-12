@@ -69,6 +69,15 @@ namespace Manta
 		v[idx] = magnitude * tmp/normalize(tmp);
 	}
 
+	KERNEL(bnd=1) void knCosDisplacement(Grid<Real>& displacement, const Grid<Vec3>& grid, float fac) {
+		Vec3 v = grid(i,j,k);
+		float l = norm(v);
+		if(l > VECTOR_EPSILON){
+			displacement(i,j,k) = std::cos(std::acos(v.x/l) * fac);// * std::cos(std::acos(v.z/l) * fac);
+		} else {
+			displacement(i,j,k) = 0.;
+		}
+	}
 
 	//
 	// python functions
@@ -201,6 +210,10 @@ namespace Manta
 		}
 	}
 
+
+	PYTHON() void cosDisplacement(Grid<Real> &disp, const Grid<Vec3> &grid, float fac) {
+		knCosDisplacement(disp, grid, fac);
+	}
 	/*PYTHON()
 	void extractSurfacePatches(const LevelsetGrid& phi0, const LevelsetGrid& phi1, float* patches, const int maxCnt, int* patchCnt, const float tol = 0.1f)
 	{

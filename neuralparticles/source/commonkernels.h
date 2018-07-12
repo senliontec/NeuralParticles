@@ -17,6 +17,7 @@
 #include "general.h"
 #include "kernel.h"
 #include "grid.h"
+#include "matrixbase.h"
 
 namespace Manta {
    
@@ -66,6 +67,40 @@ KERNEL(bnd=1) void GradientOp(Grid<Vec3>& gradient, const Grid<Real>& grid) {
 	if(grid.is3D()) grad[2]= 0.5*( grid(i,j,k+1)-grid(i,j,k-1) );
 	gradient(i,j,k) = grad;
 }
+
+KERNEL(bnd=1) void CurvatureOpMAC(Grid<Real>& curvature, const MACGrid& gradient) {
+	Vec3 g = gradient.getCentered(i,j,k);
+	float qL = norm(g);
+	if(qL < VECTOR_EPSILON) {
+			curvature(i,j,k) = 0.;
+	} else {
+			Matrix3x3f h = Matrix3x3f(gradient(i+1,j,k)-gradient(i,j,k),
+										gradient(i,j+1,k)-gradient(i,j,k),
+										gradient.is3D() ? gradient(i,j,k+1)-gradient(i,j,k) : 0.);
+			Vec3 tx = getNormalized(cross(Vec3(1.,0.,0.), g));
+			Vec3 ty = getNormalized(cross(tx, g));
+
+			curvature(i,j,k) = (0.5 * dot(tx, h * tx) + 0.5 * dot(ty, h* ty)) / qL;
+	}
+
+}
+
+KERNEL(bnd=1) void CurvatureOp(Grid<Real>& curvature, const Grid<Vec3>& gradient) {
+	Vec3 g = gradient(i,j,k);
+	float qL = norm(g);
+	if(qL < VECTOR_EPSILON) {
+		curvature(i,j,k) = 0.;
+	} else {
+        	Matrix3x3f h = Matrix3x3f(gradient(i+1,j,k)-gradient(i-1,j,k),
+                	                  gradient(i,j+1,k)-gradient(i,j-1,k),
+                      		          gradient.is3D() ? gradient(i,j,k+1)-gradient(i,j,k-1) : 0.);
+        	Vec3 tx = getNormalized(cross(Vec3(1.,0.,0.), g));
+        	Vec3 ty = getNormalized(cross(tx, g));
+
+        	curvature(i,j,k) = (0.5 * dot(tx, h * tx) + 0.5 * dot(ty, h* ty)) / qL;
+	}
+}
+
 
 //! Kernel: Laplace operator
 KERNEL (bnd=1) void LaplaceOp(Grid<Real>& laplace, const Grid<Real>& grid) {

@@ -71,9 +71,9 @@ else:
     exit()
 
 if t_start < 0:
-    t_start = train_config['t_start']
+    t_start = min(train_config['t_start'], data_config['frame_count']-1)
 if t_end < 0:
-    t_end = train_config['t_end']
+    t_end = min(train_config['t_end'], data_config['frame_count'])
 
 
 param['t_start'] = t_start

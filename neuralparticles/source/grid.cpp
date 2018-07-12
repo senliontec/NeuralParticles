@@ -823,10 +823,33 @@ void markSmallRegions(FlagGrid &flags, const Grid<int> &rcnt, const int mark, co
 	knMarkSmallRegions(flags, rcnt, mark, exclude, th);
 }
 
+PYTHON() void multGridVec(Grid<Vec3> &a, const Grid<Real> &b) {
+	gridMult<Vec3, Real>(a, b);
+}
+
 PYTHON() void getGradientGrid(Grid<Vec3> &gradient, const Grid<Real> &grid) {
 	GradientOp(gradient, grid);
 }
 
+PYTHON() void getGradientGridMAC(MACGrid &gradient, const Grid<Real> &grid) {
+	GradientOpMAC(gradient, grid);
+}
+
+PYTHON() void getCurvature(Grid<Real> &curvature, const Grid<Real> &grid) {
+	Grid<Vec3> grad = Grid<Vec3>(curvature.getParent());
+	GradientOp(grad, grid);
+	CurvatureOp(curvature, grad);
+}
+
+PYTHON() void getCurvatureMAC(Grid<Real> &curvature, const Grid<Real> &grid) {
+	MACGrid grad = MACGrid(curvature.getParent());
+	GradientOpMAC(grad, grid);
+	//Grid<Vec3> grad = Grid<Vec3>(curvature.getParent());
+	//GradientOp(grad, grid);
+	//CurvatureOp(curvature, grad);
+	CurvatureOpMAC(curvature, grad);
+}
+ 
 PYTHON() void getDivergenceMAC(Grid<Real> &divergence, const MACGrid &grid) {
 	DivergenceOpMAC(divergence, grid);
 }

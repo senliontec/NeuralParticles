@@ -49,7 +49,7 @@ pP = pp.create(PdataReal)       # pressure
 
 gFlags   = s.create(FlagGrid)
 
-gFlags.initDomain(FlagFluid)
+gFlags.initDomain(max(1, 4//factor))
 
 high_pp = high_s.create(BasicParticleSystem)
 

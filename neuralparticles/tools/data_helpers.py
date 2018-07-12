@@ -1,4 +1,4 @@
-import sys, os, warnings
+import sys, os, warnings, shutil
 
 import json
 from .uniio import *
@@ -118,16 +118,20 @@ def load_patches_from_file(data_path, config_path):
     features = train_config['features'][1:]
 
     data_cnt = int(data_config['data_count'] * train_config['train_split'])
-    t_start = train_config['t_start']
-    t_end = train_config['t_end']
+    t_start = min(train_config['t_start'], data_config['frame_count']-1)
+    t_end = min(train_config['t_end'], data_config['frame_count'])
 
-    print("load %d dataset from timestep %d to %d" % (data_cnt, t_start, t_end))
+    print("load %d dataset(s) from timestep %d to %d" % (data_cnt, t_start, t_end))
 
+    src_path = data_path + "patches/source/"
+    ref_path = data_path + "patches/reference/"
     tmp_path = data_path + "tmp/patches_%s_d%03d_%03d-%03d_s%s/" % (os.path.splitext(os.path.basename(config_path))[0], data_cnt, t_start, t_end, ''.join(features))
-    if not os.path.exists(tmp_path):
-        src_path = data_path + "patches/source/"
-        ref_path = data_path + "patches/reference/"
 
+    # compares modification time of temporary buffer and first patch, if patches are newer the buffer will be deleted
+    if os.path.exists(tmp_path) and os.path.getmtime(tmp_path) < os.path.getmtime("%s%s_%s-%s_ps_d%03d_%03d.npy" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'], 0, t_start)):
+        shutil.rmtree(tmp_path)
+
+    if not os.path.exists(tmp_path):
         rot_src_path = "%s%s_%s-%s_rot_ps" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
         src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
         rot_ref_path = "%s%s_%s-%s_rot_ps" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
@@ -145,7 +149,7 @@ def load_patches_from_file(data_path, config_path):
         
         for d in range(data_cnt):
             for t in range(t_start, t_end):
-                print("load patch: datasets: %03d timestep: %03d" % (d,t), end="\r", flush=True)
+                print("load patch: dataset(s): %03d timestep: %03d" % (d,t), end="\r", flush=True)
                 src[0] = np.append(src[0], readNumpyRaw(src_path % ('s',d,t)), axis=0)
                 if len(features) > 0:
                     src[1] = np.append(src[1], np.concatenate([readNumpyRaw(src_path%(f,d,t)) for f in features], axis=-1), axis=0)

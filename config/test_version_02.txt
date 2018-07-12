@@ -1,0 +1,6 @@
+{
+    "id":           "tv02",
+    "data":         "test/test_02.txt",
+    "preprocess":   "preprocess/pre_01b.txt",
+    "train":        "train/train_00.txt"
+}

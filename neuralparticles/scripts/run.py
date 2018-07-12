@@ -82,9 +82,9 @@ file_name = "%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id']
 if dst_path == "":
     dst_path = data_path + "result/%s_result"%file_name + "_%03d.uni"
 if t_start < 0:
-    t_start = train_config['t_start']
+    t_start = min(train_config['t_start'], data_config['frame_count']-1)
 if t_end < 0:
-    t_end = train_config['t_end']
+    t_end = min(train_config['t_end'], data_config['frame_count'])
 
 npy_path = data_path + "result/npy/%s"%file_name
 pdf_path = data_path + "result/pdf/%s"%file_name
@@ -217,7 +217,7 @@ for t in range(t_start, t_end):
         print("Avg truncation position ref: %.1f" % (avg_ref_trunc/len(src_patches)))
 
     result = patch_extractor.data*factor_d
-    result = result[np.where(np.all([np.all(4<=result,axis=-1),np.all(result<=res-4,axis=-1)],axis=0))]
+    #result = result[np.where(np.all([np.all(4<=result,axis=-1),np.all(result<=res-4,axis=-1)],axis=0))]
     
     hdr = OrderedDict([ ('dim',len(result)),
                         ('dimX',res),

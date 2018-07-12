@@ -208,9 +208,19 @@ if start_checkpoint == 0:
             tmp = Conv1D(128, 1)(tmp)
             l.append(tmp)
         x = concatenate(l, axis=1)
+
+        if truncate:
+            x_t = Lambda(unstack)(x)
+            x_t = add(x_t)
+            x_t = Dropout(dropout)(x_t)
+            x_t = Dense(fac,activation='sigmoid', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
+            x_t = Dropout(dropout)(x_t)
+            trunc = Dense(1,activation='sigmoid', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
+            out_mask = trunc_mask(trunc,particle_cnt_dst)
+
         x = Conv1D(64,1)(x)
         x = Conv1D(3,1)(x)
-        print(x.get_shape())
+        
         out = x
     else:
         stn_input = Input((particle_cnt_src,3))
@@ -396,7 +406,7 @@ eval_ref_datas = []
 eval_src_patches = []
 eval_ref_patches = []
 for i in range(len(eval_dataset)):
-    (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
+    (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, min(eval_dataset[i], data_config['data_count']-1), min(eval_t[i], data_config['frame_count']-1), eval_var[i]) 
     eval_ref_datas.append(eval_ref_data)
     eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features, pad_val=pad_val, bnd=data_config['bnd']/factor_d))
     eval_src_patches.append(eval_patch_extractors[i].get_patch_idx(eval_patch_idx[i]))
