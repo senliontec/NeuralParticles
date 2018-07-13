@@ -196,30 +196,32 @@ if start_checkpoint == 0:
         return tf.unstack(X,axis=1)
 
     if use_conv:
-        def preprocess(v):
-            from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module
-            from keras.layers import concatenate, multiply
-            npoint = int(v.get_shape()[1])
-            # extrahiere 'npoint' Gruppen aus dem Patch im Radius 'radius', die jeweils 'nsample' Punkte enthalten
-            # generiere für jede Gruppe ein Feature-vektor (mit PoinNet)
-            # resultat sind die Gruppenzentren (xyz) und 'npoint' Features (points)
-            l1_xyz, l1_points = pointnet_sa_module(v, None, npoint, 0.25, 32, [32,32,64], None, False, mask_val=pad_val)[:2]
-            l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, npoint/2, 0.5, 32, [64,64,128], None, False)[:2]
-            l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, npoint/4, 0.4, 32, [128,128,256], None, False)[:2]
-            l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, npoint/8, 0.5, 32, [256,256,512], None, False)[:2]
+        def preprocess(v, pad_val=None):
+            def tmp(v):
+                from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module
+                from keras.layers import concatenate, multiply
+                npoint = int(v.get_shape()[1])
+                # extrahiere 'npoint' Gruppen aus dem Patch im Radius 'radius', die jeweils 'nsample' Punkte enthalten
+                # generiere für jede Gruppe ein Feature-vektor (mit PoinNet)
+                # resultat sind die Gruppenzentren (xyz) und 'npoint' Features (points)
+                l1_xyz, l1_points = pointnet_sa_module(v, None, npoint, 0.25, 32, [32,32,64], None, False, mask_val=pad_val)[:2]
+                l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, npoint/2, 0.5, 32, [64,64,128], None, False)[:2]
+                l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, npoint/4, 0.4, 32, [128,128,256], None, False)[:2]
+                l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, npoint/8, 0.5, 32, [256,256,512], None, False)[:2]
 
-            if use_mask:
-                mask = zero_mask(inputs[0], pad_val)
-                v = multiply([v,mask])
+                if pad_val is not None:
+                    mask = zero_mask(inputs[0], pad_val)
+                    v = multiply([v,mask])
 
-            # interpoliere die features in l2_points auf die Punkte in x
-            up_l2_points = pointnet_fp_module(v, l2_xyz, None, l2_points, [64])
-            up_l3_points = pointnet_fp_module(v, l3_xyz, None, l3_points, [64])
-            up_l4_points = pointnet_fp_module(v, l4_xyz, None, l4_points, [64])
+                # interpoliere die features in l2_points auf die Punkte in x
+                up_l2_points = pointnet_fp_module(v, l2_xyz, None, l2_points, [64])
+                up_l3_points = pointnet_fp_module(v, l3_xyz, None, l3_points, [64])
+                up_l4_points = pointnet_fp_module(v, l4_xyz, None, l4_points, [64])
 
-            #return concatenate([up_l2_points, l1_points, x], axis=-1)
-            return concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, v], axis=-1)
-        x = Lambda(preprocess)(inputs[0])
+                #return concatenate([up_l2_points, l1_points, x], axis=-1)
+                return concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, v], axis=-1)
+            return Lambda(tmp)(v)
+        x = preprocess(inputs[0], pad_val if use_mask else None)
         l = []
         for i in range(particle_cnt_dst//particle_cnt_src):
             tmp = Conv1D(256, 1)(x)
