@@ -178,12 +178,7 @@ def load_patches_from_file(data_path, config_path):
     return src, ref#, src_rot, ref_rot
 
 def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0, pad_val=0.0, positions=None):
-
-    par_aux_data = {}
-    sdf = readGrid(prefix + "_sdf")
-    particle_data = readParticles(prefix + "_ps")
-    for v in par_aux:
-        par_aux_data[v] = readParticles((prefix+"_p%s")%v, "float32")
+    particle_data, sdf, par_aux_data = get_data(prefix, par_aux)
 
     if positions is None:
         positions = get_positions(particle_data, sdf, patch_size, surface, bnd)
@@ -326,61 +321,54 @@ class PatchExtractor:
         self.features = features
         self.pad_val = pad_val
 
-        self.pos_backup = get_positions(src_data, sdf_data, patch_size, surface, bnd)
-        np.random.shuffle(self.pos_backup)
+        p = get_positions(src_data, sdf_data, patch_size, surface, bnd)
+        np.random.shuffle(p)
+
+        self.positions = np.empty((0, p.shape[-1]))
+
+        while len(p) > 0:
+            self.positions = np.append(self.positions, [p[0]], axis=0)
+            p = remove_particles(p, p[0], self.stride)[0]
 
         self.reset()
     
     def reset(self):
         self.data = self.src_data.copy()
-        self.positions = self.pos_backup
-        self.last_pos = None
+        self.last_idx = -1
 
-    def transform_patch(self, patch):
-        return np.add(patch * self.radius, self.last_pos)
+    def transform_patch(self, patch, pos):
+        return patch * self.radius + pos
 
-    def inv_transform_patch(self, patch):
-        return np.subtract(patch, self.last_pos) / self.radius
+    def inv_transform_patch(self, patch, pos):
+        return (patch - pos) / self.radius
 
-    def get_patch_idx(self, idx):
-        if len(self.positions) <= idx:
-            return None
-        
+    def get_patch(self, idx, remove_data=True):
+        if remove_data:
+            self.data = remove_particles(self.data, self.positions[idx], self.stride)[0]
+
         patch, aux = extract_particles(self.src_data, self.positions[idx], self.cnt, self.radius, self.pad_val, self.aux_data)
         if len(aux) > 0:
             return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features])])]
         else:
             return [np.array([patch])]
-
-    def get_patch(self):
-        if len(self.positions) == 0:
-            return None
-
-        self.last_pos = self.positions[0]
-        self.positions = remove_particles(self.positions, self.last_pos, self.stride)[0]
-        self.data = remove_particles(self.data, self.last_pos, self.stride)[0]
-        patch, aux = extract_particles(self.src_data, self.last_pos, self.cnt, self.radius, self.pad_val, self.aux_data)
-
-        if len(aux) > 0:
-            return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features],axis=-1)])]
-        else:
-            return [np.array([patch])]
     
-    def set_patch(self, patch):
-        self.data = np.concatenate((self.data, self.transform_patch(patch)))
+    def set_patch(self, patch, idx):
+        self.data = np.concatenate((self.data, self.transform_patch(patch, self.positions[idx])))
 
     def get_patches(self):
-        src = np.empty((0,self.cnt,3))
+        src = np.empty((len(self.positions),self.cnt,3))
         aux = None
-        while(True):
-            patch = self.get_patch()
-            if patch is None:
-                break
-            src = np.concatenate([src, patch[0]])
+
+        for i in range(len(self.positions)):
+            patch = self.get_patch(i)
+            src[i] = patch[0]
             if len(patch) > 1:
                 aux = np.concatenate([aux, patch[1]]) if aux is not None else patch[1]
-            
+
         if aux is None:
             return [src]
         else:
             return [src, aux]
+
+    def set_patches(self, patches):
+        self.data = np.concatenate((self.data, np.concatenate(self.transform_patch(patches, np.expand_dims(self.positions,axis=1)))))

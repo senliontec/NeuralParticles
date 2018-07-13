@@ -135,8 +135,8 @@ ref_patch_size = pre_config['patch_size_ref']
 par_cnt = pre_config['par_cnt']
 par_cnt_dst = pre_config['par_cnt_ref']
 
-res = data_config['res']
-low_res = int(res/factor_d)
+hres = data_config['res']
+res = int(hres/factor_d)
 
 half_ps = ref_patch_size//2
 #border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
@@ -156,9 +156,11 @@ avg_emd_loss = 0
 for t in range(t_start, t_end):
     (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
 
+    src_data = src_data[np.where(np.all([np.all(data_config['bnd']/factor_d<=src_data,axis=-1),np.all(src_data<=res-data_config['bnd']/factor_d,axis=-1)],axis=0))]
+
     patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val, bnd=data_config['bnd']/factor_d)
 
-    write_out_particles(patch_extractor.positions, t, "_pos", [0,low_res], [0,low_res], 0.1, low_res//2 if dim == 3 else None)
+    write_out_particles(patch_extractor.positions, t, "_pos", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 
     src_accum = np.empty((0,3))
     ref_accum = np.empty((0,3))
@@ -174,12 +176,13 @@ for t in range(t_start, t_end):
     avg_trunc = 0
     avg_ref_trunc = 0
     
-    '''src = patch_extractor.get_patches()
+    src = patch_extractor.get_patches()
     result = model.predict(x=src)
-    patch_extractor.set_patches(result)'''
+    patch_extractor.set_patches(result)
 
-    
-    while(True):
+    result = eval_frame(model, patch_extractor, factor_d, npy_path, src_data, par_aux, ref_data, hres, z=None if dim == 2 else res//2, verbose=3 if verbose else 1)
+
+    '''while(True):
         src = patch_extractor.get_patch()
         if src is None:
             break
@@ -216,20 +219,20 @@ for t in range(t_start, t_end):
         print("Avg truncation position: %.1f" % (avg_trunc/len(src_patches)))
         print("Avg truncation position ref: %.1f" % (avg_ref_trunc/len(src_patches)))
 
-    result = patch_extractor.data*factor_d
+    result = patch_extractor.data*factor_d'''
     #result = result[np.where(np.all([np.all(4<=result,axis=-1),np.all(result<=res-4,axis=-1)],axis=0))]
     
     hdr = OrderedDict([ ('dim',len(result)),
-                        ('dimX',res),
-                        ('dimY',res),
-                        ('dimZ',1 if dim == 2 else res),
+                        ('dimX',hres),
+                        ('dimY',hres),
+                        ('dimZ',1 if dim == 2 else hres),
                         ('elementType',0),
                         ('bytesPerElement',16),
                         ('info',b'\0'*256),
                         ('timestamp',(int)(time.time()*1e6))])
     writeParticlesUni(dst_path%t, hdr, result)
 
-    writeNumpyRaw(npy_path + "_src_patches_%03d"%t, src_patches)
+    '''writeNumpyRaw(npy_path + "_src_patches_%03d"%t, src_patches)
     writeNumpyRaw(npy_path + "_ref_patches_%03d"%t, ref_patches)
     writeNumpyRaw(npy_path + "_res_patches_%03d"%t, res_patches)
     writeNumpyRaw(npy_path + "_patch_pos_%03d"%t, patch_pos)
@@ -245,9 +248,9 @@ for t in range(t_start, t_end):
     np.random.shuffle(ref_accum)
     np.random.shuffle(res_accum)
     ref_accum = K.constant(np.array([ref_accum[:min_cnt]]))
-    res_accum = K.constant(np.array([res_accum[:min_cnt]]))
+    res_accum = K.constant(np.array([res_accum[:min_cnt]]))'''
 
-    print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(patch_extractor.data), (len(patch_extractor.data)/len(src_data))))
+    print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))
 
     '''call_f = lambda f,x,y: K.eval(f(x,y))[0]
     loss = call_f(chamfer_loss, ref_accum, res_accum)

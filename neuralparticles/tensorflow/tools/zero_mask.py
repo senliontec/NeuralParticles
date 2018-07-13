@@ -12,4 +12,4 @@ def trunc_mask(trunc, size):
     def tmp(v):
         r = K.arange(size, dtype=K.floatx())+0.5
         return K.sigmoid((v*size-r)*10)
-    return Lambda(tmp)(trunc)
+    return Lambda(tmp, name="truncation_mask")(trunc)

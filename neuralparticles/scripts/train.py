@@ -1,7 +1,7 @@
 import os
 
-#import matplotlib
-#matplotlib.use('Agg')
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import json
@@ -220,28 +220,28 @@ if start_checkpoint == 0:
 
                 #return concatenate([up_l2_points, l1_points, x], axis=-1)
                 return concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, v], axis=-1)
-            return Lambda(tmp)(v)
+            return Lambda(tmp, name="feature_embedding")(v)
         x = preprocess(inputs[0], pad_val if use_mask else None)
         l = []
         for i in range(particle_cnt_dst//particle_cnt_src):
-            tmp = Conv1D(256, 1)(x)
-            tmp = Conv1D(128, 1)(tmp)
+            tmp = Conv1D(256, 1, name="expansion_1_"+str(i+1))(x)
+            tmp = Conv1D(128, 1, name="expansion_2_"+str(i+1))(tmp)
             l.append(tmp)
-        x = concatenate(l, axis=1)
+        x = concatenate(l, axis=1, name="pixel_conv")
 
         if truncate:
-            x_t = Lambda(unstack)(x)
-            x_t = add(x_t)
+            x_t = Lambda(unstack, name='unstack')(x)
+            x_t = add(x_t, name='merge_features')
             x_t = Dropout(dropout)(x_t)
-            x_t = Dense(fac, activation='elu', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
+            x_t = Dense(fac, activation='elu', kernel_regularizer=regularizers.l2(l2_reg), name="truncation_1")(x_t)
             x_t = Dropout(dropout)(x_t)
             b = np.ones(1, dtype='float32')
             W = np.zeros((fac, 1), dtype='float32')
-            trunc = Dense(1, activation='elu', kernel_regularizer=regularizers.l2(l2_reg), weights=[W,b])(x_t)
-            out_mask = trunc_mask(trunc,particle_cnt_dst)
+            trunc = Dense(1, activation='elu', kernel_regularizer=regularizers.l2(l2_reg), weights=[W,b], name="truncation_2")(x_t)
+            out_mask = trunc_mask(trunc, particle_cnt_dst)
 
-        x = Conv1D(64,1)(x)
-        x = Conv1D(3,1)(x)
+        x = Conv1D(64,1, name="coord_reconstruction_1")(x)
+        x = Conv1D(3,1, name="coord_reconstruction_2")(x)
         
         out = x
     else:
@@ -339,7 +339,7 @@ if start_checkpoint == 0:
         out = stn_transform_inv(stn,inv_par_out,quat=True) if use_stn else inv_par_out
 
     if truncate:
-        out = Multiply()([out, Reshape((particle_cnt_dst,1))(out_mask)])
+        out = Multiply(name='apply_trunc_mask')([out, Reshape((particle_cnt_dst,1))(out_mask)])
         model = Model(inputs=inputs, outputs=[out,trunc])
         model.compile(loss=[mask_loss, 'mse'], optimizer=keras.optimizers.adam(lr=learning_rate, decay=decay), loss_weights=[1.0,1.0])
     else:
@@ -438,7 +438,7 @@ for i in range(len(eval_dataset)):
     eval_ref_datas.append(eval_ref_data)
     eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features, pad_val=pad_val, bnd=data_config['bnd']/factor_d))
     p_idx = int(eval_patch_idx[i] * len(eval_patch_extractors[i].positions))
-    eval_src_patches.append(eval_patch_extractors[i].get_patch_idx(p_idx))
+    eval_src_patches.append(eval_patch_extractors[i].get_patch(p_idx,False))
     eval_ref_patches.append(extract_particles(eval_ref_data, eval_patch_extractors[i].positions[p_idx] * factor_d, ref_par_cnt, ref_patch_size/2, pad_val)[0])
 
     print("Eval with dataset %d, timestep %d, var %d, patch idx %d" % (eval_dataset[i], eval_t[i], eval_var[i], p_idx))
