@@ -70,13 +70,8 @@ namespace Manta
 	}
 
 	KERNEL(bnd=1) void knCosDisplacement(Grid<Real>& displacement, const Grid<Vec3>& grid, float fac) {
-		Vec3 v = grid(i,j,k);
-		float l = norm(v);
-		if(l > VECTOR_EPSILON){
-			displacement(i,j,k) = std::cos(std::acos(v.x/l) * fac);// * std::cos(std::acos(v.z/l) * fac);
-		} else {
-			displacement(i,j,k) = 0.;
-		}
+		Vec3 v = getNormalized(grid(i,j,k));
+		displacement(i,j,k) = std::cos(std::acos(v.x) * fac) * std::cos(std::acos(v.y) * fac) * std::cos(std::acos(v.z) * fac);
 	}
 
 	//

@@ -56,6 +56,6 @@ if __name__ == "__main__":
                 else:
                     writeNumpyRaw(src_path % (f,d,t), src[1][:,:,i:i+1])
                     i+=1
-            writeNumpyRaw(rot_src_path % (d,t), rotated_src)
+            #writeNumpyRaw(rot_src_path % (d,t), rotated_src)
             writeNumpyRaw(dst_path % (d,t), dst)
-            writeNumpyRaw(rot_dst_path % (d,t), rotated_dst)
+            #writeNumpyRaw(rot_dst_path % (d,t), rotated_dst)

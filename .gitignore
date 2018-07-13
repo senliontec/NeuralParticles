@@ -13,3 +13,5 @@ neuralparticles/\.vscode/
 test/
 
 sanity_check/
+
+sanity_check_3D/

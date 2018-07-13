@@ -33,10 +33,20 @@ config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 gpu = getParam("gpu", "")
 
-eval_dataset = list(map(int,getParam("eval_d", '18,18,18,19,19').split(',')))
-eval_t = list(map(int,getParam("eval_t", '5,5,6,6,7').split(',')))
-eval_var = list(map(int,getParam("eval_v", '0,0,0,0,0').split(',')))
-eval_patch_idx = list(map(int,getParam("eval_i", '11,77,16,21,45').split(',')))
+eval_cnt = int(getParam("eval_cnt", 5))
+eval_dataset = getParam("eval_d", []) #'18,18,18,19,19'
+eval_t = getParam("eval_t", []) #'5,5,6,6,7'
+eval_var = getParam("eval_v", []) #'0,0,0,0,0'
+eval_patch_idx = getParam("eval_i", []) #'11,77,16,21,45'
+
+if len(eval_dataset) > 0:
+    eval_dataset = list(map(int, eval_dataset.split(',')))
+if len(eval_t) > 0:
+    eval_t = list(map(int, eval_t.split(',')))
+if len(eval_var) > 0:
+    eval_var = list(map(int, eval_var.split(',')))
+if len(eval_patch_idx) > 0:
+    eval_patch_idx = list(map(float, eval_patch_idx.split(',')))
 
 log_interval = int(getParam("log_interval", 1))
 checkpoint_interval = int(getParam("checkpoint_interval", 1))
@@ -118,6 +128,14 @@ factor_d = math.pow(factor, 1/dim)
 hres = data_config['res']
 res = int(hres/factor_d)
 
+if len(eval_dataset) < eval_cnt:
+    eval_dataset.extend(np.random.randint(int(data_config['data_count'] * train_config['train_split']), data_config['data_count'], eval_cnt-len(eval_dataset)))
+    t_start = min(train_config['t_start'], data_config['frame_count']-1)
+    t_end = min(train_config['t_end'], data_config['frame_count'])
+    eval_t.extend(np.random.randint(t_start, t_end, eval_cnt-len(eval_t)))
+    eval_var.extend([0]*(eval_cnt-len(eval_var)))
+    eval_patch_idx.extend(np.random.random(eval_cnt-len(eval_patch_idx)))
+
 tmp_model_path = '%s%s_%s' % (tmp_model_path, data_config['prefix'], config['id'])
 tmp_checkpoint_path = '%s%s_%s' % (tmp_checkpoint_path, data_config['prefix'], config['id'])
 print(tmp_model_path)
@@ -165,15 +183,9 @@ if start_checkpoint == 0:
 
     inputs = [Input((particle_cnt_src,3), name='main_input')]
 
-    mask = zero_mask(inputs[0], pad_val)
-
-    x = Multiply()([inputs[0], mask]) if use_mask else inputs[0]
-
     if feature_cnt > 0:
         aux_input = Input((particle_cnt_src, feature_cnt), name='aux_input')
         inputs.append(aux_input)
-        if use_mask:
-            aux_input = Multiply()([aux_input, mask])
 
     def stack(X):
         import tensorflow as tf
@@ -184,24 +196,30 @@ if start_checkpoint == 0:
         return tf.unstack(X,axis=1)
 
     if use_conv:
-        def preprocess(x):
+        def preprocess(v):
             from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module
-            from keras.layers import concatenate
-            npoint = int(x.get_shape()[1])
+            from keras.layers import concatenate, multiply
+            npoint = int(v.get_shape()[1])
             # extrahiere 'npoint' Gruppen aus dem Patch im Radius 'radius', die jeweils 'nsample' Punkte enthalten
             # generiere für jede Gruppe ein Feature-vektor (mit PoinNet)
             # resultat sind die Gruppenzentren (xyz) und 'npoint' Features (points)
-            l1_xyz, l1_points = pointnet_sa_module(x, None, npoint, 0.25, 32, [32,32,64], None, False)[:2]
+            l1_xyz, l1_points = pointnet_sa_module(v, None, npoint, 0.25, 32, [32,32,64], None, False, mask_val=pad_val)[:2]
             l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, npoint/2, 0.5, 32, [64,64,128], None, False)[:2]
             l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, npoint/4, 0.4, 32, [128,128,256], None, False)[:2]
             l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, npoint/8, 0.5, 32, [256,256,512], None, False)[:2]
+
+            if use_mask:
+                mask = zero_mask(inputs[0], pad_val)
+                v = multiply([v,mask])
+
             # interpoliere die features in l2_points auf die Punkte in x
-            up_l2_points = pointnet_fp_module(x, l2_xyz, None, l2_points, [64])
-            up_l3_points = pointnet_fp_module(x, l3_xyz, None, l3_points, [64])
-            up_l4_points = pointnet_fp_module(x, l4_xyz, None, l4_points, [64])
+            up_l2_points = pointnet_fp_module(v, l2_xyz, None, l2_points, [64])
+            up_l3_points = pointnet_fp_module(v, l3_xyz, None, l3_points, [64])
+            up_l4_points = pointnet_fp_module(v, l4_xyz, None, l4_points, [64])
+
             #return concatenate([up_l2_points, l1_points, x], axis=-1)
-            return concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, x], axis=-1)
-        x = Lambda(preprocess)(x)
+            return concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, v], axis=-1)
+        x = Lambda(preprocess)(inputs[0])
         l = []
         for i in range(particle_cnt_dst//particle_cnt_src):
             tmp = Conv1D(256, 1)(x)
@@ -213,9 +231,11 @@ if start_checkpoint == 0:
             x_t = Lambda(unstack)(x)
             x_t = add(x_t)
             x_t = Dropout(dropout)(x_t)
-            x_t = Dense(fac,activation='sigmoid', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
+            x_t = Dense(fac, activation='elu', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
             x_t = Dropout(dropout)(x_t)
-            trunc = Dense(1,activation='sigmoid', kernel_regularizer=regularizers.l2(l2_reg))(x_t)
+            b = np.ones(1, dtype='float32')
+            W = np.zeros((fac, 1), dtype='float32')
+            trunc = Dense(1, activation='elu', kernel_regularizer=regularizers.l2(l2_reg), weights=[W,b])(x_t)
             out_mask = trunc_mask(trunc,particle_cnt_dst)
 
         x = Conv1D(64,1)(x)
@@ -223,6 +243,12 @@ if start_checkpoint == 0:
         
         out = x
     else:
+        mask = zero_mask(inputs[0], pad_val)
+        x = Multiply()([inputs[0], mask]) if use_mask else inputs[0]
+        if feature_cnt > 0:
+            if use_mask:
+                aux_input = Multiply()([aux_input, mask])
+
         stn_input = Input((particle_cnt_src,3))
         stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
         stn_model = Model(inputs=stn_input, outputs=stn, name="stn")
@@ -390,14 +416,14 @@ else:
 
 print("Load Training Data")
 
-src_data, ref_data, src_rot_data, ref_rot_data = load_patches_from_file(data_path, config_path)
+src_data, ref_data = load_patches_from_file(data_path, config_path) #, src_rot_data, ref_rot_data
 
 idx = np.arange(src_data[0].shape[0])
 np.random.shuffle(idx)
 src_data = [s[idx] for s in src_data]
 ref_data = ref_data[idx]
-src_rot_data = src_rot_data[idx]
-ref_rot_data = ref_rot_data[idx]
+#src_rot_data = src_rot_data[idx]
+#ref_rot_data = ref_rot_data[idx]
 
 print("Load Eval Data")
 
@@ -406,19 +432,21 @@ eval_ref_datas = []
 eval_src_patches = []
 eval_ref_patches = []
 for i in range(len(eval_dataset)):
-    (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, min(eval_dataset[i], data_config['data_count']-1), min(eval_t[i], data_config['frame_count']-1), eval_var[i]) 
+    (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
     eval_ref_datas.append(eval_ref_data)
     eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features, pad_val=pad_val, bnd=data_config['bnd']/factor_d))
-    eval_src_patches.append(eval_patch_extractors[i].get_patch_idx(eval_patch_idx[i]))
-    eval_ref_patches.append(extract_particles(eval_ref_data, eval_patch_extractors[i].positions[eval_patch_idx[i]] * factor_d, ref_par_cnt, ref_patch_size/2, pad_val)[0])
+    p_idx = int(eval_patch_idx[i] * len(eval_patch_extractors[i].positions))
+    eval_src_patches.append(eval_patch_extractors[i].get_patch_idx(p_idx))
+    eval_ref_patches.append(extract_particles(eval_ref_data, eval_patch_extractors[i].positions[p_idx] * factor_d, ref_par_cnt, ref_patch_size/2, pad_val)[0])
 
+    print("Eval with dataset %d, timestep %d, var %d, patch idx %d" % (eval_dataset[i], eval_t[i], eval_var[i], p_idx))
     print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patches[i][0][:,:,:1] != pad_val)))
     print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patches[i][:,:1] != pad_val)))
 
 val_split = train_config['val_split']
 
 print("Start Training")
-if pre_train_stn:
+'''if pre_train_stn:
     inputs = model.inputs
     mask = zero_mask(inputs[0], pad_val)
     x = Multiply()([inputs[0],mask]) if use_mask else inputs[0]
@@ -458,7 +486,7 @@ if pre_train_stn:
         plt.legend(['train', 'validation'], loc='upper left')
 
         plt.savefig(fig_path+"_dis_stn.png")
-        plt.savefig(fig_path+"_dis_stn.pdf")      
+        plt.savefig(fig_path+"_dis_stn.pdf")  '''    
 
 if train_config["adv_fac"] <= 0.:
     trunc_ref = np.count_nonzero(ref_data[:,:,:1] != pad_val, axis=1)/particle_cnt_dst

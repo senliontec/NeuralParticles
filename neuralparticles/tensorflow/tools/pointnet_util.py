@@ -10,6 +10,7 @@ import tensorflow as tf
 from .tf_sampling import farthest_point_sample, gather_point
 from .tf_grouping import query_ball_point, group_point, knn_point
 from .tf_interpolate import three_nn, three_interpolate
+from .zero_mask import zero_mask
 import tensorflow as tf
 import numpy as np
 
@@ -93,7 +94,7 @@ def sample_and_group_all(xyz, points, use_xyz=True):
 
 
 def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_all,
-                       pooling='max', tnet_spec=None, knn=False, use_xyz=True):
+                       pooling='max', tnet_spec=None, knn=False, use_xyz=True, mask_val=None):
     ''' PointNet Set Abstraction (SA) Module
         Input:
             xyz: (batch_size, ndataset, 3) TF tensor
@@ -118,9 +119,16 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_al
     else:
         new_xyz, new_points, idx, grouped_xyz = sample_and_group(npoint, radius, nsample, xyz, points, tnet_spec, knn, use_xyz)
     if mlp2 is None: mlp2 = []
+
+    if mask_val is not None:
+        mask = zero_mask(new_points, mask_val)
+
     for i, num_out_channel in enumerate(mlp):
         new_points = tf.layers.conv2d(new_points, num_out_channel, [1,1],
                                     padding='VALID', strides=[1,1]) 
+    if mask_val is not None:
+        new_points = tf.multiply(new_points, mask)
+
     if pooling=='avg':
         new_points = tf.layers.average_pooling2d(new_points, [1,nsample], [1,1], padding='VALID')
     elif pooling=='weighted_avg':

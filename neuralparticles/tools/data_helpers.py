@@ -143,9 +143,9 @@ def load_patches_from_file(data_path, config_path):
         src = [np.empty((0,par_cnt,3))]
         if len(features) > 0:
             src.append(np.empty((0,par_cnt,len(features) + 2 if 'v' in features else 0)))
-        src_rot = np.empty((0,par_cnt,3))
+        #src_rot = np.empty((0,par_cnt,3))
         ref = np.empty((0, par_cnt_ref,3))
-        ref_rot = np.empty((0, par_cnt_ref,3))
+        #ref_rot = np.empty((0, par_cnt_ref,3))
         
         for d in range(data_cnt):
             for t in range(t_start, t_end):
@@ -153,9 +153,9 @@ def load_patches_from_file(data_path, config_path):
                 src[0] = np.append(src[0], readNumpyRaw(src_path % ('s',d,t)), axis=0)
                 if len(features) > 0:
                     src[1] = np.append(src[1], np.concatenate([readNumpyRaw(src_path%(f,d,t)) for f in features], axis=-1), axis=0)
-                src_rot = np.append(src_rot, readNumpyRaw(rot_src_path%(d,t)), axis=0)
+                #src_rot = np.append(src_rot, readNumpyRaw(rot_src_path%(d,t)), axis=0)
                 ref = np.append(ref,readNumpyRaw(ref_path%(d,t)), axis=0)
-                ref_rot = np.append(ref_rot,readNumpyRaw(rot_ref_path%(d,t)), axis=0)
+                #ref_rot = np.append(ref_rot,readNumpyRaw(rot_ref_path%(d,t)), axis=0)
 
         print("\r", flush=True)
         print("cache patch buffer")
@@ -164,18 +164,18 @@ def load_patches_from_file(data_path, config_path):
         if len(features) > 0:
             writeNumpyRaw(tmp_path + "aux", src[1])
         writeNumpyRaw(tmp_path + "ref", ref)
-        writeNumpyRaw(tmp_path + "src_rot", src_rot)
-        writeNumpyRaw(tmp_path + "ref_rot", ref_rot)
+        #writeNumpyRaw(tmp_path + "src_rot", src_rot)
+        #writeNumpyRaw(tmp_path + "ref_rot", ref_rot)
     else:
         print("found and loaded cached buffer file")
         src = [readNumpyRaw(tmp_path + "src")]
         if len(features) > 0:
             src.append(readNumpyRaw(tmp_path + "aux"))
         ref = readNumpyRaw(tmp_path + "ref")
-        src_rot = readNumpyRaw(tmp_path + "src_rot")
-        ref_rot = readNumpyRaw(tmp_path + "ref_rot")
+        #src_rot = readNumpyRaw(tmp_path + "src_rot")
+        #ref_rot = readNumpyRaw(tmp_path + "ref_rot")
 
-    return src, ref, src_rot, ref_rot
+    return src, ref#, src_rot, ref_rot
 
 def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0, pad_val=0.0, positions=None):
 
