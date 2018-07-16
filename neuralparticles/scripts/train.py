@@ -130,10 +130,16 @@ res = int(hres/factor_d)
 
 if len(eval_dataset) < eval_cnt:
     eval_dataset.extend(np.random.randint(int(data_config['data_count'] * train_config['train_split']), data_config['data_count'], eval_cnt-len(eval_dataset)))
+
+if len(eval_t) < eval_cnt:
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
     t_end = min(train_config['t_end'], data_config['frame_count'])
     eval_t.extend(np.random.randint(t_start, t_end, eval_cnt-len(eval_t)))
+
+if len(eval_var) < eval_cnt:
     eval_var.extend([0]*(eval_cnt-len(eval_var)))
+
+if len(eval_patch_idx) < eval_cnt:
     eval_patch_idx.extend(np.random.random(eval_cnt-len(eval_patch_idx)))
 
 tmp_model_path = '%s%s_%s' % (tmp_model_path, data_config['prefix'], config['id'])
