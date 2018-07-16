@@ -200,6 +200,8 @@ if start_checkpoint == 0:
             def tmp(v):
                 from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module
                 from keras.layers import concatenate, multiply
+                from neuralparticles.tensorflow.tools.zero_mask import zero_mask
+
                 npoint = int(v.get_shape()[1])
                 # extrahiere 'npoint' Gruppen aus dem Patch im Radius 'radius', die jeweils 'nsample' Punkte enthalten
                 # generiere für jede Gruppe ein Feature-vektor (mit PoinNet)
@@ -210,7 +212,7 @@ if start_checkpoint == 0:
                 l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, npoint/8, 0.5, 32, [256,256,512], None, False)[:2]
 
                 if pad_val is not None:
-                    mask = zero_mask(inputs[0], pad_val)
+                    mask = zero_mask(v, pad_val)
                     v = multiply([v,mask])
 
                 # interpoliere die features in l2_points auf die Punkte in x

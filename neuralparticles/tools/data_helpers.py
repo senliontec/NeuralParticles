@@ -128,7 +128,8 @@ def load_patches_from_file(data_path, config_path):
     tmp_path = data_path + "tmp/patches_%s_d%03d_%03d-%03d_s%s/" % (os.path.splitext(os.path.basename(config_path))[0], data_cnt, t_start, t_end, ''.join(features))
 
     # compares modification time of temporary buffer and first patch, if patches are newer the buffer will be deleted
-    if os.path.exists(tmp_path) and os.path.getmtime(tmp_path) < os.path.getmtime("%s%s_%s-%s_ps_d%03d_%03d.npy" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'], 0, t_start)):
+    patch_path = "%s%s_%s-%s_ps_d%03d_%03d.npy" % (src_path, data_config['prefix'], data_config['id'], pre_config['id'], 0, t_start)
+    if os.path.exists(tmp_path) and (not os.path.exists(patch_path) or os.path.getmtime(tmp_path) < os.path.getmtime(patch_path)):
         shutil.rmtree(tmp_path)
 
     if not os.path.exists(tmp_path):

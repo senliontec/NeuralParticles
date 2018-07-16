@@ -11,7 +11,7 @@ import keras
 from keras.models import Model, load_model
 import keras.backend as K
 
-from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles
+from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles, in_bound
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw
 
@@ -138,6 +138,8 @@ par_cnt_dst = pre_config['par_cnt_ref']
 hres = data_config['res']
 res = int(hres/factor_d)
 
+bnd = data_config['bnd']/factor_d
+
 half_ps = ref_patch_size//2
 #border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
 
@@ -156,9 +158,9 @@ avg_emd_loss = 0
 for t in range(t_start, t_end):
     (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
 
-    src_data = src_data[np.where(np.all([np.all(data_config['bnd']/factor_d<=src_data,axis=-1),np.all(src_data<=res-data_config['bnd']/factor_d,axis=-1)],axis=0))]
+    src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
 
-    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val, bnd=data_config['bnd']/factor_d)
+    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd)
 
     write_out_particles(patch_extractor.positions, t, "_pos", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 
@@ -176,9 +178,9 @@ for t in range(t_start, t_end):
     avg_trunc = 0
     avg_ref_trunc = 0
     
-    src = patch_extractor.get_patches()
-    result = model.predict(x=src)
-    patch_extractor.set_patches(result)
+    #src = patch_extractor.get_patches()
+    #result = model.predict(x=src)
+    #patch_extractor.set_patches(result)
 
     result = eval_frame(model, patch_extractor, factor_d, npy_path, src_data, par_aux, ref_data, hres, z=None if dim == 2 else res//2, verbose=3 if verbose else 1)
 
