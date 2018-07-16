@@ -14,7 +14,7 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
         result = result[0][0,:int(result[1][0] * result[0].shape[1])]
     else:
         result = result[0]
-
+    
     if path != "" and verbose > 0:
         _i = 0
         vel_src = None

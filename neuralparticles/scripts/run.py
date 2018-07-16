@@ -182,7 +182,7 @@ for t in range(t_start, t_end):
     #result = model.predict(x=src)
     #patch_extractor.set_patches(result)
 
-    result = eval_frame(model, patch_extractor, factor_d, npy_path, src_data, par_aux, ref_data, hres, z=None if dim == 2 else res//2, verbose=3 if verbose else 1)
+    result = eval_frame(model, patch_extractor, factor_d, npy_path, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
 
     '''while(True):
         src = patch_extractor.get_patch()
