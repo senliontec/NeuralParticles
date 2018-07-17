@@ -497,7 +497,7 @@ if train_config["adv_fac"] <= 0.:
                         epochs=epochs - start_checkpoint*checkpoint_interval, batch_size=train_config['batch_size'], 
                         verbose=1,callbacks=[NthLogger(log_interval, checkpoint_interval, tmp_checkpoint_path, start_checkpoint*checkpoint_interval),
                                             EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches, features, batch_intervall=10 if verbose else 0, z=None if dim == 2 else 0, verbose=3 if verbose else 1),
-                                            EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas, factor_d, hres, batch_intervall=0 if verbose else 0, z=None if dim == 2 else res//2, verbose=3 if verbose else 1)])
+                                            EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas, factor_d, hres, batch_intervall=0 if verbose else 0, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)])
 
     m_p = "%s_trained.h5" % tmp_model_path
     model.save(m_p)

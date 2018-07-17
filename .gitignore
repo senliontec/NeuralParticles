@@ -3,6 +3,7 @@ build
 *.bin
 *.pyc
 *.so
+*.o
 doc
 2D_data
 
