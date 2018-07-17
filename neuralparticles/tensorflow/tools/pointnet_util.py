@@ -144,7 +144,7 @@ class Interpolate(keras.layers.Layer):
     def call(self, X, mask=None):
         dist, idx = three_nn(X[1], X[2])
         dist = tf.maximum(dist, 1e-10)
-        norm = tf.reduce_sum((1.0/dist),axis=2,keepdims=True)
+        norm = tf.reduce_sum((1.0/dist),axis=2,keep_dims=True)
         norm = tf.tile(norm,[1,1,3])
         weight = (1.0/dist) / norm
         return three_interpolate(X[0], idx, weight)
