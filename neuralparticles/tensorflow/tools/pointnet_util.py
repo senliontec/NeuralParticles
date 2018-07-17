@@ -14,6 +14,11 @@ from .zero_mask import zero_mask
 import tensorflow as tf
 import numpy as np
 
+import keras
+import keras.backend as K
+
+from keras.layers import Conv1D, Conv2D, Lambda, multiply, MaxPool2D, concatenate, Reshape
+
 def sample_and_group(npoint, radius, nsample, xyz, points, tnet_spec=None, knn=False, use_xyz=True):
     '''
     Input:
@@ -64,37 +69,38 @@ def sample_and_group(npoint, radius, nsample, xyz, points, tnet_spec=None, knn=F
 
     return new_xyz, new_points, idx, grouped_xyz
 
+class SampleAndGroup(keras.layers.Layer):
+    def __init__(self, npoint, radius, nsample, **kwargs):
+        super(SampleAndGroup, self).__init__(**kwargs)
 
-def sample_and_group_all(xyz, points, use_xyz=True):
-    '''
-    Inputs:
-        xyz: (batch_size, ndataset, 3) TF tensor
-        points: (batch_size, ndataset, channel) TF tensor, if None will just use xyz as points
-        use_xyz: bool, if True concat XYZ with local point features, otherwise just use point features
-    Outputs:
-        new_xyz: (batch_size, 1, 3) as (0,0,0)
-        new_points: (batch_size, 1, ndataset, 3+channel) TF tensor
-    Note:
-        Equivalent to sample_and_group with npoint=1, radius=inf, use (0,0,0) as the centroid
-    '''
-    batch_size = xyz.get_shape()[0].value
-    nsample = xyz.get_shape()[1].value
-    new_xyz = tf.constant(np.tile(np.array([0,0,0]).reshape((1,1,3)), (batch_size,1,1)),dtype=tf.float32) # (batch_size, 1, 3)
-    idx = tf.constant(np.tile(np.array(range(nsample)).reshape((1,1,nsample)), (batch_size,1,1)))
-    grouped_xyz = tf.reshape(xyz, (batch_size, 1, nsample, 3)) # (batch_size, npoint=1, nsample, 3)
-    if points is not None:
-        if use_xyz:
-            new_points = tf.concat([xyz, points], axis=2) # (batch_size, 16, 259)
+        self.npoint = npoint
+        self.radius = radius
+        self.nsample = nsample
+
+    def compute_output_shape(self, input_shape):
+        if type(input_shape) is list:
+            bs = input_shape[0][0]
+            fs0 = input_shape[0][-1]
+            fs1 = fs0 + input_shape[1][-1]
         else:
-            new_points = points
-        new_points = tf.expand_dims(new_points, 1) # (batch_size, 1, 16, 259)
-    else:
-        new_points = grouped_xyz
-    return new_xyz, new_points, idx, grouped_xyz
+            bs = input_shape[0]
+            fs0 = fs1 = input_shape[-1]
+        return [(bs, self.npoint, fs0), (bs, self.npoint, self.nsample, fs1)]
+    
+    def call(self, X, mask=None):
+        if type(X) is list:
+            return list(sample_and_group(self.npoint, self.radius, self.nsample, X[0], X[1])[:2])
+        else:
+            return list(sample_and_group(self.npoint, self.radius, self.nsample, X, None)[:2])    
 
+    def get_config(self):
+        config = super(SampleAndGroup, self).get_config()
+        config['npoint'] = self.npoint
+        config['radius'] = self.radius
+        config['nsample'] = self.nsample
+        return config
 
-def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_all,
-                       pooling='max', tnet_spec=None, knn=False, use_xyz=True, mask_val=None):
+def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mask_val=None):
     ''' PointNet Set Abstraction (SA) Module
         Input:
             xyz: (batch_size, ndataset, 3) TF tensor
@@ -113,11 +119,84 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_al
             new_points: (batch_size, npoint, mlp[-1] or mlp2[-1]) TF tensor
             idx: (batch_size, npoint, nsample) int32 -- indices for local regions
     '''
+    new_xyz, new_points = SampleAndGroup(npoint, radius, nsample)(xyz if points is None else [xyz, points])
+
+    if mask_val is not None:
+        mask = zero_mask(new_points, mask_val)
+
+    for num_out_channel in mlp:
+        new_points = Conv2D(num_out_channel, 1)(new_points)
+
+    if mask_val is not None:
+        new_points = multiply([new_points, mask])
+
+    new_points = MaxPool2D([1,nsample])(new_points)
+    new_points = Reshape((npoint, mlp[-1]))(new_points) # (batch_size, npoints, mlp[-1])
+    return new_xyz, new_points
+
+class Interpolate(keras.layers.Layer):
+    def __init__(self, **kwargs):
+        super(Interpolate, self).__init__(**kwargs)
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0][0], input_shape[1][1], input_shape[0][-1])
+
+    def call(self, X, mask=None):
+        dist, idx = three_nn(X[1], X[2])
+        dist = tf.maximum(dist, 1e-10)
+        norm = tf.reduce_sum((1.0/dist),axis=2,keepdims=True)
+        norm = tf.tile(norm,[1,1,3])
+        weight = (1.0/dist) / norm
+        return three_interpolate(X[0], idx, weight)
+
+def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp):
+    ''' PointNet Feature Propogation (FP) Module
+        Input:                                                                                                      
+            xyz1: (batch_size, ndataset1, 3) TF tensor                                                              
+            xyz2: (batch_size, ndataset2, 3) TF tensor, sparser than xyz1                                           
+            points1: (batch_size, ndataset1, nchannel1) TF tensor                                                   
+            points2: (batch_size, ndataset2, nchannel2) TF tensor
+            mlp: list of int32 -- output size for MLP on each point                                                 
+        Return:
+            new_points: (batch_size, ndataset1, mlp[-1]) TF tensor
+    '''
+    interpolated_points = Interpolate()([points2, xyz1, xyz2])
+    if points1 is not None:
+        new_points1 = concatenate([interpolated_points, points1], axis=2) # B,ndataset1,nchannel1+nchannel2
+    else:
+        new_points1 = interpolated_points
+
+    for num_out_channel in mlp:
+        new_points1 = Conv1D(num_out_channel, 1)(new_points1)
+
+    return new_points1
+'''
+def sample_and_group_all(xyz, points, use_xyz=True):
+    batch_size = xyz.get_shape()[0].value
+    nsample = xyz.get_shape()[1].value
+    new_xyz = tf.constant(np.tile(np.array([0,0,0]).reshape((1,1,3)), (batch_size,1,1)),dtype=tf.float32) # (batch_size, 1, 3)
+    idx = tf.constant(np.tile(np.array(range(nsample)).reshape((1,1,nsample)), (batch_size,1,1)))
+    grouped_xyz = tf.reshape(xyz, (batch_size, 1, nsample, 3)) # (batch_size, npoint=1, nsample, 3)
+    if points is not None:
+        if use_xyz:
+            new_points = tf.concat([xyz, points], axis=2) # (batch_size, 16, 259)
+        else:
+            new_points = points
+        new_points = tf.expand_dims(new_points, 1) # (batch_size, 1, 16, 259)
+    else:
+        new_points = grouped_xyz
+    return new_xyz, new_points, idx, grouped_xyz
+
+
+def _pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_all,
+                       pooling='max', tnet_spec=None, knn=False, use_xyz=True, mask_val=None):
+
     if group_all:
         nsample = xyz.get_shape()[1].value
         new_xyz, new_points, idx, grouped_xyz = sample_and_group_all(xyz, points, use_xyz)
     else:
         new_xyz, new_points, idx, grouped_xyz = sample_and_group(npoint, radius, nsample, xyz, points, tnet_spec, knn, use_xyz)
+
     if mlp2 is None: mlp2 = []
 
     if mask_val is not None:
@@ -155,7 +234,7 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_al
     return new_xyz, new_points, idx
 
 def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list, mlp_list, use_xyz=True):
-    ''' PointNet Set Abstraction (SA) module with Multi-Scale Grouping (MSG)
+    '' PointNet Set Abstraction (SA) module with Multi-Scale Grouping (MSG)
         Input:
             xyz: (batch_size, ndataset, 3) TF tensor
             points: (batch_size, ndataset, channel) TF tensor
@@ -167,7 +246,7 @@ def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list, mlp_l
         Return:
             new_xyz: (batch_size, npoint, 3) TF tensor
             new_points: (batch_size, npoint, \sum_k{mlp[k][-1]}) TF tensor
-    '''
+    ''
     new_xyz = gather_point(xyz, farthest_point_sample(npoint, xyz))
     new_points_list = []
     for i in range(len(radius_list)):
@@ -190,18 +269,8 @@ def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list, mlp_l
     new_points_concat = tf.concat(new_points_list, axis=-1)
     return new_xyz, new_points_concat
 
- 
-def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp):
-    ''' PointNet Feature Propogation (FP) Module
-        Input:                                                                                                      
-            xyz1: (batch_size, ndataset1, 3) TF tensor                                                              
-            xyz2: (batch_size, ndataset2, 3) TF tensor, sparser than xyz1                                           
-            points1: (batch_size, ndataset1, nchannel1) TF tensor                                                   
-            points2: (batch_size, ndataset2, nchannel2) TF tensor
-            mlp: list of int32 -- output size for MLP on each point                                                 
-        Return:
-            new_points: (batch_size, ndataset1, mlp[-1]) TF tensor
-    '''
+
+def _pointnet_fp_module(xyz1, xyz2, points1, points2, mlp):
     dist, idx = three_nn(xyz1, xyz2)
     dist = tf.maximum(dist, 1e-10)
     norm = tf.reduce_sum((1.0/dist),axis=2,keep_dims=True)
@@ -219,3 +288,4 @@ def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp):
                                         padding='VALID', strides=[1,1])
     new_points1 = tf.squeeze(new_points1, [2]) # B,ndataset1,mlp[-1]
     return new_points1
+'''

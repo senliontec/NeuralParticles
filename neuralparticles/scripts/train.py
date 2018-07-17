@@ -16,12 +16,13 @@ from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtr
 import keras
 from keras.models import Model, Sequential, load_model
 from keras.layers import Conv1D, Conv2D, Conv2DTranspose, BatchNormalization, Input, ZeroPadding2D, Dense, MaxPooling2D
-from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, average, Activation, Flatten, Lambda, Dropout, Multiply
+from keras.layers import Reshape, RepeatVector, Permute, concatenate, add, average, Activation, Flatten, Lambda, Dropout, multiply
 from keras.layers.advanced_activations import LeakyReLU
 from keras import regularizers
 
 from neuralparticles.tensorflow.tools.spatial_transformer import *
 from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
+from neuralparticles.tensorflow.tools.pointnet_util import pointnet_fp_module, pointnet_sa_module, Interpolate, SampleAndGroup
 
 from neuralparticles.tensorflow.tools.eval_helpers import *
 from neuralparticles.tensorflow.layers.subpixel_layer import Subpixel1D, Subpixel2D
@@ -202,34 +203,25 @@ if start_checkpoint == 0:
         return tf.unstack(X,axis=1)
 
     if use_conv:
-        def preprocess(v, pad_val=None):
-            def tmp(v):
-                from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module
-                from keras.layers import concatenate, multiply
-                from neuralparticles.tensorflow.tools.zero_mask import zero_mask
+        x = inputs[0]
+        npoint = int(x.get_shape()[1])
+        l1_xyz, l1_points = pointnet_sa_module(x, None, npoint, 0.25, 32, [32,32,64], mask_val=pad_val if use_mask else None)
+        l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, npoint//2, 0.5, 32, [64,64,128])
+        l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, npoint//4, 0.6, 32, [128,128,256])
+        l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, npoint//8, 0.7, 32, [256,256,512])
 
-                npoint = int(v.get_shape()[1])
-                # extrahiere 'npoint' Gruppen aus dem Patch im Radius 'radius', die jeweils 'nsample' Punkte enthalten
-                # generiere für jede Gruppe ein Feature-vektor (mit PoinNet)
-                # resultat sind die Gruppenzentren (xyz) und 'npoint' Features (points)
-                l1_xyz, l1_points = pointnet_sa_module(v, None, npoint, 0.25, 32, [32,32,64], None, False, mask_val=pad_val)[:2]
-                l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, npoint/2, 0.5, 32, [64,64,128], None, False)[:2]
-                l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, npoint/4, 0.4, 32, [128,128,256], None, False)[:2]
-                l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, npoint/8, 0.5, 32, [256,256,512], None, False)[:2]
+        if use_mask:
+            mask = zero_mask(x, pad_val)
+            x = multiply([x, mask])
 
-                if pad_val is not None:
-                    mask = zero_mask(v, pad_val)
-                    v = multiply([v,mask])
+        # interpoliere die features in l2_points auf die Punkte in x
+        up_l2_points = pointnet_fp_module(x, l2_xyz, None, l2_points, [64])
+        up_l3_points = pointnet_fp_module(x, l3_xyz, None, l3_points, [64])
+        up_l4_points = pointnet_fp_module(x, l4_xyz, None, l4_points, [64])
 
-                # interpoliere die features in l2_points auf die Punkte in x
-                up_l2_points = pointnet_fp_module(v, l2_xyz, None, l2_points, [64])
-                up_l3_points = pointnet_fp_module(v, l3_xyz, None, l3_points, [64])
-                up_l4_points = pointnet_fp_module(v, l4_xyz, None, l4_points, [64])
-
-                #return concatenate([up_l2_points, l1_points, x], axis=-1)
-                return concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, v], axis=-1)
-            return Lambda(tmp, name="feature_embedding")(v)
-        x = preprocess(inputs[0], pad_val if use_mask else None)
+        #x = concatenate([up_l2_points, l1_points, x], axis=-1)
+        x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, x], axis=-1)
+        
         l = []
         for i in range(particle_cnt_dst//particle_cnt_src):
             tmp = Conv1D(256, 1, name="expansion_1_"+str(i+1))(x)
@@ -254,10 +246,10 @@ if start_checkpoint == 0:
         out = x
     else:
         mask = zero_mask(inputs[0], pad_val)
-        x = Multiply()([inputs[0], mask]) if use_mask else inputs[0]
+        x = multiply([inputs[0], mask]) if use_mask else inputs[0]
         if feature_cnt > 0:
             if use_mask:
-                aux_input = Multiply()([aux_input, mask])
+                aux_input = multiply([aux_input, mask])
 
         stn_input = Input((particle_cnt_src,3))
         stn = SpatialTransformer(stn_input,particle_cnt_src,dropout=dropout,quat=True,norm=True)
@@ -299,7 +291,7 @@ if start_checkpoint == 0:
         if use_mask:  
             #x = [Lambda(lambda v: v[0] * v[1][:,i])([x[i],mask]) for i in range(particle_cnt_src)]
             x = Lambda(stack)(x)
-            x = Multiply()([x,mask])
+            x = multiply([x,mask])
             x = Lambda(unstack)(x)
         
         x = add(x)
@@ -347,7 +339,7 @@ if start_checkpoint == 0:
         out = stn_transform_inv(stn,inv_par_out,quat=True) if use_stn else inv_par_out
 
     if truncate:
-        out = Multiply(name='apply_trunc_mask')([out, Reshape((particle_cnt_dst,1))(out_mask)])
+        out = multiply([out, Reshape((particle_cnt_dst,1))(out_mask)])
         model = Model(inputs=inputs, outputs=[out,trunc])
         model.compile(loss=[mask_loss, 'mse'], optimizer=keras.optimizers.adam(lr=learning_rate, decay=decay), loss_weights=[1.0,1.0])
     else:
@@ -357,7 +349,7 @@ if start_checkpoint == 0:
     model.save(tmp_model_path + '.h5')
 
     # load model to check if loadable
-    #model = load_model(tmp_model_path + '.h5', custom_objects={'mask_loss': mask_loss})
+    model = load_model(tmp_model_path + '.h5', custom_objects={'mask_loss': mask_loss, 'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup})
     
     keras.utils.plot_model(model, tmp_model_path + '.pdf')
     if verbose: 
@@ -444,6 +436,7 @@ eval_ref_patches = []
 for i in range(len(eval_dataset)):
     (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
     eval_ref_datas.append(eval_ref_data)
+    np.random.seed(100)
     eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=features, pad_val=pad_val, bnd=data_config['bnd']/factor_d))
     p_idx = int(eval_patch_idx[i] * len(eval_patch_extractors[i].positions))
     eval_src_patches.append(eval_patch_extractors[i].get_patch(p_idx,False))
@@ -459,7 +452,7 @@ print("Start Training")
 '''if pre_train_stn:
     inputs = model.inputs
     mask = zero_mask(inputs[0], pad_val)
-    x = Multiply()([inputs[0],mask]) if use_mask else inputs[0]
+    x = multiply([inputs[0],mask]) if use_mask else inputs[0]
     stn = model.get_layer("stn")
     trans_input = model.get_layer("trans")([x, stn(x)])
     inter_model = Model(inputs=inputs, outputs=trans_input)

@@ -23,6 +23,7 @@ from neuralparticles.tensorflow.losses.tf_nndistance import chamfer_loss
 from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
 
 from neuralparticles.tensorflow.tools.eval_helpers import eval_frame, eval_patch
+from neuralparticles.tensorflow.tools.pointnet_util import Interpolate, SampleAndGroup
 
 import json
 #from uniio import *
@@ -39,6 +40,7 @@ config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 dataset = int(getParam("dataset", -1))
 var = int(getParam("var", 0))
+gpu = getParam("gpu", "")
 
 checkpoint = int(getParam("checkpoint", -1))
 
@@ -56,6 +58,9 @@ if not os.path.exists(data_path + "result/csv"):
 if not os.path.exists(data_path + "result/pdf"):
 	os.makedirs(data_path + "result/pdf")
 
+if not gpu is "":
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu
+    
 with open(config_path, 'r') as f:
     config = json.loads(f.read())
 
@@ -150,7 +155,7 @@ if checkpoint > 0:
 else:
     model_path = data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id'])
 
-model = load_model(model_path, custom_objects={'mask_loss': mask_loss})
+model = load_model(model_path, custom_objects={'mask_loss': mask_loss, 'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup})
 
 avg_chamfer_loss = 0
 avg_emd_loss = 0
