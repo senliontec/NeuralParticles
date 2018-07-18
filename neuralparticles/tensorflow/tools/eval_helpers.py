@@ -38,7 +38,7 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
     return result
 
 def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, ref=None, hdim=0, z=None, verbose=0):
-    result = model.predict(x=patch_extractor.get_patches())
+    result = model.predict(patch_extractor.get_patches())
     if type(result) is list:
         for i in range(len(patch_extractor.positions)):
             patch_extractor.set_patch(result[0][i,:int(result[1][i] * result[0].shape[1])], i)

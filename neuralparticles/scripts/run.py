@@ -8,8 +8,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import keras
-from keras.models import Model, load_model
-import keras.backend as K
+from neuralparticles.tensorflow.models.PUNet import PUNet
 
 from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles, in_bound
 from neuralparticles.tools.param_helpers import *
@@ -18,15 +17,10 @@ from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw
 from neuralparticles.tools.plot_helpers import plot_particles, write_csv
 
 from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
-from neuralparticles.tensorflow.losses.tf_nndistance import chamfer_loss
 
-from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
-
-from neuralparticles.tensorflow.tools.eval_helpers import eval_frame, eval_patch
-from neuralparticles.tensorflow.tools.pointnet_util import Interpolate, SampleAndGroup
+from neuralparticles.tensorflow.tools.eval_helpers import eval_frame
 
 import json
-#from uniio import *
 
 import math
 import numpy as np
@@ -104,25 +98,6 @@ if verbose:
     print(t_end)
 
 pad_val = pre_config['pad_val']
-use_mask = train_config['mask']
-truncate = train_config['truncate']
-
-loss_mode = train_config['loss']
-
-particle_loss = keras.losses.mse
-
-if loss_mode == 'hungarian_loss':
-    from neuralparticles.tensorflow.losses.hungarian_loss import hungarian_loss
-    particle_loss = hungarian_loss
-elif loss_mode == 'emd_loss':
-    particle_loss = emd_loss
-elif loss_mode == 'chamfer_loss':
-    particle_loss = chamfer_loss
-else:
-    print("No matching loss specified! Fallback to MSE loss.")
-
-def mask_loss(y_true, y_pred):
-   return particle_loss(y_true * zero_mask(y_true, pad_val), y_pred) if use_mask else particle_loss(y_true, y_pred)
 
 dim = data_config['dim']
 factor_d = math.pow(pre_config['factor'], 1/dim)
@@ -146,10 +121,9 @@ if checkpoint > 0:
 else:
     model_path = data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id'])
 
-model = load_model(model_path, custom_objects={'mask_loss': mask_loss, 'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup})
-
-avg_chamfer_loss = 0
-avg_emd_loss = 0
+config_dict = {**data_config, **pre_config, **train_config}
+punet = PUNet(**config_dict)
+punet.load_model(model_path)
 
 for t in range(t_start, t_end):
     (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
@@ -160,66 +134,8 @@ for t in range(t_start, t_end):
 
     write_out_particles(patch_extractor.positions, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 
-    src_accum = np.empty((0,3))
-    ref_accum = np.empty((0,3))
-    res_accum = np.empty((0,3))
-    
-    src_patches = np.empty((0,par_cnt,3))
-    ref_patches = np.empty((0,par_cnt_dst,3))
-    res_patches = np.empty((0,par_cnt_dst,3))
-    vel_patches = np.empty((0,par_cnt_dst,3))
+    result = eval_frame(punet, patch_extractor, factor_d, dst_path + "result_%03d"%t, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
 
-    patch_pos = np.empty((0,3))
-
-    avg_trunc = 0
-    avg_ref_trunc = 0
-    
-    #src = patch_extractor.get_patches()
-    #result = model.predict(x=src)
-    #patch_extractor.set_patches(result)
-
-    result = eval_frame(model, patch_extractor, factor_d, dst_path + "result_%03d"%t, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
-
-    '''while(True):
-        src = patch_extractor.get_patch()
-        if src is None:
-            break
-
-        ref = extract_particles(ref_data, patch_extractor.last_pos*factor_d, par_cnt_dst, ref_patch_size/2, pad_val)[0]
-
-        if truncate:
-            result, trunc = model.predict(x=src)
-            trunc = int(trunc[0]*par_cnt_dst)
-            raw_result = result[0]
-            result = raw_result[:trunc]
-            avg_trunc += trunc
-            avg_ref_trunc += np.count_nonzero(ref != pad_val)/3
-        else:
-            result = model.predict(x=src)[0]
-            raw_result = result
-        
-        patch_extractor.set_patch(result)
-
-        src_accum = np.concatenate((src_accum, patch_extractor.transform_patch(src[0][0])))
-        ref_accum = np.concatenate((ref_accum, patch_extractor.transform_patch(ref)*factor_d))
-        res_accum = np.concatenate((res_accum, patch_extractor.transform_patch(result)*factor_d))
-
-        src_patches = np.concatenate((src_patches, np.array([src[0][0]])))
-        ref_patches = np.concatenate((ref_patches, np.array([ref])))
-        res_patches = np.concatenate((res_patches, np.array([raw_result])))
-
-        if 'v' in features:
-            vel_patches = np.concatenate((vel_patches, np.array([src[1][features.index('v')]])))
-
-        patch_pos = np.concatenate((patch_pos, np.array([patch_extractor.last_pos])))
-
-    if truncate:
-        print("Avg truncation position: %.1f" % (avg_trunc/len(src_patches)))
-        print("Avg truncation position ref: %.1f" % (avg_ref_trunc/len(src_patches)))
-
-    result = patch_extractor.data*factor_d'''
-    #result = result[np.where(np.all([np.all(4<=result,axis=-1),np.all(result<=res-4,axis=-1)],axis=0))]
-    
     hdr = OrderedDict([ ('dim',len(result)),
                         ('dimX',hres),
                         ('dimY',hres),
@@ -229,36 +145,5 @@ for t in range(t_start, t_end):
                         ('info',b'\0'*256),
                         ('timestamp',(int)(time.time()*1e6))])
     writeParticlesUni(dst_path + "result_%03d.uni"%t, hdr, result)
-
-    '''writeNumpyRaw(npy_path + "_src_patches_%03d"%t, src_patches)
-    writeNumpyRaw(npy_path + "_ref_patches_%03d"%t, ref_patches)
-    writeNumpyRaw(npy_path + "_res_patches_%03d"%t, res_patches)
-    writeNumpyRaw(npy_path + "_patch_pos_%03d"%t, patch_pos)
-
-    write_out_particles(src_data, t, "_src", [0,low_res], [0,low_res], 0.1, low_res//2 if dim == 3 else None)
-    write_out_particles(ref_data, t, "_ref", [0,res], [0,res], 0.1, low_res//2 if dim == 3 else None)
-    write_out_particles(result, t, "_res", [0,res], [0,res], 0.1, low_res//2 if dim == 3 else None)
-    if 'v' in features:
-        writeNumpyRaw(npy_path + "_vel_patches_%03d"%t, vel_patches)
-        write_out_vel(src_data, par_aux['v']/1000, t, "_vel", [0,low_res],[0,low_res], 0.1, low_res//2 if dim == 3 else None)
-
-    min_cnt = min(len(ref_accum), len(res_accum))
-    np.random.shuffle(ref_accum)
-    np.random.shuffle(res_accum)
-    ref_accum = K.constant(np.array([ref_accum[:min_cnt]]))
-    res_accum = K.constant(np.array([res_accum[:min_cnt]]))'''
-
+    
     print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))
-
-    '''call_f = lambda f,x,y: K.eval(f(x,y))[0]
-    loss = call_f(chamfer_loss, ref_accum, res_accum)
-    avg_chamfer_loss += loss
-    print("global chamfer loss: %f" % loss)
-    loss = call_f(emd_loss, ref_accum, res_accum)
-    avg_emd_loss += loss
-    print("global emd loss: %f" % loss)'''
-
-print("avg chamfer loss: %f" % (avg_chamfer_loss/(t_end-t_start)))
-print("avg emd loss: %f" % (avg_emd_loss/(t_end-t_start)))
-
-

@@ -25,7 +25,7 @@ dim = int(getParam("dim", 2))
 
 checkUnusedParams()
 
-pause = screenshot == ""
+pause = True
 
 gs = vec3(res, res, 1 if dim == 2 else res)
 gs_show = vec3(res, res, 3 if dim == 2 else res)

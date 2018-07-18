@@ -122,7 +122,7 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mask_val=None)
     new_xyz, new_points = SampleAndGroup(npoint, radius, nsample)(xyz if points is None else [xyz, points])
 
     if mask_val is not None:
-        mask = zero_mask(new_points, mask_val)
+        mask = zero_mask(new_points, mask_val, name="mask_1")
 
     for num_out_channel in mlp:
         new_points = Conv2D(num_out_channel, 1)(new_points)
