@@ -46,17 +46,11 @@ checkpoint = int(getParam("checkpoint", -1))
 
 checkUnusedParams()
 
-if not os.path.exists(data_path + "result"):
-	os.makedirs(data_path + "result")
+if dst_path == "":
+    dst_path = data_path + "result/"
 
-if not os.path.exists(data_path + "result/npy"):
-	os.makedirs(data_path + "result/npy")
-
-if not os.path.exists(data_path + "result/csv"):
-	os.makedirs(data_path + "result/csv")
-
-if not os.path.exists(data_path + "result/pdf"):
-	os.makedirs(data_path + "result/pdf")
+if not os.path.exists(dst_path):
+	os.makedirs(dst_path)
 
 if not gpu is "":
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu
@@ -83,29 +77,26 @@ if verbose:
 if dataset < 0:
     dataset = int(data_config['data_count']*train_config['train_split'])
 
-file_name = "%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
-if dst_path == "":
-    dst_path = data_path + "result/%s_result"%file_name + "_%03d.uni"
+dst_path += "%s_%s-%s_d%03d_var%02d/" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
+if not os.path.exists(dst_path):
+	os.makedirs(dst_path)
+
 if t_start < 0:
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
 if t_end < 0:
     t_end = min(train_config['t_end'], data_config['frame_count'])
 
-npy_path = data_path + "result/npy/%s"%file_name
-pdf_path = data_path + "result/pdf/%s"%file_name
-csv_path = data_path + "result/csv/%s"%file_name
-
 def write_out_particles(particles, t, suffix, xlim=None, ylim=None, s=1, z=None):
-    writeNumpyRaw((npy_path + suffix + "_%03d")%t, particles)
-    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.png")%t, z=z)
-    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.pdf")%t, z=z)
-    write_csv((csv_path + suffix + "_%03d.csv")%t, particles)
+    writeNumpyRaw((dst_path + suffix + "_%03d")%t, particles)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%t, z=z)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%t, z=z)
+    write_csv((dst_path + suffix + "_%03d.csv")%t, particles)
 
 def write_out_vel(particles, vel, t, suffix, xlim=None, ylim=None, s=1, z=None):
-    writeNumpyRaw((npy_path + suffix + "_%03d")%t, vel)
-    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.png")%t, src=particles, vel=vel, z=z)
-    plot_particles(particles, xlim, ylim, s, (pdf_path + suffix + "_%03d.pdf")%t, src=particles, vel=vel, z=z)
-    write_csv((csv_path + suffix + "_%03d.csv")%t, vel)
+    writeNumpyRaw((dst_path + suffix + "_%03d")%t, vel)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%t, src=particles, vel=vel, z=z)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%t, src=particles, vel=vel, z=z)
+    write_csv((dst_path + suffix + "_%03d.csv")%t, vel)
 
 if verbose:
     print(dst_path)
@@ -167,7 +158,7 @@ for t in range(t_start, t_end):
 
     patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd)
 
-    write_out_particles(patch_extractor.positions, t, "_pos", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
+    write_out_particles(patch_extractor.positions, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 
     src_accum = np.empty((0,3))
     ref_accum = np.empty((0,3))
@@ -187,7 +178,7 @@ for t in range(t_start, t_end):
     #result = model.predict(x=src)
     #patch_extractor.set_patches(result)
 
-    result = eval_frame(model, patch_extractor, factor_d, npy_path, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+    result = eval_frame(model, patch_extractor, factor_d, dst_path + "result_%03d"%t, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
 
     '''while(True):
         src = patch_extractor.get_patch()
@@ -237,7 +228,7 @@ for t in range(t_start, t_end):
                         ('bytesPerElement',16),
                         ('info',b'\0'*256),
                         ('timestamp',(int)(time.time()*1e6))])
-    writeParticlesUni(dst_path%t, hdr, result)
+    writeParticlesUni(dst_path + "result_%03d.uni"%t, hdr, result)
 
     '''writeNumpyRaw(npy_path + "_src_patches_%03d"%t, src_patches)
     writeNumpyRaw(npy_path + "_ref_patches_%03d"%t, ref_patches)

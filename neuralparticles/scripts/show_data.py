@@ -44,7 +44,7 @@ if dataset < 0:
 
 dim = data_config['dim']
 res = data_config['res']
-param['in'] = data_path + "result/%s_%s-%s_d%03d_var%02d_result" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d.uni"
+param['in'] = data_path + "result/%s_%s-%s_d%03d_var%02d/result" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d.uni"
 param['src'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
 param['ref'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_ps.uni"
 
