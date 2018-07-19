@@ -42,7 +42,8 @@ class ParticleIdxGrid:
         self.grid[:] = [[[[] for x in range(shape[2])] for y in range(shape[1])] for z in range(shape[0])]
         for i in range(len(particles)):
             x,y,z = particles[i].astype(dtype="int32")
-            self.grid[z,y,x].append(i)
+            if x in range(self.shape[2]) and y in range(self.shape[1]) and z in range(self.shape[0]):
+                self.grid[z,y,x].append(i)
 
     def get_cell(self, cell_idx):
         x,y,z = cell_idx.astype(dtype="int32")

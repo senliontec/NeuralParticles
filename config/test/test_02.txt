@@ -2,7 +2,7 @@
     "id":             "test02",
     "prefix":         "sph_2D",
     "dim":            2,
-    "data_count":     1,
+    "data_count":     60,
     "frame_count":    1,
     "sub_res":        2,
     "res":            150,

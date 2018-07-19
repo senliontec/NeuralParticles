@@ -30,7 +30,7 @@ res = int(high_res/math.pow(factor,1/dim))
 
 print("grid down-scale: %d -> %d" %(high_res, res))
 
-search_r = high_res/res * 0.40#.5*high_res/(res*sres) * math.sqrt(dim)
+search_r = high_res/res * 0.40 if factor > 1 else 0#.5*high_res/(res*sres) * math.sqrt(dim)
 
 print("search radius: %f" % search_r)
 

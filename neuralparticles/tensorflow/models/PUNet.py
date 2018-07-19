@@ -85,7 +85,7 @@ class PUNet(Network):
             tmp = Conv1D(self.fac*32, 1, name="expansion_1_"+str(i+1))(x)
             tmp = Conv1D(self.fac*16, 1, name="expansion_2_"+str(i+1))(tmp)
             l.append(tmp)
-        x = concatenate(l, axis=1, name="pixel_conv")
+        x = concatenate(l, axis=1, name="pixel_conv") if self.particle_cnt_dst//self.particle_cnt_src > 1 else l[0]
 
         if self.truncate:
             x_t = Lambda(unstack, name='unstack')(x)
@@ -104,7 +104,7 @@ class PUNet(Network):
         out = x
 
         if self.truncate:
-            out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)])
+            out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)], name="masked_coords")
             self.model = Model(inputs=inputs, outputs=[out,trunc])
         else:
             self.model = Model(inputs=inputs, outputs=out)
