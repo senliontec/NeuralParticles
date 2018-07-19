@@ -44,12 +44,14 @@ if dataset < 0:
 
 dim = data_config['dim']
 res = data_config['res']
-param['in'] = data_path + "result/%s_%s-%s_d%03d_var%02d/result" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d.uni"
-param['src'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
-param['ref'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_ps.uni"
 
 if not show_results:
-    param['in'] = param.pop('ref')
+    param['src'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
+    param['in'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_ps.uni"
+else:
+    param['in'] = data_path + "result/%s_%s-%s_d%03d_var%02d/result" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d.uni"
+    param['src'] = data_path + "result/%s_%s-%s_d%03d_var%02d/source" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d.uni"
+    param['ref'] = data_path + "result/%s_%s-%s_d%03d_var%02d/reference" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d.uni"
 
 if t_start < 0:
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
