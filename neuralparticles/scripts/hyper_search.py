@@ -162,15 +162,4 @@ history = hs.search(epochs, **config_dict)
 
 keras.utils.plot_model(punet.model, tmp_model_path + '.pdf') 
 
-print(history)
-
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('model loss')
-plt.ylabel('loss')
-plt.xlabel('epoch')
-plt.legend(['train', 'validation'], loc='upper left')
-
-plt.savefig(fig_path+".png")
-plt.savefig(fig_path+".pdf")
 

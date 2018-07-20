@@ -10,6 +10,7 @@ manta_path = getParam("manta", "neuralparticles/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 gui = int(getParam("gui", 0))
+pause = int(getParam("pause", 0))
 
 lowres = int(getParam("lowres", 0)) != 0
 
@@ -40,6 +41,7 @@ param = {}
 
 #disable gui
 param['gui'] = gui
+param['pause'] = pause
 
 param['sres'] = data_config['sub_res']
 
@@ -49,7 +51,7 @@ param['bnd'] = data_config['bnd']
 param['fps'] = data_config['fps']
 
 # simulation time (how many frames)
-param['t_end'] = float(data_config['frame_count']) / data_config['fps']
+param['t'] = data_config['frame_count']
 
 param['res'] = int(data_config['res']/math.pow(pre_config['factor'], 1/data_config['dim'])) if lowres else data_config['res']
 
@@ -58,88 +60,81 @@ param['dim'] = int(data_config['dim'])
 # run random training setups
 random.seed(data_config['seed'])
 
-output_path = "%s%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d"
+if 'transform' in data_config:
+    output_path = "%s%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d_id"
+    trans_path = "%s%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d"
+else:
+    output_path = "%s%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d"
+
 print(output_path)
 
-def call_dataset_gen(var0,var1,var2,var3):
-    def run_gen(cubes,cnt):
-        param['c_cnt'] = len(cubes)
-        
-        param['out'] = output_path % cnt + "_%03d"
-        run_manta(manta_path, "scenes/2D_sph.py", dict(param, **cubes), verbose) 
-        
-    i = 0
-    i0 = 0
-    i1 = 0
-    i2 = 0
-    i3 = 0
-
-    while i < var0+var1+var2+var3:
-        param['circ'] = 0.
-        if i0 < var0:
-            # generate different cubes with dataformat "pos_x,pos_y,scale_x,scale_y"
-            cubes = {}
-            for c in range(random.randint(1,data_config['max_cnt'])):    
-                scx = random.uniform(data_config['min_scale'], data_config['max_scale'])
-                scy = random.uniform(data_config['min_scale'], data_config['max_scale'])
-                px = random.uniform(data_config['min_pos']+scx/2, data_config['max_pos']-scx/2)
-                py = random.uniform(0, data_config['max_h']) + scy/2
-                if param['dim'] == 3:
-                    scz = random.uniform(data_config['min_scale'], data_config['max_scale'])
-                    pz = random.uniform(data_config['min_pos']+scz/2, data_config['max_pos']-scz/2)
-                    cubes['c%d'%c] = "%f,%f,%f,%f,%f,%f"%(px,py,pz,scx,scy,scz)
-                else:
-                    cubes['c%d'%c] = "%f,%f,%f,%f"%(px,py,scx,scy)
-            run_gen(cubes, i)
-            i+=1
-            i0+=1
-        if i1 < var1:
-            cubes = {}
-            scy = data_config['max_h']
-            for c in range(1,random.randint(2,data_config['max_cnt'])):    
-                scx = random.uniform(data_config['min_scale'], data_config['max_scale'])*0.5
-                scy = random.uniform(data_config['min_scale'], data_config['max_scale'])*0.5
-                px = random.uniform(data_config['min_pos']+scx/2, data_config['max_pos']-scx/2)
-                py = random.uniform(data_config['min_pos']+scy/2, data_config['max_pos']*0.5-scy/2)
-                if param['dim'] == 3:
-                    cubes['c0'] = "%f,%f,%f,%f,%f,%f"%(0, scy/2, 0, 1, scy, 1)
-                    scz = random.uniform(data_config['min_scale'], data_config['max_scale'])*0.5
-                    pz = random.uniform(data_config['min_pos']+scz/2, data_config['max_pos']-scz/2)
-                    cubes['c%d'%c] = "%f,%f,%f,%f,%f,%f"%(px,py,pz,scx,scy,scz)
-                else:
-                    cubes['c0'] = "%f,%f,%f,%f"%(0, scy/2, 1, scy)
-                    cubes['c%d'%c] = "%f,%f,%f,%f"%(px,py,scx,scy)
-            run_gen(cubes, i)
-            i+=1
-            i1+=1
-        if i2 < var2:
-            param['circ'] = data_config['circ_vel']
-            cubes = {}
-            for c in range(random.randint(2,data_config['max_cnt'])):    
-                scx = random.uniform(data_config['min_scale'], data_config['max_scale'])*0.5
-                scy = random.uniform(data_config['min_scale'], data_config['max_scale'])*0.5
-                px = random.uniform(data_config['min_pos']+scx/2, data_config['max_pos']-scx/2)
-                py = random.uniform(data_config['min_pos']+scy/2, data_config['max_pos']-scy/2)
-                if param['dim'] == 3:
-                    scz = random.uniform(data_config['min_scale'], data_config['max_scale'])*0.5
-                    pz = random.uniform(data_config['min_pos']+scz/2, data_config['max_pos']-scz/2)
-                    cubes['c%d'%c] = "%f,%f,%f,%f,%f,%f"%(px,py,pz,scx,scy,scz)
-                else:
-                    cubes['c%d'%c] = "%f,%f,%f,%f"%(px,py,scx,scy)
-            run_gen(cubes, i)
-            param['circ'] = 0.
-            i+=1
-            i2+=1
-        if i3 < var3:
-            param['wlt'] = data_config['wlt_vel']
-            param['seed'] = random.randint(0,1000000000)
-            run_gen({},i)
-            i+=1
-            i3+=1
+def run_gen(cubes,spheres,cnt):
+    param['c_cnt'] = len(cubes)
+    param['s_cnt'] = len(spheres)
     
-var1 = int(data_config['data_count'] * data_config['var1'])
-var2 = int(data_config['data_count'] * data_config['var2'])
-var3 = int(data_config['data_count'] * data_config['var3'])
-var0 = data_config['data_count'] - var1 - var2 - var3
- 
-call_dataset_gen(var0,var1,var2,var3)
+    param['out'] = output_path % cnt + "_%03d"
+    run_manta(manta_path, "scenes/2D_sph.py", dict(param, **cubes, **spheres), verbose) 
+    
+data_cnt = data_config['data_count']
+modes = data_config['modes']
+
+m_idx = -1
+n_idx = -1
+for i in range(data_cnt):
+    if i > n_idx:
+        m_idx += 1
+        n_idx = i + modes[m_idx]['prop'] * data_cnt
+        
+        param['circ'] = modes[m_idx]['circ_vel']
+        param['wlt'] = modes[m_idx]['wlt_vel']
+        param['grav'] = modes[m_idx]['grav']
+
+    cubes = {}
+    spheres = {}
+    for c in range(random.randint(modes[m_idx]['cnt'][0],modes[m_idx]['cnt'][1])):    
+        if random.random() < modes[m_idx]['cube_prob']:
+            scx = random.uniform(modes[m_idx]['scale_x'][0], modes[m_idx]['scale_x'][1])
+            scy = random.uniform(modes[m_idx]['scale_y'][0], modes[m_idx]['scale_y'][1])
+            px = random.uniform(modes[m_idx]['pos_x'][0]+scx/2, modes[m_idx]['pos_x'][1]-scx/2)
+            py = random.uniform(modes[m_idx]['pos_y'][0]+scy/2, modes[m_idx]['pos_y'][1]-scy/2)
+            if param['dim'] == 3:
+                scz = random.uniform(modes[m_idx]['scale_z'][0], modes[m_idx]['scale_z'][1])
+                pz = random.uniform(modes[m_idx]['pos_z'][0]+scz/2, modes[m_idx]['pos_z'][1]-scz/2)
+                cubes['c%d'%len(cubes)] = "%f,%f,%f,%f,%f,%f"%(px,py,pz,scx,scy,scz)
+            else:
+                cubes['c%d'%len(cubes)] = "%f,%f,%f,%f"%(px,py,scx,scy)
+        else:
+            rad = random.uniform(modes[m_idx]['rad'][0], modes[m_idx]['rad'][1])
+            px = random.uniform(modes[m_idx]['pos_x'][0]+rad/2, modes[m_idx]['pos_x'][1]-rad/2)
+            py = random.uniform(modes[m_idx]['pos_y'][0]+rad/2, modes[m_idx]['pos_y'][1]-rad/2)
+            if param['dim'] == 3:
+                pz = random.uniform(modes[m_idx]['pos_z'][0]+rad/2, modes[m_idx]['pos_z'][1]-rad/2)
+                spheres['s%d'%len(spheres)] = "%f,%f,%f,%f"%(px,py,pz,rad)
+            else:
+                spheres['s%d'%len(spheres)] = "%f,%f,%f"%(px,py,rad)
+
+    run_gen(cubes, spheres, i)
+    param['seed'] = random.randint(0,1000000000)
+
+if "transform" in data_config:
+    trans_config = data_config["transform"]
+    param = {}
+    param['gui'] = gui
+    param['pause'] = pause
+    param['dim'] = data_config['dim']
+    param['res'] = data_config['res']
+    param['bnd'] = data_config['bnd']
+    param['t'] = data_config['frame_count']
+
+    if "wavelet" == trans_config["mode"]:
+        pass
+    else:
+        param['mode'] = trans_config['mode']
+        param['curv'] = int(trans_config['use_curv'])
+        param['peaks'] = trans_config['peaks']
+        param['fac'] = trans_config['disp_fac']
+
+        for i in range(data_cnt):
+            param['in'] = output_path % i + "_%03d"
+            param['out'] = trans_path % i + "_%03d"
+            run_manta(manta_path, "scenes/transform_particles.py", param)

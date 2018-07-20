@@ -2,20 +2,36 @@
     "id":             "test00",
     "prefix":         "sph_2D",
     "dim":            2,
-    "data_count":     60,
+    "fps":            1,
     "frame_count":    1,
+    "data_count":     60,
     "sub_res":        2,
     "res":            150,
-    "cube_prob":      0.5,
     "seed":           5234244,
-    "min_scale":      0.05,
-    "max_scale":      0.3,
-    "min_pos":        0.2,
-    "max_pos":        0.8,
-    "max_cnt":        5,
     "bnd":            4,
-    "trans_mode":     "const",
-    "peaks":          5,
-    "use_curv":       false,
-    "disp_factor":    "3,0"
+
+    "modes": 
+    [
+        {
+            "prop":             1.0,
+            "cnt":              [1,5],
+            "cube_prob":        0.5,
+            "scale_x":          [0.05,0.3],
+            "scale_y":          [0.05,0.3],
+            "pos_x":            [0.2,0.8],
+            "pos_y":            [0.2,0.8],
+            "rad":              [0.05,0.3],
+            "circ_vel":         0,
+            "wlt_vel":          0,
+            "grav":             0
+        }
+    ],
+
+    "transform":
+    {
+        "mode":             "const",
+        "use_curv":         false,
+        "peaks":            5,
+        "disp_fac":         [3,0]
+    }
 }

@@ -38,7 +38,8 @@ dens  = float(getParam("dens", 1000.0))          # density
 avis  = int(getParam("vis", 1)) != 0             # aritificial viscosity
 eta   = float(getParam("eta", 0.1))
 fps   = int(getParam("fps", 30))
-t_end = float(getParam("t_end", 5.0))
+grav  = -float(getParam("grav", 9.8))
+t 	  = float(getParam("t", 5.0))
 sdt   = float(getParam("dt", 0))
 circular_vel = float(getParam("circ", 0.))
 wltstrength = float(getParam("wlt", 0.))
@@ -93,7 +94,7 @@ for i in range(sphere_cnt):
 
 checkUnusedParams();
 
-iisph = IISPH(res, dim, sres, bnd, dens, avis, eta, fps, sdt)
+iisph = IISPH(res, dim, sres, bnd, dens, avis, eta, fps, sdt, grav)
 
 mesh = {}
 if dim==3:
@@ -162,30 +163,7 @@ if guion:
 	gui.show()
 	if pause: gui.pause()
 
-if out_path != "" and t_end == 0:
-	path = out_path % out['frame']
-	iisph.pp.save(path + "_ps.uni")
-	iisph.pT.save(path + "_pt.uni")
-	iisph.pV.save(path + "_pv.uni")
-	iisph.pD.save(path + "_pd.uni")
-	iisph.pP.save(path + "_pp.uni")
-
-	unionParticleLevelset(parts=iisph.pp, indexSys=iisph.gIdxSys, flags=iisph.gFlags, index=iisph.gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=iisph.pT, exclude=FlagObstacle)
-	extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
-	out['levelset'].save(path + "_sdf.uni")
-
-	mapPartsToGridVec3(flags=iisph.gFlags, target=out['vel'], parts=iisph.pp, source=iisph.pV)
-	out['vel'].save(path + "_vel.uni")
-
-	mapPartsToGrid(flags=iisph.gFlags, target=out['dens'], parts=iisph.pp, source=iisph.pD)
-	out['dens'].save(path + "_dens.uni")
-
-	mapPartsToGrid(flags=iisph.gFlags, target=out['pres'], parts=iisph.pp, source=iisph.pP)
-	out['pres'].save(path + "_pres.uni")
-
-
-while (iisph.s.timeTotal<t_end): # main loop
-	iisph.update()
+while (iisph.s.timeTotal*fps < t): # main loop
 	if out_path != "" and iisph.s.timeTotal*fps > out['frame']:
 		path = out_path % out['frame']
 		iisph.pp.save(path + "_ps.uni")
@@ -209,11 +187,15 @@ while (iisph.s.timeTotal<t_end): # main loop
 
 		out['frame']+=1
 
+		if out['frame'] == t:
+			break
+
 	if dim==3 and guion:
 		unionParticleLevelset(parts=iisph.pp, indexSys=iisph.gIdxSys, flags=iisph.gFlags, index=iisph.gIdx, phi=mesh['levelset'], radiusFactor=1.0, ptype=iisph.pT, exclude=FlagObstacle)
 		extrapolateLsSimple(phi=mesh['levelset'], distance=4, inside=True)
 		mesh['levelset'].createMesh(mesh['mesh'])
 
+	iisph.update()
 	'''if s.timeTotal*fps > i:
 		i+=1
 		gui.screenshot("2D_sph_%03d.png" % i)'''

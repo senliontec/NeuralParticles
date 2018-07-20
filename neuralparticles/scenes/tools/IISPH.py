@@ -14,7 +14,8 @@ class IISPH:
                  avis=True,
                  eta=0.1,
                  fps=30,
-                 sdt=None):
+                 sdt=None,
+                 grav=-9.8):
         self.res = res
         self.dim = dim
         self.sres = sres
@@ -24,7 +25,7 @@ class IISPH:
         self.bnd = bnd
 
         self.gs = vec3(res, res, res if dim==3 else 1)
-        self.grav = -9.8 * self.gs.y
+        self.grav = grav * self.gs.y
 
         dx = 1.0/sres
 
@@ -69,7 +70,7 @@ class IISPH:
       
     def init_sph(self):
         self.sph.bindParticleSystem(p_system=self.pp, p_type=self.pT, p_neighbor=self.neighbor, notiming=True)
-        self.sph.updateSoundSpeed(math.sqrt(2.0*math.fabs(self.grav)*0.55*self.res/self.eta), notiming=True)
+        self.sph.updateSoundSpeed(math.sqrt(2.0*math.fabs(-9.8 if self.grav == 0.0 else self.grav)*0.55*self.res/self.eta), notiming=True)
         self.pD.setConst(s=self.sph.density, notiming=True)
         gridParticleIndex(parts=self.pp, indexSys=self.gIdxSys, flags=self.gFlags, index=self.gIdx, counter=self.gCnt, notiming=True)
         self.neighbor.update(pts=self.pp, indexSys=self.gIdxSys, index=self.gIdx, radius=self.kern.supportRadius(), notiming=True)

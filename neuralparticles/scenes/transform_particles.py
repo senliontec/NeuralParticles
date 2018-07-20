@@ -23,7 +23,7 @@ t = int(getParam("t", 50))
 bnd = int(getParam("bnd", 4))
 
 mode = getParam("mode", "nor")
-factor = getParam("fac", "1").split(",")
+factor = getParam("fac", "1").replace("[","").replace("]","").split(",")
 
 if dim == 2:
     if len(factor) == 1:

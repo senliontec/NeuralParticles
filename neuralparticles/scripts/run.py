@@ -144,9 +144,7 @@ for t in range(t_start, t_end):
                         ('bytesPerElement',16),
                         ('info',b'\0'*256),
                         ('timestamp',(int)(time.time()*1e6))])
-    print(result.shape)
-    print(src_data.shape)
-    print(ref_data.shape)
+
     writeParticlesUni(dst_path + "result_%03d.uni"%t, hdr, result)
     hdr['dim'] = len(ref_data)
     writeParticlesUni(dst_path + "reference_%03d.uni"%t, hdr, ref_data)
