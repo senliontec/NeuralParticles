@@ -39,14 +39,12 @@ if __name__ == "__main__":
     frame_cnt = data_config['frame_count']
     features = ['v','d','p']
 
-    rot_src_path = "%s%s_%s-%s_rot_ps" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
     src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
-    rot_dst_path = "%s%s_%s-%s_rot_ps" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
     dst_path = "%s%s_%s-%s_ps" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
 
     for d in range(data_cnt):
         for t in range(frame_cnt):
-            src, dst, rotated_src, rotated_dst, positions = gen_patches(data_path, config_path, d_start=d, d_stop=d+1, t_start=t, t_stop=t+1)
+            src, dst, positions = gen_patches(data_path, config_path, d_start=d, d_stop=d+1, t_start=t, t_stop=t+1)
             writeNumpyRaw(src_path % ('s',d,t), src[0])
             i = 0
             for f in features:
@@ -56,6 +54,4 @@ if __name__ == "__main__":
                 else:
                     writeNumpyRaw(src_path % (f,d,t), src[1][:,:,i:i+1])
                     i+=1
-            #writeNumpyRaw(rot_src_path % (d,t), rotated_src)
             writeNumpyRaw(dst_path % (d,t), dst)
-            #writeNumpyRaw(rot_dst_path % (d,t), rotated_dst)

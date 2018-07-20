@@ -133,9 +133,7 @@ def load_patches_from_file(data_path, config_path):
         shutil.rmtree(tmp_path)
 
     if not os.path.exists(tmp_path):
-        rot_src_path = "%s%s_%s-%s_rot_ps" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
         src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
-        rot_ref_path = "%s%s_%s-%s_rot_ps" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
         ref_path = "%s%s_%s-%s_ps" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
 
         par_cnt = pre_config['par_cnt']
@@ -144,9 +142,7 @@ def load_patches_from_file(data_path, config_path):
         src = [np.empty((0,par_cnt,3))]
         if len(features) > 0:
             src.append(np.empty((0,par_cnt,len(features) + 2 if 'v' in features else 0)))
-        #src_rot = np.empty((0,par_cnt,3))
         ref = np.empty((0, par_cnt_ref,3))
-        #ref_rot = np.empty((0, par_cnt_ref,3))
         
         for d in range(data_cnt):
             for t in range(t_start, t_end):
@@ -154,9 +150,7 @@ def load_patches_from_file(data_path, config_path):
                 src[0] = np.append(src[0], readNumpyRaw(src_path % ('s',d,t)), axis=0)
                 if len(features) > 0:
                     src[1] = np.append(src[1], np.concatenate([readNumpyRaw(src_path%(f,d,t)) for f in features], axis=-1), axis=0)
-                #src_rot = np.append(src_rot, readNumpyRaw(rot_src_path%(d,t)), axis=0)
                 ref = np.append(ref,readNumpyRaw(ref_path%(d,t)), axis=0)
-                #ref_rot = np.append(ref_rot,readNumpyRaw(rot_ref_path%(d,t)), axis=0)
 
         print("\r", flush=True)
         print("cache patch buffer")
@@ -165,18 +159,14 @@ def load_patches_from_file(data_path, config_path):
         if len(features) > 0:
             writeNumpyRaw(tmp_path + "aux", src[1])
         writeNumpyRaw(tmp_path + "ref", ref)
-        #writeNumpyRaw(tmp_path + "src_rot", src_rot)
-        #writeNumpyRaw(tmp_path + "ref_rot", ref_rot)
     else:
         print("found and loaded cached buffer file")
         src = [readNumpyRaw(tmp_path + "src")]
         if len(features) > 0:
             src.append(readNumpyRaw(tmp_path + "aux"))
         ref = readNumpyRaw(tmp_path + "ref")
-        #src_rot = readNumpyRaw(tmp_path + "src_rot")
-        #ref_rot = readNumpyRaw(tmp_path + "ref_rot")
 
-    return src, ref#, src_rot, ref_rot
+    return src, ref
 
 def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0, pad_val=0.0, positions=None):
     particle_data, sdf, par_aux_data = get_data(prefix, par_aux)
@@ -185,13 +175,10 @@ def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0,
         positions = get_positions(particle_data, sdf, patch_size, surface, bnd)
 
     par_patches = np.empty((len(positions), par_cnt, 3))
-    par_patches_rot = np.empty((len(positions), par_cnt, 3))
     par_aux_patches = {}
         
     for v in par_aux:
         par_aux_patches[v] = np.empty((len(positions), par_cnt, par_aux_data[v].shape[-1]))
-
-    nor_f = interpol_grid(normals(sdf))
 
     idx_grid = ParticleIdxGrid(particle_data, sdf.shape[:3])
 
@@ -204,24 +191,11 @@ def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0,
             tmp_aux[v] = par_aux_data[v][idx]
         data, aux = extract_particles(particle_data[idx], pos, par_cnt, patch_size/2, pad_val, tmp_aux)
 
-
         par_patches[i] = data
         for k, v in aux.items():
             par_aux_patches[k][i] = v
 
-        nor = nor_f(pos)[0]
-
-        theta = math.atan2(nor[0], nor[1])
-        c, s = math.cos(-theta), math.sin(-theta)
-        mat0 = np.matrix([[c,-s,0],[s,c,0],[0,0,1]])
-
-        theta = math.atan2(nor[2], nor[1])
-        c, s = math.cos(theta), math.sin(theta)
-        mat1 = np.matrix([[1,0,0],[0,c,-s],[0,s,c]])
-
-        par_patches_rot[i] = data*mat0*mat1
-    print("")
-    return par_patches, par_aux_patches, par_patches_rot, positions
+    return par_patches, par_aux_patches, positions
 
 def get_data_pair(data_path, config_path, dataset, timestep, var):
     with open(config_path, 'r') as f:
@@ -286,8 +260,6 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
     path_ref = "%sreference/%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d_%03d"
 
     main = np.empty([0,par_cnt, 3])
-    main_rot = np.empty([0,par_cnt, 3])
-    ref_rot = np.empty([0,par_cnt_ref, 3])
     aux = None
     reference = np.empty([0,par_cnt_ref, 3])
     pos = np.empty([0, 3])
@@ -297,19 +269,17 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
             for t in range(t_start, t_stop):
                 for r in range(pv_start, pv_stop):
                     print(path_src%(d,v,t) + " (%d)"%r)
-                    par, aux_par, par_rot, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, pad_val=pad_val, par_aux=features, bnd=data_config['bnd']/fac_d)
+                    par, aux_par, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, pad_val=pad_val, par_aux=features, bnd=data_config['bnd']/fac_d)
                     main = np.append(main, par, axis=0)
-                    main_rot = np.append(main_rot, par_rot, axis=0)
                     pos = np.append(pos, positions, axis=0)
                     if len(features) > 0:
                         tmp = np.concatenate([(aux_par[f]) for f in features], axis=-1)
                         aux = tmp if aux is None else np.append(aux, tmp, axis=0)
 
-                    par, aux_par, par_rot = load_patches(path_ref%(d,t), par_cnt_ref, patch_size_ref, pad_val=pad_val, positions=positions*fac_d)[:3]
+                    par, aux_par = load_patches(path_ref%(d,t), par_cnt_ref, patch_size_ref, pad_val=pad_val, positions=positions*fac_d)[:2]
                     reference = np.append(reference, par, axis=0)
-                    ref_rot = np.append(ref_rot, par_rot, axis=0)
     
-    return [main, aux] if len(features) > 0 else [main], reference, main_rot, ref_rot, pos
+    return [main, aux] if len(features) > 0 else [main], reference, pos
 
 
 class PatchExtractor:

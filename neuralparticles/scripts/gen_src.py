@@ -48,7 +48,7 @@ param['dim'] = data_config['dim']
 
 random.seed(data_config['seed'])
 
-src_path = "%s%s_%s" % (src_path, data_config['prefix'], data_config['id']) + "_d%03d" + ("_id" if "trans_mode" in data_config and data_config["trans_mode"] != "" else "")
+src_path = "%s%s_%s" % (src_path, data_config['prefix'], data_config['id']) + "_d%03d" + ("_id" if "transform" in data_config else "")
 output_path = "%s%s_%s-%s" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d"
 print(src_path)
 print(output_path)
