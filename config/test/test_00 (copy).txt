@@ -25,5 +25,13 @@
             "wlt_vel":          0,
             "grav":             0
         }
-    ]
+    ],
+
+    "transform":
+    {
+        "mode":             "const",
+        "use_curv":         false,
+        "peaks":            5,
+        "disp_fac":         [3,0]
+    }
 }

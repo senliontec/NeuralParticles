@@ -4,14 +4,11 @@
     "patch_size_ref": 15,
     "stride":         1.0,
     "surf":           1.0,
-    "l_fac":          12.0,
-    "h_fac":          4.0,
-    "use_tanh":       1,
     "factor":         27,
     "min_n":          5,
     "var":            1,
     "par_cnt":        512,
-    "par_cnt_ref":    2048,
+    "par_cnt_ref":    4096,
     "par_var":        1,
-    "pad_val":        0.0
+    "pad_val":        -2.0
 }

@@ -24,53 +24,6 @@ from random import uniform, randint
 from enum import Enum
 
 #---------------------------------------------------------------------------------
-def parse_hyperparameter(value):
-        """ e.g. --lstm_parameter [learning_rate,random,float,[0.1,0.5],3] """
-        """ e.g. --lstm_parameter [learning_rate,linear,float,[0.1,0.5],3] """
-        """ e.g. --lstm_parameter [learning_rate,list,int,[0,1,2,3]] """
-        value = value.replace("[","").replace("]","")
-        value = value.split(',')
-        result = []
-        try:
-            # name
-            result.append(value[0])
-            # search type -> hyper_parameter -> SearchType
-            search_type = 0 # random
-            if value[1] == "random":
-                search_type = 0
-            elif value[1] == "linear":
-                search_type = 1
-            elif value[1] == "list":
-                search_type = 2
-            result.append(search_type)
-            # value type -> hyper_parameter -> ValueType
-            val_type = 1 # float
-            if value[2] == "int":
-                val_type = 0
-            elif value[2] == "float":
-                val_type = 1
-            result.append(val_type)
-
-            # parse sequence
-            if search_type == 0 or search_type == 1:
-                # value range
-                val_range = []
-                val_range.append(float(value[3]))
-                val_range.append(float(value[4]))
-                result.append(val_range)
-                # iterations
-                result.append(int(value[5]))
-            # parse list
-            else:
-                values = []
-                for val in value[3:]:
-                    values.append(float(val))
-                result.append(values)
-        except:
-            raise argparse.ArgumentTypeError("No valid hyperparameter form given")
-        return result
-
-#---------------------------------------------------------------------------------
 class ValueType(Enum):
     Integer = 0
     Float   = 1
