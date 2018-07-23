@@ -75,6 +75,12 @@ def run_gen(cubes,spheres,cnt):
     param['out'] = output_path % cnt + "_%03d"
     run_manta(manta_path, "scenes/2D_sph.py", dict(param, **cubes, **spheres), verbose) 
     
+def get_scalar(v, bnd=0.0):
+    if type(v) is list:
+        return random.uniform(v[0]+bnd,v[1]-bnd)
+    else:
+        return v
+
 data_cnt = data_config['data_count']
 modes = data_config['modes']
 
@@ -93,22 +99,23 @@ for i in range(data_cnt):
     spheres = {}
     for c in range(random.randint(modes[m_idx]['cnt'][0],modes[m_idx]['cnt'][1])):    
         if random.random() < modes[m_idx]['cube_prob']:
-            scx = random.uniform(modes[m_idx]['scale_x'][0], modes[m_idx]['scale_x'][1])
-            scy = random.uniform(modes[m_idx]['scale_y'][0], modes[m_idx]['scale_y'][1])
-            px = random.uniform(modes[m_idx]['pos_x'][0]+scx/2, modes[m_idx]['pos_x'][1]-scx/2)
-            py = random.uniform(modes[m_idx]['pos_y'][0]+scy/2, modes[m_idx]['pos_y'][1]-scy/2)
+            scx = get_scalar(modes[m_idx]['scale_x'])
+            scy = get_scalar(modes[m_idx]['scale_y'])
+            px = get_scalar(modes[m_idx]['pos_x'],scx/2)
+            py = get_scalar(modes[m_idx]['pos_y'],scy/2)
             if param['dim'] == 3:
-                scz = random.uniform(modes[m_idx]['scale_z'][0], modes[m_idx]['scale_z'][1])
-                pz = random.uniform(modes[m_idx]['pos_z'][0]+scz/2, modes[m_idx]['pos_z'][1]-scz/2)
+                scz = get_scalar(modes[m_idx]['scale_z'])
+                pz = get_scalar(modes[m_idx]['pos_z'],scz/2)
+                print(scx, scy, scz)
                 cubes['c%d'%len(cubes)] = "%f,%f,%f,%f,%f,%f"%(px,py,pz,scx,scy,scz)
             else:
                 cubes['c%d'%len(cubes)] = "%f,%f,%f,%f"%(px,py,scx,scy)
         else:
-            rad = random.uniform(modes[m_idx]['rad'][0], modes[m_idx]['rad'][1])
-            px = random.uniform(modes[m_idx]['pos_x'][0]+rad/2, modes[m_idx]['pos_x'][1]-rad/2)
-            py = random.uniform(modes[m_idx]['pos_y'][0]+rad/2, modes[m_idx]['pos_y'][1]-rad/2)
+            rad = get_scalar(modes[m_idx]['rad'])
+            px = get_scalar(modes[m_idx]['pos_x'],rad/2)
+            py = get_scalar(modes[m_idx]['pos_y'],rad/2)
             if param['dim'] == 3:
-                pz = random.uniform(modes[m_idx]['pos_z'][0]+rad/2, modes[m_idx]['pos_z'][1]-rad/2)
+                pz = get_scalar(modes[m_idx]['pos_z'],rad/2)
                 spheres['s%d'%len(spheres)] = "%f,%f,%f,%f"%(px,py,pz,rad)
             else:
                 spheres['s%d'%len(spheres)] = "%f,%f,%f"%(px,py,rad)
