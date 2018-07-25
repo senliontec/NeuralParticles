@@ -60,7 +60,7 @@ class Network(ABC):
         self._build_model()
         self._compile_model()
         # Model Summary
-        self.model.summary()
+        #self.model.summary()
         self.print_attributes()
         # Train and return History
         history = self._train(epochs, **kwargs)

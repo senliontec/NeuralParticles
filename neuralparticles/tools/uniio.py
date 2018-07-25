@@ -277,7 +277,7 @@ def writeNumpyRaw(filename, data):
 	np.save(filename + ".npy", data)
 
 def readNumpyRaw(filename):
-	return readNumpy(filename + ".npy")
+	return np.load(filename + ".npy")
 
 def readNumpyXYZ(filename):
 	return np.loadtxt(filename)
