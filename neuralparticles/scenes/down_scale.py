@@ -24,7 +24,7 @@ seed = int(getParam("seed", 29837913847))
 
 t = int(getParam("t", 50))
 
-blur_sigma = float(getParam("blur", 1.0))
+blur_sigma = float(getParam("blur", 1.0)) * float(factor) / 3.544908 # 3.544908 = 2 * sqrt( PI )
 sdf_off = float(getParam("sdf_off", 0.0))
 
 checkUnusedParams()
@@ -118,8 +118,7 @@ for i in range(t):
 
 	print("particles reduced: %d -> %d (%.1f)" % (hcnt, lcnt, hcnt/lcnt))
 
-	if blur_sigma > 0:
-		blurRealGrid(high_levelset, high_levelset, blur_sigma)
+	blurRealGrid(high_levelset, high_levelset, blur_sigma)
 
 	high_levelset.addConst(sdf_off)
 	interpolateGrid(levelset, high_levelset)
