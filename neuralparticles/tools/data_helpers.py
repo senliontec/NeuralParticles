@@ -155,16 +155,16 @@ def load_patches_from_file(data_path, config_path):
         print("\r", flush=True)
         print("cache patch buffer")
         os.makedirs(tmp_path)
-        writeNumpyRaw(tmp_path + "src", src[0])
+        writeNumpy(tmp_path + "src", src[0])
         if len(features) > 0:
-            writeNumpyRaw(tmp_path + "aux", src[1])
-        writeNumpyRaw(tmp_path + "ref", ref)
+            writeNumpy(tmp_path + "aux", src[1])
+        writeNumpy(tmp_path + "ref", ref)
     else:
         print("found and loaded cached buffer file")
-        src = [readNumpyRaw(tmp_path + "src")]
+        src = [readNumpy(tmp_path + "src")]
         if len(features) > 0:
-            src.append(readNumpyRaw(tmp_path + "aux"))
-        ref = readNumpyRaw(tmp_path + "ref")
+            src.append(readNumpy(tmp_path + "aux"))
+        ref = readNumpy(tmp_path + "ref")
 
     return src, ref
 

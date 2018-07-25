@@ -64,14 +64,14 @@ high_gFlags.initDomain(FlagFluid)
 if dim==3:
 	mesh     = s.create(Mesh)
 
+gIdxSys  = s.create(ParticleIndexSystem)
+gIdx     = s.create(IntGrid)
+gCnt     = s.create(IntGrid)
+levelset = s.create(LevelsetGrid)
+
 out = {}
 if out_path != "":
-	gIdxSys  = s.create(ParticleIndexSystem)
-	gIdx     = s.create(IntGrid)
-	gCnt     = s.create(IntGrid)
-
 	out['frame'] = 0
-	out['levelset'] = s.create(LevelsetGrid)
 	out['dens'] = s.create(RealGrid)
 	out['vel'] = s.create(Vec3Grid)
 	out['pres'] = s.create(RealGrid)
@@ -114,6 +114,13 @@ for i in range(t):
 
 	print("particles reduced: %d -> %d (%.1f)" % (hcnt, lcnt, hcnt/lcnt))
 
+
+	gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
+
+	unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=levelset, radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
+	extrapolateLsSimple(phi=levelset, distance=4, inside=True)
+	extrapolateLsSimple(phi=levelset, distance=4)
+
 	if out_path != "":
 		path = out_path % i
 		pp.save(path + "_ps.uni")
@@ -121,16 +128,13 @@ for i in range(t):
 		pD.save(path + "_pd.uni")
 		pP.save(path + "_pp.uni")
 
-		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
-
-		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
 
 		mapPartsToGridVec3(flags=gFlags, target=out['vel'], parts=pp, source=pV)
 		mapPartsToGrid(flags=gFlags, target=out['dens'], parts=pp, source=pD)
 		mapPartsToGrid(flags=gFlags, target=out['pres'], parts=pp, source=pP)
 
 		if False:#upres:
-			interpolateGrid(out['h_levelset'], out['levelset'] );
+			interpolateGrid(out['h_levelset'], levelset );
 			extrapolateLsSimple(phi=out['h_levelset'], distance=4, inside=True)
 			out['h_levelset'].multConst(high_res/res)
 			out['h_levelset'].save(path + "_sdf.uni")
@@ -146,14 +150,13 @@ for i in range(t):
 			out['h_pres'].save(path + "_pres.uni")
 		else:
 			#out['levelset'].multConst(high_res/res)
-			extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
-			out['levelset'].save(path + "_sdf.uni")
+			levelset.save(path + "_sdf.uni")
 			out['vel'].save(path + "_vel.uni")
 			out['dens'].save(path + "_dens.uni")
 			out['pres'].save(path + "_pres.uni")
 		
 	if dim==3 and guion:
-		extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
-		out['levelset'].createMesh(mesh)
+		extrapolateLsSimple(phi=levelset, distance=4, inside=True)
+		levelset.createMesh(mesh)
 
 	s.step()

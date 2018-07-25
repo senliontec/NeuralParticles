@@ -126,7 +126,7 @@ if cube_cnt == 0 and sphere_cnt == 0:
 
 iisph.init_fluid(init_phi)
 
-if wltstrength > 0:
+if not wltstrength == 0:
 	wltnoise = NoiseField( parent=iisph.s, loadFromFile=False)
 	# scale according to lowres sim , smaller numbers mean larger vortices
 	wltnoise.posScale = vec3( int(1.0*iisph.gs.x) ) * 0.1
@@ -155,8 +155,8 @@ if wltstrength > 0:
 
 	iisph.apply_vel(velNoise)
 
-if circular_vel > 0:
-	fillVelocityCircular(iisph.pV, iisph.pp, -circular_vel, vec3(res/2.,res/2.,0.5 if dim==2 else res/2)) 
+if not circular_vel == 0:
+	fillVelocityCircular(iisph.pV, iisph.pp, -circular_vel, vec3(res/2.,res/2.,res/2. if dim==3 else 0.5)) 
 
 if guion:
 	gui = Gui()

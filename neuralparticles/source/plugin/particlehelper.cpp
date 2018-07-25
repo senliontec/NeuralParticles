@@ -65,8 +65,14 @@ namespace Manta
 	void knFillVelocityCircular(ParticleDataImpl<Vec3> &v, BasicParticleSystem &x, float magnitude, Vec3 center)
 	{
 		Vec3 tmp = x[idx].pos - center;
+		v[idx] = magnitude * getNormalized(tmp);
+	}
 
-		v[idx] = magnitude * tmp/normalize(tmp);
+	KERNEL(bnd=1)
+	void knCircularVelocityGrid(Grid<Vec3>& vel, float magnitude, Vec3 center)
+	{
+		Vec3 tmp = Vec3(i,j,k) - center;
+		vel(i,j,k) = magnitude * getNormalized(tmp);
 	}
 
 	KERNEL(bnd=1) void knCosDisplacement(Grid<Real>& displacement, const Grid<Vec3>& grid, float fac) {
@@ -193,6 +199,12 @@ namespace Manta
 	void fillVelocityCircular(ParticleDataImpl<Vec3> &v, BasicParticleSystem &x, float magnitude, Vec3 center)
 	{
 		knFillVelocityCircular(v, x, magnitude, center);
+	}
+
+	PYTHON()
+	void circularVelGrid(Grid<Vec3>& vel, float magnitude, Vec3 center)
+	{
+		knCircularVelocityGrid(vel, magnitude, center);
 	}
 
 	PYTHON() 

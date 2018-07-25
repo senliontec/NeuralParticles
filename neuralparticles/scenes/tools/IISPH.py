@@ -32,7 +32,7 @@ class IISPH:
         self.s = Solver(name='IISPH_{}'.format(res), gridSize=self.gs, dim=dim)
         self.s.cfl         = 1
         self.s.frameLength = 1.0/float(fps)
-        self.s.timestepMin = 0
+        self.s.timestepMin = self.s.frameLength * 0.1
         self.s.timestepMax = self.s.frameLength
         self.s.timestep    = self.s.frameLength
 
@@ -89,7 +89,7 @@ class IISPH:
 
         self.gFlags.updateFromLevelset(init_phi)
         begin = self.pp.size()
-        sampleLevelsetWithParticles(phi=init_phi, flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0.5)
+        sampleLevelsetWithParticles(phi=init_phi, flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0.3)
         end = self.pp.size()
         self.pT.setConstRange(s=1, begin=begin, end=end, notiming=True)
 
@@ -126,7 +126,10 @@ class IISPH:
         
         if self.sdt is None:
             adt = min(self.s.frameLength, self.kern.supportRadius()/self.sph.c)
+            print(adt)
+            print(self.pV.getMaxAbsValue())
             adt = self.sph.limitDtByVmax(dt=adt, h=self.kern.supportRadius(), vmax=self.pV.getMaxAbsValue(), a=0.4)
+            print(adt)
             self.s.adaptTimestepByDt(adt)
         else:
             self.s.adaptTimestepByDt(self.sdt)
@@ -156,7 +159,6 @@ class IISPH:
             self.pDtmp.setConst(0.0)
             sphComputeIisphD(d_next=self.pDtmp, d_adv=self.pDadv, d=self.pD, p=self.pP, dii=self.pDii, dijpj=self.pDijPj, k=self.kern, sph=self.sph, dt=self.s.timestep, itype=self.overFld, jtype=self.overAll)
             d_avg = self.pDtmp.sum(t=self.pT, itype=self.overFld)/cntPts(t=self.pT, itype=self.overFld)
-
             iters += 1
 
             # for the safety

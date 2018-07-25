@@ -56,34 +56,34 @@ class PUNet(Network):
         l1_xyz, l1_points = pointnet_sa_module(x, None, self.particle_cnt_src, 0.25, self.fac*4, 
                                                [self.fac*4,
                                                 self.fac*4,
-                                                self.fac*8], mask_val=self.pad_val if self.mask else None)
+                                                self.fac*8], mask_val=self.pad_val if self.mask else None, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
         l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, self.particle_cnt_src//2, 0.5, self.fac*4, 
                                                [self.fac*8,
                                                 self.fac*8,
-                                                self.fac*16])
+                                                self.fac*16], kernel_regularizer=keras.regularizers.l2(self.l2_reg))
         l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, self.particle_cnt_src//4, 0.6, self.fac*4, 
                                                [self.fac*16,
                                                 self.fac*16,
-                                                self.fac*32])
+                                                self.fac*32], kernel_regularizer=keras.regularizers.l2(self.l2_reg))
         l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, self.particle_cnt_src//8, 0.7, self.fac*4, 
                                                [self.fac*32,
                                                 self.fac*32,
-                                                self.fac*64])
+                                                self.fac*64], kernel_regularizer=keras.regularizers.l2(self.l2_reg))
 
         if self.mask:
             mask = zero_mask(x, self.pad_val, name="mask_2")
             x = multiply([x, mask])
 
         # interpoliere die features in l2_points auf die Punkte in x
-        up_l2_points = pointnet_fp_module(x, l2_xyz, None, l2_points, [self.fac*8])
-        up_l3_points = pointnet_fp_module(x, l3_xyz, None, l3_points, [self.fac*8])
-        up_l4_points = pointnet_fp_module(x, l4_xyz, None, l4_points, [self.fac*8])
+        up_l2_points = pointnet_fp_module(x, l2_xyz, None, l2_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg))
+        up_l3_points = pointnet_fp_module(x, l3_xyz, None, l3_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg))
+        up_l4_points = pointnet_fp_module(x, l4_xyz, None, l4_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg))
 
         x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, x], axis=-1)
         l = []
         for i in range(self.particle_cnt_dst//self.particle_cnt_src):
-            tmp = Conv1D(self.fac*32, 1, name="expansion_1_"+str(i+1))(x)
-            tmp = Conv1D(self.fac*16, 1, name="expansion_2_"+str(i+1))(tmp)
+            tmp = Conv1D(self.fac*32, 1, name="expansion_1_"+str(i+1), kernel_regularizer=keras.regularizers.l2(self.l2_reg))(x)
+            tmp = Conv1D(self.fac*16, 1, name="expansion_2_"+str(i+1), kernel_regularizer=keras.regularizers.l2(self.l2_reg))(tmp)
             l.append(tmp)
         x = concatenate(l, axis=1, name="pixel_conv") if self.particle_cnt_dst//self.particle_cnt_src > 1 else l[0]
 
@@ -98,8 +98,8 @@ class PUNet(Network):
             trunc = Dense(1, activation='elu', kernel_regularizer=keras.regularizers.l2(self.l2_reg), weights=[W,b], name="truncation_2")(x_t)
             out_mask = trunc_mask(trunc, self.particle_cnt_dst, name="truncation_mask")
 
-        x = Conv1D(self.fac*8, 1, name="coord_reconstruction_1")(x)
-        x = Conv1D(3, 1, name="coord_reconstruction_2")(x)
+        x = Conv1D(self.fac*8, 1, name="coord_reconstruction_1", kernel_regularizer=keras.regularizers.l2(self.l2_reg))(x)
+        x = Conv1D(3, 1, name="coord_reconstruction_2", kernel_regularizer=keras.regularizers.l2(self.l2_reg))(x)
         
         out = x
 

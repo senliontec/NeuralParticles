@@ -229,7 +229,7 @@ def finalizeNumpyBufs():
 
 
 # write a single numpy array into an npz file
-def writeNumpySingle(filename, content):
+def writeNumpy(filename, content):
 	#print("writing "+filename)
 	np.savez_compressed( filename, content )
 

@@ -100,7 +100,7 @@ class SampleAndGroup(keras.layers.Layer):
         config['nsample'] = self.nsample
         return config
 
-def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mask_val=None):
+def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mask_val=None, **kwargs):
     ''' PointNet Set Abstraction (SA) Module
         Input:
             xyz: (batch_size, ndataset, 3) TF tensor
@@ -125,7 +125,7 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mask_val=None)
         mask = zero_mask(new_points, mask_val, name="mask_1")
 
     for num_out_channel in mlp:
-        new_points = Conv2D(num_out_channel, 1)(new_points)
+        new_points = Conv2D(num_out_channel, 1, **kwargs)(new_points)
 
     if mask_val is not None:
         new_points = multiply([new_points, mask])
@@ -149,7 +149,7 @@ class Interpolate(keras.layers.Layer):
         weight = (1.0/dist) / norm
         return three_interpolate(X[0], idx, weight)
 
-def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp):
+def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, **kwargs):
     ''' PointNet Feature Propogation (FP) Module
         Input:                                                                                                      
             xyz1: (batch_size, ndataset1, 3) TF tensor                                                              
@@ -167,7 +167,7 @@ def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp):
         new_points1 = interpolated_points
 
     for num_out_channel in mlp:
-        new_points1 = Conv1D(num_out_channel, 1)(new_points1)
+        new_points1 = Conv1D(num_out_channel, 1, **kwargs)(new_points1)
 
     return new_points1
 '''
