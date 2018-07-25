@@ -231,11 +231,11 @@ def finalizeNumpyBufs():
 # write a single numpy array into an npz file
 def writeNumpy(filename, content):
 	#print("writing "+filename)
-	np.savez_compressed( filename, content )
+	np.savez_compressed( filename + ".npz", content )
 
 def readNumpy(filename):
 	#print("reading "+filename)
-	npz = np.load( filename )
+	npz = np.load( filename + ".npz" )['arr_0']
 	return npz
 
 class NPZBuffer:
