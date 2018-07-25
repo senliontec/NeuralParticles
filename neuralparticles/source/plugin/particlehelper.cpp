@@ -61,6 +61,15 @@ namespace Manta
 		}
 	}
 
+	KERNEL(pts) 
+	void knMaskParticles(BasicParticleSystem &x, const Grid<Real>& mask)
+	{
+		if(mask.getInterpolated(x[idx].pos) >= 0.)
+		{
+			x.kill(idx);
+		}
+	}
+
 	KERNEL(pts)
 	void knFillVelocityCircular(ParticleDataImpl<Vec3> &v, BasicParticleSystem &x, float magnitude, Vec3 center)
 	{
@@ -192,6 +201,13 @@ namespace Manta
 		float avg = d.sumMagnitude()/d.size();
 		RandomStream rs((long)seed);
 		knReduceParticlesDense(x, d, 1.0f / (avg * factor), rs);
+		x.doCompress();
+	}
+		
+	PYTHON()
+	void maskParticles(BasicParticleSystem &x, const Grid<Real>& mask)
+	{		
+		knMaskParticles(x, mask);
 		x.doCompress();
 	}
 

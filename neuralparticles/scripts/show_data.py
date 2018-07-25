@@ -47,11 +47,15 @@ res = data_config['res']
 
 if not show_results:
     param['src'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
+    param['src_sdf'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
     param['in'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_ps.uni"
+    param['sdf'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_sdf.uni"
 else:
     param['in'] = data_path + "result/%s_%s-%s_d%03d_var%02d/result" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d.uni"
-    param['src'] = data_path + "result/%s_%s-%s_d%03d_var%02d/source" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d.uni"
-    param['ref'] = data_path + "result/%s_%s-%s_d%03d_var%02d/reference" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d.uni"
+    param['src'] = data_path + "result/%s_%s-%s_d%03d_var%02d/source" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
+    param['src_sdf'] = data_path + "result/%s_%s-%s_d%03d_var%02d/source" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
+    param['ref'] = data_path + "result/%s_%s-%s_d%03d_var%02d/reference" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
+    param['ref_sdf'] = data_path + "result/%s_%s-%s_d%03d_var%02d/reference" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
 
 if t_start < 0:
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
@@ -63,5 +67,6 @@ param['t_end'] = t_end
 param['res'] = res
 param['scr'] = scr
 param['dim'] = dim
+param['fac'] = math.pow(pre_config['factor'],1/dim)
 
 run_manta(manta_path, "scenes/show_particles.py", param, verbose)

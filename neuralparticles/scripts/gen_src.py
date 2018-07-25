@@ -45,6 +45,8 @@ param['pause'] = pause
 param['t'] = data_config['frame_count']
 param['min_n'] = pre_config['min_n']
 param['dim'] = data_config['dim']
+param['blur'] = pre_config['blur']
+param['sdf_off'] = pre_config['sdf_off']
 
 random.seed(data_config['seed'])
 

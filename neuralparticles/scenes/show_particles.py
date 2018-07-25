@@ -8,6 +8,10 @@ in_path = getParam("in", "")
 src_path = getParam("src", "")
 ref_path = getParam("ref", "")
 
+sdf_path = getParam("sdf", "")
+src_sdf_path = getParam("src_sdf", "")
+ref_sdf_path = getParam("ref_sdf", "")
+
 res  = int(getParam("res", 150))
 sres = int(getParam("sres", 2))
 
@@ -58,9 +62,15 @@ if ref_path != "":
 	ref_mesh = s_show.create(Mesh)
 
 if src_path != "":
-	src_pp = s.create(BasicParticleSystem)
-	src_sdf = s.create(LevelsetGrid)
-	src_mesh = s_show.create(Mesh)
+	gs_small = vec3(res//fac, res//fac, 1 if dim == 2 else res//fac)
+	gs_show_small = vec3(res//fac, res//fac, 3 if dim == 2 else res//fac)
+	s_small = Solver(name='small', gridSize=gs_small, dim=dim)
+	s_show_small = Solver(name='show_small', gridSize=gs_show_small, dim=3)
+	src_pp = s_small.create(BasicParticleSystem)
+	src_sdf = s_small.create(LevelsetGrid)
+	sdf_show_small = s_show_small.create(LevelsetGrid)
+	sdf_show_small.setBound(value=0., boundaryWidth=1)
+	src_mesh = s_show_small.create(Mesh)
 	
 if guion:
 	gui = Gui()
@@ -75,10 +85,13 @@ for i in range(t_start,t_end):
 		sampleLevelsetWithParticles(phi=sdf, flags=gFlags, parts=pp, discretization=sres, randomness=0)
 	else:'''
 	pp.load(in_path % i)
-	gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
-	unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=sdf, radiusFactor=2.0, exclude=FlagObstacle)
-	extrapolateLsSimple(phi=sdf, distance=4, inside=True)
-	sdf.setBound(value=5., boundaryWidth=4)
+	if sdf_path != "":
+		sdf.load(sdf_path % i)
+	else:
+		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
+		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=sdf, radiusFactor=2.0, exclude=FlagObstacle)
+		extrapolateLsSimple(phi=sdf, distance=4, inside=True)
+		sdf.setBound(value=5., boundaryWidth=4)
 	if dim == 2:
 		placeGrid2d(sdf,sdf_show,dstz=1) 
 		sdf_show.createMesh(mesh)
@@ -87,10 +100,14 @@ for i in range(t_start,t_end):
 
 	if ref_path != "":
 		ref_pp.load(ref_path % i)
-		gridParticleIndex(parts=ref_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
-		unionParticleLevelset(parts=ref_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=ref_sdf, radiusFactor=2.0, exclude=FlagObstacle)
-		extrapolateLsSimple(phi=ref_sdf, distance=4, inside=True)
-		ref_sdf.setBound(value=5., boundaryWidth=4)
+
+		if ref_sdf_path != "":
+			ref_sdf.load(ref_sdf_path % i)
+		else:
+			gridParticleIndex(parts=ref_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
+			unionParticleLevelset(parts=ref_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=ref_sdf, radiusFactor=2.0, exclude=FlagObstacle)
+			extrapolateLsSimple(phi=ref_sdf, distance=4, inside=True)
+			ref_sdf.setBound(value=5., boundaryWidth=4)
 		if dim == 2:
 			placeGrid2d(ref_sdf,sdf_show,dstz=1) 
 			sdf_show.createMesh(ref_mesh)
@@ -99,15 +116,19 @@ for i in range(t_start,t_end):
 	
 	if src_path != "":
 		src_pp.load(src_path % i)
-		gridParticleIndex(parts=src_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
-		unionParticleLevelset(parts=src_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=src_sdf, radiusFactor=2.0, exclude=FlagObstacle)
-		extrapolateLsSimple(phi=src_sdf, distance=4, inside=True)
-		src_sdf.setBound(value=5., boundaryWidth=4)
-		if dim == 2:
-			placeGrid2d(src_sdf,sdf_show,dstz=1) 
-			sdf_show.createMesh(src_mesh)
+		
+		if src_sdf_path != "":
+			src_sdf.load(src_sdf_path % i)
 		else:
-			src_sdf.createMesh(src_mesh)
+			gridParticleIndex(parts=src_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
+			unionParticleLevelset(parts=src_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=src_sdf, radiusFactor=2.0, exclude=FlagObstacle)
+			extrapolateLsSimple(phi=src_sdf, distance=4, inside=True)
+			src_sdf.setBound(value=5., boundaryWidth=max(1,4//fac))
+		if dim == 2:
+			placeGrid2d(src_sdf,sdf_show_small,dstz=1) 
+			sdf_show_small.createMesh(src_mesh)
+		else:
+			src_sdf_small.createMesh(src_mesh)
 
 	s.step()
 	if screenshot != "":

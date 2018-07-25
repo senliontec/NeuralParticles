@@ -24,6 +24,9 @@ seed = int(getParam("seed", 29837913847))
 
 t = int(getParam("t", 50))
 
+blur_sigma = float(getParam("blur", 1.0))
+sdf_off = float(getParam("sdf_off", 0.0))
+
 checkUnusedParams()
 
 res = int(high_res/math.pow(factor,1/dim))
@@ -58,7 +61,7 @@ high_gIdx     = high_s.create(IntGrid)
 high_gCnt     = high_s.create(IntGrid)
 high_neighbor = high_s.create(ParticleNeighbors)
 high_gFlags   = high_s.create(FlagGrid)
-
+high_levelset = high_s.create(LevelsetGrid)
 high_gFlags.initDomain(FlagFluid)
 
 if dim==3:
@@ -97,6 +100,7 @@ for i in range(t):
 	pP.load(path + "_pp.uni")
 
 	high_pp.load(path + "_ps.uni")
+	high_levelset.load(path + "_sdf.uni")
 
 	gridParticleIndex(parts=high_pp, indexSys=high_gIdxSys, flags=high_gFlags, index=high_gIdx, counter=high_gCnt)
 	high_neighbor.update(pts=high_pp, indexSys=high_gIdxSys, index=high_gIdx, radius=search_r, notiming=True)
@@ -114,12 +118,22 @@ for i in range(t):
 
 	print("particles reduced: %d -> %d (%.1f)" % (hcnt, lcnt, hcnt/lcnt))
 
+	if blur_sigma > 0:
+		blurRealGrid(high_levelset, high_levelset, blur_sigma)
 
-	gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
-
-	unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=levelset, radiusFactor=1.0, ptype=pT, exclude=FlagObstacle)
+	high_levelset.addConst(sdf_off)
+	interpolateGrid(levelset, high_levelset)
+	levelset.multConst(res/high_res)
+	
 	extrapolateLsSimple(phi=levelset, distance=4, inside=True)
 	extrapolateLsSimple(phi=levelset, distance=4)
+
+	#blurRealGrid(levelset, levelset, blur_sigma)
+
+	hcnt = cntPts(t=pT, itype=FlagFluid)
+	maskParticles(pp, levelset)
+	lcnt = cntPts(t=pT, itype=FlagFluid)
+	print("particles reduced: %d -> %d (%.1f)" % (hcnt, lcnt, hcnt/lcnt))
 
 	if out_path != "":
 		path = out_path % i

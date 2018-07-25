@@ -6,7 +6,7 @@
     "frame_count":    20,
     "data_count":     20,
     "sub_res":        2,
-    "res":            150,
+    "res":            120,
     "seed":           5234244,
     "bnd":            4,
 
@@ -24,7 +24,7 @@
             "pos_z":            0.5,
             "rad":              0.0,
             "circ_vel":         0,
-            "wlt_vel":          15.0,
+            "wlt_vel":          30.0,
             "grav":             9.8
         },
         {

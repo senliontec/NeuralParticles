@@ -30,7 +30,13 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
         
 
         if verbose > 1: plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".svg", ref=ref, src=src[0][0], vel=vel_src, z = z)
+        if verbose > 1: plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_src.svg", src=src[0][0], vel=vel_src, z = z)
+        if verbose > 1: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_ref.svg",  z = z)
+        if verbose > 1: plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_res.svg", z = z)
         if verbose > 0: plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".png", ref=ref, src=src[0][0], vel=vel_src, z = z)
+        if verbose > 0: plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_src.png", src=src[0][0], vel=vel_src, z = z)
+        if verbose > 0: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_ref.png",  z = z)
+        if verbose > 0: plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_res.png", z = z)
         if verbose > 2: write_csv(path + "_res.csv", result)
         if verbose > 2: write_csv(path + "_ref.csv", ref)
         if verbose > 2: write_csv(path + "_src.csv", src[0][0])
@@ -65,7 +71,13 @@ def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, re
             if verbose > 2: write_csv(path + "_%s.csv"%k, aux_src)
 
         if verbose > 1: plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".svg", ref=ref, src=src*factor_d, vel=vel_src, z = z)
+        if verbose > 0: plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path + ".svg", src=src, vel=vel_src, z = z)
+        if verbose > 0: plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".svg", z = z)
+        if verbose > 0: plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".svg", z = z)
         if verbose > 0: plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".png", ref=ref, src=src*factor_d, vel=vel_src, z = z)
+        if verbose > 0: plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path + ".png", src=src, vel=vel_src, z = z)
+        if verbose > 0: plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".png", z = z)
+        if verbose > 0: plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".png", z = z)
         if verbose > 2: write_csv(path + "_res.csv", result)
         if verbose > 2: write_csv(path + "_ref.csv", ref)
         if verbose > 2: write_csv(path + "_src.csv", src)
