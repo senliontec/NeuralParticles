@@ -24,12 +24,14 @@ seed = int(getParam("seed", 29837913847))
 
 t = int(getParam("t", 50))
 
-blur_sigma = float(getParam("blur", 1.0)) * float(factor) / 3.544908 # 3.544908 = 2 * sqrt( PI )
+factor_d = math.pow(factor,1/dim)
+
+blur_sigma = float(getParam("blur", 1.0)) * float(factor_d) / 3.544908 # 3.544908 = 2 * sqrt( PI )
 sdf_off = float(getParam("sdf_off", 0.0))
 
 checkUnusedParams()
 
-res = int(high_res/math.pow(factor,1/dim))
+res = int(high_res/factor_d)
 
 print("grid down-scale: %d -> %d" %(high_res, res))
 
@@ -62,9 +64,11 @@ high_gCnt     = high_s.create(IntGrid)
 high_neighbor = high_s.create(ParticleNeighbors)
 high_gFlags   = high_s.create(FlagGrid)
 high_levelset = high_s.create(LevelsetGrid)
+tmp_levelset = high_s.create(LevelsetGrid)
 high_gFlags.initDomain(FlagFluid)
 
 if dim==3:
+	h_mesh	 = high_s.create(Mesh)
 	mesh     = s.create(Mesh)
 
 gIdxSys  = s.create(ParticleIndexSystem)
@@ -118,12 +122,16 @@ for i in range(t):
 
 	print("particles reduced: %d -> %d (%.1f)" % (hcnt, lcnt, hcnt/lcnt))
 
-	blurRealGrid(high_levelset, high_levelset, blur_sigma)
+	
+	extrapolateLsSimple(phi=high_levelset, distance=4, inside=True)
+	extrapolateLsSimple(phi=high_levelset, distance=4)
+
+	blurRealGrid(high_levelset, tmp_levelset, blur_sigma)
 
 	high_levelset.addConst(sdf_off)
-	interpolateGrid(levelset, high_levelset)
+	interpolateGrid(levelset, tmp_levelset)
 	levelset.multConst(res/high_res)
-	
+
 	extrapolateLsSimple(phi=levelset, distance=4, inside=True)
 	extrapolateLsSimple(phi=levelset, distance=4)
 
@@ -140,7 +148,6 @@ for i in range(t):
 		pV.save(path + "_pv.uni")
 		pD.save(path + "_pd.uni")
 		pP.save(path + "_pp.uni")
-
 
 		mapPartsToGridVec3(flags=gFlags, target=out['vel'], parts=pp, source=pV)
 		mapPartsToGrid(flags=gFlags, target=out['dens'], parts=pp, source=pD)
@@ -169,7 +176,7 @@ for i in range(t):
 			out['pres'].save(path + "_pres.uni")
 		
 	if dim==3 and guion:
-		extrapolateLsSimple(phi=levelset, distance=4, inside=True)
+		high_levelset.createMesh(h_mesh)
 		levelset.createMesh(mesh)
 
 	s.step()

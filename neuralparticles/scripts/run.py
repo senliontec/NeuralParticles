@@ -114,7 +114,7 @@ bnd = data_config['bnd']/factor_d
 half_ps = ref_patch_size//2
 #border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
 
-features = train_config['features'][1:]
+features = train_config['features']
 
 if checkpoint > 0:
     model_path = data_path + "models/checkpoints/%s_%s_%04d.h5" % (data_config['prefix'], config['id'], checkpoint)
@@ -128,7 +128,7 @@ punet.load_model(model_path)
 for t in range(t_start, t_end):
     (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
 
-    src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
+    #src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
 
     patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd)
 

@@ -4,7 +4,7 @@
     "val_split":          0.2,
     "t_start":            5,
     "t_end":              15,
-    "features":           ["s"],
+    "features":           [],
     "batch_size":         16,
     "learning_rate":      5e-4,
     "l2_reg":             0.0,

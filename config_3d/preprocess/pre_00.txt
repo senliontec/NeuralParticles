@@ -4,7 +4,7 @@
     "patch_size_ref": 15,
     "stride":         1.0,
     "surf":           1.0,
-    "factor":         27,
+    "factor":         8,
     "min_n":          5,
     "blur":           1.5,
     "sdf_off":        0.0,

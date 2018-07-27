@@ -115,7 +115,7 @@ def load_patches_from_file(data_path, config_path):
     with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
         train_config = json.loads(f.read())
 
-    features = train_config['features'][1:]
+    features = train_config['features']
 
     data_cnt = int(data_config['data_count'] * train_config['train_split'])
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
@@ -217,7 +217,7 @@ def get_data_pair(data_path, config_path, dataset, timestep, var):
     print(path_src)
     print(path_ref)
     
-    features = train_config['features'][1:]
+    features = train_config['features']
 
     return get_data(path_src%(dataset,var,timestep), par_aux=features), get_data(path_ref%(dataset,timestep))[:2]
 
@@ -319,7 +319,7 @@ class PatchExtractor:
 
         patch, aux = extract_particles(self.src_data, self.positions[idx], self.cnt, self.radius, self.pad_val, self.aux_data)
         if len(aux) > 0:
-            return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features])])]
+            return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features],axis=-1)])]
         else:
             return [np.array([patch])]
     

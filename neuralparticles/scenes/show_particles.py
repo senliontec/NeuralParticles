@@ -85,6 +85,7 @@ for i in range(t_start,t_end):
 		sampleLevelsetWithParticles(phi=sdf, flags=gFlags, parts=pp, discretization=sres, randomness=0)
 	else:'''
 	pp.load(in_path % i)
+	print(pp.size())
 	if sdf_path != "":
 		sdf.load(sdf_path % i)
 	else:

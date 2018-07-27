@@ -32,7 +32,7 @@ class IISPH:
         self.s = Solver(name='IISPH_{}'.format(res), gridSize=self.gs, dim=dim)
         self.s.cfl         = 1
         self.s.frameLength = 1.0/float(fps)
-        self.s.timestepMin = self.s.frameLength * 0.05
+        self.s.timestepMin = self.s.frameLength * 0.01
         self.s.timestepMax = self.s.frameLength
         self.s.timestep    = self.s.frameLength
 

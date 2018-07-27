@@ -1,5 +1,6 @@
 import keras
 import tensorflow as tf
+import numpy as np
 
 from neuralparticles.tools.plot_helpers import plot_particles, write_csv
 from neuralparticles.tools.data_helpers import PatchExtractor
@@ -18,7 +19,7 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
     if path != "" and verbose > 0:
         _i = 0
         vel_src = None
-        for i in range(1,len(features)):
+        '''for i in range(len(features)):
             if features[i] == 'v':
                 aux_src = src[1][:,_i:_i+3]
                 vel_src = aux_src/100
@@ -26,20 +27,22 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
             else:
                 aux_src = src[1][:,_i:_i+1]
                 _i += 1
-            if verbose > 2: write_csv(path + "_%s.csv"%features[i], aux_src)
+            if verbose > 2: write_csv(path + "_%s.csv"%features[i], aux_src)'''
         
-
-        if verbose > 1: plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".svg", ref=ref, src=src[0][0], vel=vel_src, z = z)
-        if verbose > 1: plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_src.svg", src=src[0][0], vel=vel_src, z = z)
-        if verbose > 1: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_ref.svg",  z = z)
-        if verbose > 1: plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_res.svg", z = z)
-        if verbose > 0: plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".png", ref=ref, src=src[0][0], vel=vel_src, z = z)
-        if verbose > 0: plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_src.png", src=src[0][0], vel=vel_src, z = z)
-        if verbose > 0: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_ref.png",  z = z)
-        if verbose > 0: plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_res.png", z = z)
-        if verbose > 2: write_csv(path + "_res.csv", result)
-        if verbose > 2: write_csv(path + "_ref.csv", ref)
-        if verbose > 2: write_csv(path + "_src.csv", src[0][0])
+        if verbose > 0:
+            plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".png", ref=ref, src=src[0][0], vel=vel_src, z = z)
+            plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_src.png", src=src[0][0], vel=vel_src, z = z)
+            plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_ref.png",  z = z)
+            plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_res.png", z = z)
+            if verbose > 1:
+                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".svg", ref=ref, src=src[0][0], vel=vel_src, z = z)
+                plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_src.svg", src=src[0][0], vel=vel_src, z = z)
+                plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_ref.svg",  z = z)
+                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_res.svg", z = z)
+                if verbose > 2:
+                    write_csv(path + "_res.csv", result)
+                    write_csv(path + "_ref.csv", ref)
+                    write_csv(path + "_src.csv", src[0][0])
 
     return result
 
@@ -61,26 +64,29 @@ def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, re
         else:
             result = result[0]
         patch_extractor.set_patch(result)'''
-    result = patch_extractor.data * factor_d
+    result = patch_extractor.data * np.array([factor_d,factor_d, 0 if z is None else factor_d])
     if path != "" and verbose > 0:
         vel_src = None
-        for k in aux:
+        '''for k in aux:
             aux_src = aux[k]
             if k == 'v':
                 vel_src = aux_src/100
-            if verbose > 2: write_csv(path + "_%s.csv"%k, aux_src)
+            if verbose > 2: write_csv(path + "_%s.csv"%k, aux_src)'''
 
-        if verbose > 1: plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".svg", ref=ref, src=src*factor_d, vel=vel_src, z = z)
-        if verbose > 1: plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path + "_src.svg", src=src, vel=vel_src, z = z)
-        if verbose > 1: plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_ref.svg", z = z)
-        if verbose > 1: plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_res.svg", z = z)
-        if verbose > 0: plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".png", ref=ref, src=src*factor_d, vel=vel_src, z = z)
-        if verbose > 0: plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path + "_src.png", src=src, vel=vel_src, z = z)
-        if verbose > 0: plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_ref.png", z = z)
-        if verbose > 0: plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_res.png", z = z)
-        if verbose > 2: write_csv(path + "_res.csv", result)
-        if verbose > 2: write_csv(path + "_ref.csv", ref)
-        if verbose > 2: write_csv(path + "_src.csv", src)
+        if verbose > 0: 
+            plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".png", ref=ref, src=src*factor_d, vel=vel_src, z = z)
+            plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path + "_src.png", src=src, vel=vel_src, z = z)
+            plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_ref.png", z = z)
+            plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_res.png", z = z)
+            if verbose > 1: 
+                plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".svg", ref=ref, src=src*factor_d, vel=vel_src, z = z)
+                plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path + "_src.svg", src=src, vel=vel_src, z = z)
+                plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_ref.svg", z = z)
+                plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_res.svg", z = z)
+                if verbose > 2: 
+                    write_csv(path + "_res.csv", result)
+                    write_csv(path + "_ref.csv", ref)
+                    write_csv(path + "_src.csv", src)
     patch_extractor.reset()
     return result
 
@@ -125,7 +131,7 @@ class NthLogger(keras.callbacks.Callback):
             print('Saved Checkpoint: %s' % path)
 
 class EvalCallback(keras.callbacks.TensorBoard):
-    def __init__(self, path, src, ref, 
+    def __init__(self, path, src, ref,
                  features=[], 
                  multiple_runs=False,
                  batch_intervall=0, 
@@ -160,15 +166,13 @@ class EvalCallback(keras.callbacks.TensorBoard):
         self.run_cnt = 0 if multiple_runs else -1
         self.post_fix = ""
 
-    '''def on_train_begin(self, logs={}):
-        for i in range(len(self.src)):
-            res = eval_patch(self.model, self.src[i], self.path%(i,0), self.ref[i], self.features, self.z, self.verbose)
-            add_images(self.writer, self.tag%i, self.src[i][0][0], self.ref[i], res, 0, xlim=[-1,1], ylim=[-1,1], s=5)'''
-
     def on_train_begin(self, logs={}):
         if self.run_cnt >= 0:
             self.post_fix = "_%03d"%(self.run_cnt)       
             self.run_cnt += 1     
+
+        for i in range(len(self.src)):
+            eval_patch(self.model, self.src[i], self.path%(i,-1,self.post_fix), self.ref[i], self.features, self.z, self.verbose)
     
     def on_epoch_end(self,ep,logs={}):
         super().on_epoch_end(ep, logs)
@@ -187,7 +191,7 @@ class EvalCallback(keras.callbacks.TensorBoard):
             add_images(self.writer, self.tag%(i,self.post_fix), self.src[i][0][0], self.ref[i], res, batch//self.batch_intervall, xlim=[-1,1], ylim=[-1,1], s=5, z=self.z)
 
 class EvalCompleteCallback(keras.callbacks.TensorBoard):
-    def __init__(self, path, patch_extractor, ref, factor_d, hdim, 
+    def __init__(self, path, patch_extractor, ref, factor_d, hdim,
                  multiple_runs=False,
                  batch_intervall=0, 
                  z=None, verbose=0,
@@ -222,15 +226,13 @@ class EvalCompleteCallback(keras.callbacks.TensorBoard):
         self.run_cnt = 0 if multiple_runs else -1
         self.post_fix = ""
     
-    '''def on_train_begin(self, logs={}):
-        for i in range(len(self.patch_extractor)):
-            res = eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,0), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim, self.z, verbose=self.verbose)
-            add_images(self.writer, self.tag%i, self.patch_extractor[i].src_data * self.factor_d, self.ref[i], res, 0, xlim=[0,self.hdim], ylim=[0,self.hdim], s=0.1)'''
-
     def on_train_begin(self, logs={}):
         if self.run_cnt >= 0:
             self.post_fix = "_%03d"%(self.run_cnt)       
             self.run_cnt += 1     
+
+        for i in range(len(self.patch_extractor)):
+            eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,-1,self.post_fix), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim, self.z, verbose=self.verbose)
 
     def on_epoch_end(self,ep,logs={}):
         super().on_epoch_end(ep, logs)

@@ -57,7 +57,7 @@ class Network(ABC):
 
         # Recompile (in case of updated hyper parameters)
         self._init_optimizer(epochs)
-        self._build_model()
+        self._build_model(**kwargs)
         self._compile_model()
         # Model Summary
         #self.model.summary()
