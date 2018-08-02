@@ -313,15 +313,18 @@ class PatchExtractor:
     def inv_transform_patch(self, patch, pos):
         return (patch - pos) / self.radius
 
-    def get_patch(self, idx, remove_data=True):
+    def get_patch_pos(self, pos, remove_data=True):
         if remove_data:
-            self.data = remove_particles(self.data, self.positions[idx], self.stride)[0]
+            self.data = remove_particles(self.data, pos, self.stride)[0]
 
-        patch, aux = extract_particles(self.src_data, self.positions[idx], self.cnt, self.radius, self.pad_val, self.aux_data)
+        patch, aux = extract_particles(self.src_data, pos, self.cnt, self.radius, self.pad_val, self.aux_data)
         if len(aux) > 0:
             return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features],axis=-1)])]
         else:
             return [np.array([patch])]
+
+    def get_patch(self, idx, remove_data=True):
+        return self.get_patch_pos(self.positions[idx], remove_data)
     
     def set_patch(self, patch, idx):
         self.data = np.concatenate((self.data, self.transform_patch(patch, self.positions[idx])))

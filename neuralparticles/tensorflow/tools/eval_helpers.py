@@ -30,19 +30,19 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
             if verbose > 2: write_csv(path + "_%s.csv"%features[i], aux_src)'''
         
         if verbose > 0:
-            plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".png", ref=ref, src=src[0][0], vel=vel_src, z = z)
-            plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_src.png", src=src[0][0], vel=vel_src, z = z)
-            plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_ref.png",  z = z)
-            plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_res.png", z = z)
+            plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".png", ref=ref, src=src[0][0], vel=vel_src, z = z)
+            plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("src") + ".png", src=src[0][0], vel=vel_src, z = z)
+            plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".png",  z = z)
+            plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("res") + ".png", z = z)
             if verbose > 1:
-                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + ".svg", ref=ref, src=src[0][0], vel=vel_src, z = z)
-                plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_src.svg", src=src[0][0], vel=vel_src, z = z)
-                plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_ref.svg",  z = z)
-                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path + "_res.svg", z = z)
+                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".svg", ref=ref, src=src[0][0], vel=vel_src, z = z)
+                plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("src") + ".svg", src=src[0][0], vel=vel_src, z = z)
+                plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".svg",  z = z)
+                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("res") + ".svg", z = z)
                 if verbose > 2:
-                    write_csv(path + "_res.csv", result)
-                    write_csv(path + "_ref.csv", ref)
-                    write_csv(path + "_src.csv", src[0][0])
+                    write_csv(path%("res") + ".csv", result)
+                    write_csv(path%("ref") + ".csv", ref)
+                    write_csv(path%("src") + ".csv", src[0][0])
 
     return result
 
@@ -74,19 +74,19 @@ def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, re
             if verbose > 2: write_csv(path + "_%s.csv"%k, aux_src)'''
 
         if verbose > 0: 
-            plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".png", ref=ref, src=src*factor_d, vel=vel_src, z = z)
-            plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path + "_src.png", src=src, vel=vel_src, z = z)
-            plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_ref.png", z = z)
-            plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_res.png", z = z)
+            plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("comp") + ".png", ref=ref, src=src*factor_d, vel=vel_src, z = z)
+            plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path%("src") + ".png", src=src, vel=vel_src, z = z)
+            plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("ref") + ".png", z = z)
+            plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("res") + ".png", z = z)
             if verbose > 1: 
-                plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + ".svg", ref=ref, src=src*factor_d, vel=vel_src, z = z)
-                plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path + "_src.svg", src=src, vel=vel_src, z = z)
-                plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_ref.svg", z = z)
-                plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path + "_res.svg", z = z)
+                plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("comp") + ".svg", ref=ref, src=src*factor_d, vel=vel_src, z = z)
+                plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path%("src") + ".svg", src=src, vel=vel_src, z = z)
+                plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("ref") + ".svg", z = z)
+                plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("res") + "svg", z = z)
                 if verbose > 2: 
-                    write_csv(path + "_res.csv", result)
-                    write_csv(path + "_ref.csv", ref)
-                    write_csv(path + "_src.csv", src)
+                    write_csv(path%("res") + ".csv", result)
+                    write_csv(path%("ref") + ".csv", ref)
+                    write_csv(path%("src") + ".csv", src)
     patch_extractor.reset()
     return result
 
@@ -155,8 +155,9 @@ class EvalCallback(keras.callbacks.TensorBoard):
                          embeddings_layer_names,
                          embeddings_metadata)
         #super().set_model(model)
-        self.path = path + "_%03d_%03d%s"
-        self.tag = os.path.basename(path) + "_%03d%s"
+        self.suffix = "%s_e%03d_d%03d_t%03d" # run (opt.) - epoch - dataset - timestep
+        self.path = path + "_%s" # type of output
+        self.tag = os.path.basename(path) + "%s_d%03d_t%03d"
         self.src = src
         self.ref = ref
         self.features = features
@@ -164,15 +165,16 @@ class EvalCallback(keras.callbacks.TensorBoard):
         self.z = z
         self.verbose = verbose
         self.run_cnt = 0 if multiple_runs else -1
-        self.post_fix = ""
+        self.run_suffix = ""
 
     def on_train_begin(self, logs={}):
         if self.run_cnt >= 0:
-            self.post_fix = "_%03d"%(self.run_cnt)       
+            self.run_suffix = "_%03d"%(self.run_cnt)       
             self.run_cnt += 1     
 
         for i in range(len(self.src)):
-            eval_patch(self.model, self.src[i], self.path%(i,-1,self.post_fix), self.ref[i], self.features, self.z, self.verbose)
+            for j in range(len(self.src[i])):
+                eval_patch(self.model, self.src[i][j], self.path + self.suffix%(self.run_suffix, -1, i, j), self.ref[i][j], self.features, self.z, self.verbose)
     
     def on_epoch_end(self,ep,logs={}):
         super().on_epoch_end(ep, logs)
@@ -180,15 +182,17 @@ class EvalCallback(keras.callbacks.TensorBoard):
             return
         print("Eval Patch")
         for i in range(len(self.src)):
-            res = eval_patch(self.model, self.src[i], self.path%(i,ep,self.post_fix), self.ref[i], self.features, self.z, self.verbose)
-            add_images(self.writer, self.tag%(i,self.post_fix), self.src[i][0][0], self.ref[i], res, ep, xlim=[-1,1], ylim=[-1,1], s=5, z=self.z)
+            for j in range(len(self.src[i])):
+                res = eval_patch(self.model, self.src[i][j], self.path + self.suffix%(self.run_suffix, ep, i, j), self.ref[i][j], self.features, self.z, self.verbose)
+                add_images(self.writer, self.tag%(self.run_suffix, i, j), self.src[i][j][0][0], self.ref[i][j], res, ep, xlim=[-1,1], ylim=[-1,1], s=5, z=self.z)
 
     def on_batch_end(self,batch,logs={}):
         if self.batch_intervall <= 0 or batch % self.batch_intervall != 0 or batch > 10000:
             return
         for i in range(len(self.src)):
-            res = eval_patch(self.model, self.src[i], self.path%(i,batch//self.batch_intervall,self.post_fix), self.ref[i], self.features, self.z, self.verbose)
-            add_images(self.writer, self.tag%(i,self.post_fix), self.src[i][0][0], self.ref[i], res, batch//self.batch_intervall, xlim=[-1,1], ylim=[-1,1], s=5, z=self.z)
+            for j in range(len(self.src[i])):
+                res = eval_patch(self.model, self.src[i][j], self.path + self.suffix%(self.run_suffix, batch//self.batch_intervall, i, j), self.ref[i][j], self.features, self.z, self.verbose)
+                add_images(self.writer, self.tag%(self.run_suffix, i, j), self.src[i][j][0][0], self.ref[i][j], res, batch//self.batch_intervall, xlim=[-1,1], ylim=[-1,1], s=5, z=self.z)
 
 class EvalCompleteCallback(keras.callbacks.TensorBoard):
     def __init__(self, path, patch_extractor, ref, factor_d, hdim,
@@ -214,8 +218,9 @@ class EvalCompleteCallback(keras.callbacks.TensorBoard):
                          embeddings_layer_names,
                          embeddings_metadata)
         #super().set_model(model)
-        self.path = path + "_%03d_%03d%s"
-        self.tag = os.path.basename(path) + "_%03d%s"
+        self.suffix = "%s_e%03d_d%03d_t%03d" # run (opt.) - epoch - dataset - timestep
+        self.path = path + "_%s" # type of output
+        self.tag = os.path.basename(path) + "%s_d%03d_t%03d"
         self.patch_extractor = patch_extractor
         self.ref = ref
         self.factor_d = factor_d
@@ -224,15 +229,16 @@ class EvalCompleteCallback(keras.callbacks.TensorBoard):
         self.z = z
         self.verbose = verbose
         self.run_cnt = 0 if multiple_runs else -1
-        self.post_fix = ""
+        self.run_suffix = ""
     
     def on_train_begin(self, logs={}):
         if self.run_cnt >= 0:
-            self.post_fix = "_%03d"%(self.run_cnt)       
+            self.run_suffix = "_%03d"%(self.run_cnt)       
             self.run_cnt += 1     
 
         for i in range(len(self.patch_extractor)):
-            eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,-1,self.post_fix), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim, self.z, verbose=self.verbose)
+            for j in range(len(self.patch_extractor[i])):
+                eval_frame(self.model, self.patch_extractor[i][j], self.factor_d, self.path + self.suffix%(self.run_suffix, -1, i, j), self.patch_extractor[i][j].src_data, self.patch_extractor[i][j].aux_data, self.ref[i][j], self.hdim, self.z, verbose=self.verbose)
 
     def on_epoch_end(self,ep,logs={}):
         super().on_epoch_end(ep, logs)
@@ -240,12 +246,14 @@ class EvalCompleteCallback(keras.callbacks.TensorBoard):
             return
         print("Eval")
         for i in range(len(self.patch_extractor)):
-            res = eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,ep,self.post_fix), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim, self.z, verbose=self.verbose)
-            add_images(self.writer, self.tag%(i,self.post_fix), self.patch_extractor[i].src_data * self.factor_d, self.ref[i], res, ep, xlim=[0,self.hdim], ylim=[0,self.hdim], s=0.1, z=self.z)
+            for j in range(len(self.patch_extractor[i])):
+                res = eval_frame(self.model, self.patch_extractor[i][j], self.factor_d, self.path + self.suffix%(self.run_suffix, ep, i, j), self.patch_extractor[i][j].src_data, self.patch_extractor[i][j].aux_data, self.ref[i][j], self.hdim, self.z, verbose=self.verbose)
+                add_images(self.writer, self.tag%(self.run_suffix, i, j), self.patch_extractor[i][j].src_data * self.factor_d, self.ref[i][j], res, ep, xlim=[0,self.hdim], ylim=[0,self.hdim], s=0.1, z=self.z)
 
     def on_batch_end(self,batch,logs={}):
         if self.batch_intervall <= 0 or batch % self.batch_intervall != 0:
             return
         for i in range(len(self.patch_extractor)):
-            res = eval_frame(self.model, self.patch_extractor[i], self.factor_d, self.path%(i,batch//self.batch_intervall,self.post_fix), self.patch_extractor[i].src_data, self.patch_extractor[i].aux_data, self.ref[i], self.hdim, self.z, verbose=self.verbose)
-            add_images(self.writer, self.tag%(i,self.post_fix), self.patch_extractor[i].src_data * self.factor_d, self.ref[i], res, batch//self.batch_intervall, xlim=[0,self.hdim], ylim=[0,self.hdim], s=0.1, z=self.z)
+            for j in range(len(self.patch_extractor[i])):
+                res = eval_frame(self.model, self.patch_extractor[i][j], self.factor_d, self.path + self.suffix%(self.run_suffix, batch//self.batch_intervall, i, j), self.patch_extractor[i][j].src_data, self.patch_extractor[i][j].aux_data, self.ref[i][j], self.hdim, self.z, verbose=self.verbose)
+                add_images(self.writer, self.tag%(self.run_suffix,i,j), self.patch_extractor[i][j].src_data * self.factor_d, self.ref[i][j], res, batch//self.batch_intervall, xlim=[0,self.hdim], ylim=[0,self.hdim], s=0.1, z=self.z)

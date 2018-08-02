@@ -1,5 +1,5 @@
 {
-    "id":             "test00",
+    "id":             "test01",
     "prefix":         "sph_2D",
     "dim":            2,
     "fps":            1,
@@ -29,9 +29,9 @@
 
     "transform":
     {
-        "mode":             "const",
+        "mode":             "nor",
         "use_curv":         false,
         "peaks":            5,
-        "disp_fac":         [3,0]
+        "disp_fac":         [3,3]
     }
 }

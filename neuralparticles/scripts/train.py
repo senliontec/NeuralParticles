@@ -26,6 +26,7 @@ eval_dataset = getParam("eval_d", []) #'18,18,18,19,19'
 eval_t = getParam("eval_t", []) #'5,5,6,6,7'
 eval_var = getParam("eval_v", []) #'0,0,0,0,0'
 eval_patch_idx = getParam("eval_i", []) #'11,77,16,21,45'
+eval_timesteps = int(getParam("eval_timesteps", 5))
 
 if len(eval_dataset) > 0:
     eval_dataset = list(map(int, eval_dataset.split(',')))
@@ -35,6 +36,7 @@ if len(eval_var) > 0:
     eval_var = list(map(int, eval_var.split(',')))
 if len(eval_patch_idx) > 0:
     eval_patch_idx = list(map(float, eval_patch_idx.split(',')))
+
 
 checkUnusedParams()
 
@@ -86,7 +88,7 @@ if len(eval_dataset) < eval_cnt:
 
 if len(eval_t) < eval_cnt:
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
-    t_end = min(train_config['t_end'], data_config['frame_count'])
+    t_end = min(train_config['t_end'], data_config['frame_count']) - eval_timesteps + 1
     eval_t.extend(np.random.randint(t_start, t_end, eval_cnt-len(eval_t)))
 
 if len(eval_var) < eval_cnt:
@@ -116,23 +118,32 @@ print("Load Eval Data")
 
 factor_d = math.pow(pre_config['factor'], 1/data_config['dim'])
 
-eval_patch_extractors = []
-eval_ref_datas = []
-eval_src_patches = []
-eval_ref_patches = []
-for i in range(len(eval_dataset)):
-    (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
-    #eval_par_aux['p'] = np.sign(eval_par_aux['p'])*np.sqrt(np.abs(eval_par_aux['p']))
-    eval_ref_datas.append(eval_ref_data)
-    np.random.seed(100)
-    eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, pre_config['patch_size'], pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/factor_d))
-    p_idx = int(eval_patch_idx[i] * len(eval_patch_extractors[i].positions))
-    eval_src_patches.append(eval_patch_extractors[i].get_patch(p_idx,False))
-    eval_ref_patches.append(extract_particles(eval_ref_data, eval_patch_extractors[i].positions[p_idx] * factor_d, pre_config['par_cnt_ref'], pre_config['patch_size_ref']/2, pre_config['pad_val'])[0])
+eval_patch_extractors = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
+eval_ref_datas = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
+eval_src_patches = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
+eval_ref_patches = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
 
-    print("Eval with dataset %d, timestep %d, var %d, patch idx %d" % (eval_dataset[i], eval_t[i], eval_var[i], p_idx))
-    print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patches[i][0][:,:,:1] != pre_config['pad_val'])))
-    print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patches[i][:,:1] != pre_config['pad_val'])))
+for i in range(len(eval_dataset)):
+    pos = None
+    for j in range(eval_timesteps):
+        (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i]+j, eval_var[i]) 
+        #eval_par_aux['p'] = np.sign(eval_par_aux['p'])*np.sqrt(np.abs(eval_par_aux['p']))
+        eval_ref_datas[i][j] = eval_ref_data
+
+        patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, pre_config['patch_size'], pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/factor_d)
+        eval_patch_extractors[i][j] = patch_extractor
+        
+        if pos is None:
+            pos = patch_extractor.positions[int(eval_patch_idx[i] * len(patch_extractor.positions))]
+        
+        eval_src_patch = patch_extractor.get_patch_pos(pos,False)
+        eval_src_patches[i][j] = eval_src_patch
+        eval_ref_patch = extract_particles(eval_ref_data, pos * factor_d, pre_config['par_cnt_ref'], pre_config['patch_size_ref']/2, pre_config['pad_val'])[0]
+        eval_ref_patches[i][j] = eval_ref_patch
+
+        print("Eval with dataset %d, timestep %d, var %d, patch pos (%f, %f, %f)" % (eval_dataset[i], eval_t[i]+j, eval_var[i], pos[0], pos[1], pos[2]))
+        print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patch[0][:,:,:1] != pre_config['pad_val'])))
+        print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patch[:,:1] != pre_config['pad_val'])))
 
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])
 

@@ -11,7 +11,7 @@
     "decay":              0.0,
     "fac":                8,
     "pre_train_epochs":   3,
-    "epochs":             10,
+    "epochs":             3,
     "mse_fac":            1.0,
     "adv_fac":            0.0,
     "par_feature_cnt":    256,

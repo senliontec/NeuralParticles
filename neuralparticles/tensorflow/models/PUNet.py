@@ -12,6 +12,7 @@ from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
 
 from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
 from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
+from neuralparticles.tensorflow.losses.repulsion_loss import repulsion_loss
 
 class PUNet(Network):
     def _init_vars(self, **kwargs):
@@ -38,7 +39,7 @@ class PUNet(Network):
         self.res = kwargs.get("res")
         self.lres = int(self.res/self.factor_d)
 
-        self.max_feature = None
+        self.max_feature = np.empty((0,))
 
     def _init_optimizer(self, epochs=1):
         self.optimizer = keras.optimizers.adam(lr=self.learning_rate, decay=self.decay)
@@ -47,8 +48,19 @@ class PUNet(Network):
 
         src_data = kwargs.get("src")
 
-        if len(src_data) > 1:
-            self.max_feature = np.max(np.abs(src_data[1]),axis=(0,1))
+        i = 0
+        for f in self.features:
+            if 'v' == f:
+                max_v = np.max(np.linalg.norm(src_data[1][:,:,i:i+3], axis=-1))
+                print(max_v)
+                self.max_feature = np.concatenate((self.max_feature, [max_v, max_v, max_v]))
+                i+=3
+            else:
+                self.max_feature = np.concatenate((self.max_feature, [np.max(np.abs(src_data[1][:,:,i]))]))
+                i+=1
+            
+        #if len(src_data) > 1:
+        #    self.max_feature = np.max(np.abs(src_data[1]),axis=(0,1))
 
         def stack(X):
             import tensorflow as tf
@@ -59,6 +71,7 @@ class PUNet(Network):
             return tf.unstack(X,axis=1)
             
         input_xyz = Input((self.particle_cnt_src, 3), name="main_input")
+        input_points = input_xyz
         inputs = [input_xyz]
 
         if len(self.features) > 0:
@@ -123,13 +136,14 @@ class PUNet(Network):
         else:
             self.model = Model(inputs=inputs, outputs=out)
 
-    def _compile_model(self):
-        def mask_loss(y_true, y_pred):
-            return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else emd_loss(y_true, y_pred)
+    def get_mask_loss(self, mask):
+        return lambda y_true, y_pred: emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if mask else emd_loss(y_true, y_pred) #repulsion_loss(y_pred, 10, 0.1, 0.1) + 
+
+    def _compile_model(self, mask=None):
         if self.truncate:
-            self.model.compile(loss=[mask_loss, 'mse'], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=[1.0,1.0])
+            self.model.compile(loss=[self.get_mask_loss(mask if mask else self.mask), 'mse'], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=[1.0,1.0])
         else:
-            self.model.compile(loss=mask_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
+            self.model.compile(loss=self.get_mask_loss(mask if mask else self.mask), optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
 
     def _train(self, epochs, **kwargs):
         src_data = kwargs.get("src")
@@ -152,6 +166,4 @@ class PUNet(Network):
         self.model.save(path)
 
     def load_model(self, path):
-        def mask_loss(y_true, y_pred):
-            return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else emd_loss(y_true, y_pred)
-        self.model = load_model(path, custom_objects={'mask_loss': mask_loss, 'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup, 'MultConst': MultConst})
+        self.model = load_model(path, custom_objects={'mask_loss': self.get_mask_loss(self.mask), 'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup, 'MultConst': MultConst})

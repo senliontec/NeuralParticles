@@ -1,0 +1,42 @@
+{
+    "id":             "dat01",
+    "prefix":         "sph_2D",
+    "dim":            2,
+    "fps":            120,
+    "frame_count":    20,
+    "data_count":     20,
+    "sub_res":        2,
+    "res":            150,
+    "seed":           5234244,
+    "bnd":            4,
+
+    "modes": 
+    [
+        {
+            "prop":             0.5,
+            "cnt":              [1,1],
+            "cube_prob":        1.0,
+            "scale_x":          [1.0,1.0],
+            "scale_y":          [0.1,0.1],
+            "pos_x":            [0.5,0.5],
+            "pos_y":            [0.1,0.1],
+            "rad":              [0.0,0.0],
+            "circ_vel":         0,
+            "wlt_vel":          30.0,
+            "grav":             9.8
+        },
+        {
+            "prop":             0.5,
+            "cnt":              [2,5],
+            "cube_prob":        0.5,
+            "scale_x":          [0.05,0.3],
+            "scale_y":          [0.05,0.3],
+            "pos_x":            [0.2,0.8],
+            "pos_y":            [0.2,0.8],
+            "rad":              [0.05,0.3],
+            "circ_vel":         100.0,
+            "wlt_vel":          0.0,
+            "grav":             9.8
+        }
+    ]
+}
