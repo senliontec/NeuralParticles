@@ -11,7 +11,7 @@ import keras
 
 from neuralparticles.tensorflow.models.PUNet import PUNet
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles
+from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_point
 from neuralparticles.tensorflow.tools.eval_helpers import EvalCallback, EvalCompleteCallback
 
 import numpy as np
@@ -125,6 +125,7 @@ eval_ref_patches = [[None for i in range(eval_timesteps)] for j in range(len(eva
 
 for i in range(len(eval_dataset)):
     pos = None
+    vel = None
     for j in range(eval_timesteps):
         (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i]+j, eval_var[i]) 
         #eval_par_aux['p'] = np.sign(eval_par_aux['p'])*np.sqrt(np.abs(eval_par_aux['p']))
@@ -135,6 +136,11 @@ for i in range(len(eval_dataset)):
         
         if pos is None:
             pos = patch_extractor.positions[int(eval_patch_idx[i] * len(patch_extractor.positions))]
+        else:
+            pos = pos + vel/data_config['fps']
+
+        pos, vel = get_nearest_point(eval_src_data, pos, eval_par_aux)
+        vel = vel['v']
         
         eval_src_patch = patch_extractor.get_patch_pos(pos,False)
         eval_src_patches[i][j] = eval_src_patch

@@ -40,9 +40,8 @@ class Network(ABC):
         # self._build_model()
         # self._compile_model()
 
-    #---------------------------------------------------------------------------------
-    def train(self, epochs, **kwargs):
-        """ Trains and returns the training history """
+
+    def build_model(self, **kwargs):
         # Reset all random number generators to given seeds
         #requirements.reset_rng()
         np.random.seed(4213)
@@ -56,9 +55,17 @@ class Network(ABC):
         K.clear_session()
 
         # Recompile (in case of updated hyper parameters)
-        self._init_optimizer(epochs)
+        self._init_optimizer()
         self._build_model(**kwargs)
-        self._compile_model()
+        self.compile_model()
+
+    #---------------------------------------------------------------------------------
+    def train(self, epochs, build_model=True, **kwargs):
+        """ Trains and returns the training history """
+
+        if build_model: 
+            self.build_model(**kwargs)
+
         # Model Summary
         #self.model.summary()
         self.print_attributes()
@@ -85,7 +92,7 @@ class Network(ABC):
         pass
     #---------------------------------------------------------------------------------
     @abstractmethod
-    def _compile_model(self):
+    def compile_model(self):
         """ Calls compile on the model """
         pass
     #---------------------------------------------------------------------------------

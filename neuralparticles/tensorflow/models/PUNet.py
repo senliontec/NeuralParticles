@@ -131,19 +131,23 @@ class PUNet(Network):
         out = x
 
         if self.truncate:
+            self.short_model = Model(inputs=inputs, outputs=out)
             out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)], name="masked_coords")
             self.model = Model(inputs=inputs, outputs=[out,trunc])
         else:
             self.model = Model(inputs=inputs, outputs=out)
 
-    def get_mask_loss(self, mask):
-        return lambda y_true, y_pred: emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if mask else emd_loss(y_true, y_pred) #repulsion_loss(y_pred, 10, 0.1, 0.1) + 
 
-    def _compile_model(self, mask=None):
+    def get_mask_loss(self, trunc=None):
+        if trunc is None: trunc = self.truncate
+        return lambda y_true, y_pred: emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred * (1.0 if trunc else zero_mask(y_true, self.pad_val))) if self.mask else emd_loss(y_true, y_pred) #repulsion_loss(y_pred, 10, 0.1, 0.1) + 
+
+    def compile_model(self):
         if self.truncate:
-            self.model.compile(loss=[self.get_mask_loss(mask if mask else self.mask), 'mse'], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=[1.0,1.0])
+            self.short_model.compile(loss=self.get_mask_loss(False), optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
+            self.model.compile(loss=[self.get_mask_loss(), 'mse'], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=[1.0,1.0])
         else:
-            self.model.compile(loss=self.get_mask_loss(mask if mask else self.mask), optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
+            self.model.compile(loss=self.get_mask_loss(), optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
 
     def _train(self, epochs, **kwargs):
         src_data = kwargs.get("src")
@@ -155,6 +159,10 @@ class PUNet(Network):
         callbacks = kwargs.get("callbacks", [])
 
         trunc_ref = np.count_nonzero(ref_data[:,:,:1] != self.pad_val, axis=1)/self.particle_cnt_dst
+
+        if self.truncate and False:
+            self.short_model.fit(x=src_data,y=ref_data, validation_split=val_split, 
+                                epochs=epochs, batch_size=batch_size, verbose=1)
         
         return self.model.fit(x=src_data,y=[ref_data, trunc_ref] if self.truncate else ref_data, validation_split=val_split, 
                               epochs=epochs, batch_size=batch_size, verbose=1, callbacks=callbacks)
@@ -166,4 +174,4 @@ class PUNet(Network):
         self.model.save(path)
 
     def load_model(self, path):
-        self.model = load_model(path, custom_objects={'mask_loss': self.get_mask_loss(self.mask), 'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup, 'MultConst': MultConst})
+        self.model = load_model(path, custom_objects={'mask_loss': self.get_mask_loss(), 'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup, 'MultConst': MultConst})

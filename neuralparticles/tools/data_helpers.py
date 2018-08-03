@@ -88,11 +88,23 @@ def in_bound(pos, bnd_min, bnd_max):
 def in_surface(sdf_v, surface):
     return np.where(abs(sdf_v) < surface)[0]
 
+def get_positions_idx(particle_data, sdf, patch_size, surface=1.0, bnd=0):
+    sdf_f = interpol_grid(sdf)
+    particle_data_bound = particle_data[in_bound(particle_data[:,:2] if sdf.shape[0] == 1 else particle_data, bnd+patch_size/2,sdf.shape[1]-(bnd+patch_size/2))]
+    return in_surface(sdf_f(particle_data_bound), surface)
+
 def get_positions(particle_data, sdf, patch_size, surface=1.0, bnd=0):
     sdf_f = interpol_grid(sdf)
     particle_data_bound = particle_data[in_bound(particle_data[:,:2] if sdf.shape[0] == 1 else particle_data, bnd+patch_size/2,sdf.shape[1]-(bnd+patch_size/2))]
     positions = particle_data_bound[in_surface(sdf_f(particle_data_bound), surface)]
     return positions
+
+def get_nearest_point(data, pos, aux_data={}):
+    idx = np.argmin(np.linalg.norm(pos-data, axis=-1), axis=0)
+    aux = {}
+    for k, v in aux_data.items():
+        aux[k] = v[idx]
+    return data[idx], aux
 
 def get_data(prefix, par_aux=[]):
     par_aux_data = {}
