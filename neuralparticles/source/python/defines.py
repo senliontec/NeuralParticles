@@ -4,8 +4,8 @@
 # Copyright 2011 Tobias Pfaff, Nils Thuerey 
 #
 # This program is free software, distributed under the terms of the
-# GNU General Public License (GPL) 
-# http://www.gnu.org/licenses
+# Apache License, Version 2.0 
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Defines some constants for use in python subprograms
 #
@@ -27,7 +27,6 @@ FlagObstacle = 2
 FlagEmpty    = 4
 FlagInflow   = 8
 FlagOutflow  = 16
-FlagOpen     = 32
 FlagStick    = 64
 FlagReserved = 256
 # and same for FlagGrid::CellType enum names:
@@ -49,3 +48,5 @@ PcNone      = 0
 PcMIC       = 1
 PcMGDynamic = 2
 PcMGStatic  = 3
+
+

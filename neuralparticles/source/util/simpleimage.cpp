@@ -4,8 +4,8 @@
  * Copyright 2014 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Simple image IO
  *
@@ -147,7 +147,7 @@ bool SimpleImage::initFromPpm (std::string filename) {
 	unsigned char *ptr = NULL;
 	ptr = &pic[(windH-1) * rowsize];
 	for (int i = windH; i > 0; i--) {
-		if(fread((void *)ptr, 1, rowsize, fp)!=(size_t)rowsize) errMsg("Something wrong in fread()");
+		assertMsg( fread((void *)ptr, 1, rowsize, fp) == rowsize, "SimpleImage::initFromPpm couldn't read data");
 		ptr -= rowsize;
 	}
 
@@ -199,12 +199,11 @@ bool SimpleImage::indexIsValid(int i, int j)
 
 //*****************************************************************************
 
-//! simple shaded output , note requires grid functionality!
-
 #include "grid.h"
 namespace Manta {
 
-static void gridPrecompLight(Grid<Real>& density, Grid<Real>& L, Vec3 light = Vec3(1,1,1) )
+// simple shaded output , note requires grid functionality!
+static void gridPrecompLight(const Grid<Real>& density, Grid<Real>& L, Vec3 light = Vec3(1,1,1) )
 {
 	FOR_IJK(density) {
 		Vec3 n = getGradient( density, i,j,k ) * -1.; 
@@ -244,7 +243,8 @@ static inline void shadeCell(Vec3& dst, int shadeMode, Real src, Real light, int
 	}
 }
 
-void projectImg( SimpleImage& img, Grid<Real>& val, int shadeMode=0, Real scale=1.)
+//! helper to project a grid intro an image (used for ppm export and GUI displauy)
+void projectImg( SimpleImage& img, const Grid<Real>& val, int shadeMode=0, Real scale=1.)
 {
 	Vec3i s  = val.getSize();
 	Vec3  si = Vec3( 1. / (Real)s[0], 1. / (Real)s[1], 1. / (Real)s[2] );

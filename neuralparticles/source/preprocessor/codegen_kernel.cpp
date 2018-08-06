@@ -4,8 +4,8 @@
  * Copyright 2011-2014 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Preprocessor: Process replacement text of KERNEL keyword
  *
@@ -409,7 +409,7 @@ void processKernel(const Block& block, const string& code, Sink& sink) {
 			errMsg(block.line0, "enable 4d mode to loop over 4d grids!");
 		}
 	}
-	// NT_DEBUG auto check?
+	// TODO, potentially add auto check for 4d grid (or data type of first arg in general)
 
 	kernelAssert(!baseGrid.empty(), "use at least one grid to call the kernel.");
 

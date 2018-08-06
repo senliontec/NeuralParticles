@@ -4,10 +4,10 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * Conjugate gradient solver
+ * Conjugate gradient solver, for pressure and viscosity
  *
  ******************************************************************************/
 
@@ -17,13 +17,13 @@
 using namespace std;
 namespace Manta {
 
-const int CG_DEBUGLEVEL = 5;
+const int CG_DEBUGLEVEL = 3;
 	
 //*****************************************************************************
 //  Precondition helpers
 
 //! Preconditioning a la Wavelet Turbulence (needs 4 add. grids)
-void InitPreconditionIncompCholesky(FlagGrid& flags,
+void InitPreconditionIncompCholesky(const FlagGrid& flags,
 				Grid<Real>& A0, Grid<Real>& Ai, Grid<Real>& Aj, Grid<Real>& Ak,
 				Grid<Real>& orgA0, Grid<Real>& orgAi, Grid<Real>& orgAj, Grid<Real>& orgAk) 
 {
@@ -63,7 +63,7 @@ void InitPreconditionIncompCholesky(FlagGrid& flags,
 };
 
 //! Preconditioning using modified IC ala Bridson (needs 1 add. grid)
-void InitPreconditionModifiedIncompCholesky2(FlagGrid& flags,
+void InitPreconditionModifiedIncompCholesky2(const FlagGrid& flags,
 				Grid<Real>&Aprecond, 
 				Grid<Real>&A0, Grid<Real>& Ai, Grid<Real>& Aj, Grid<Real>& Ak) 
 {
@@ -106,7 +106,7 @@ void InitPreconditionMultigrid(GridMg* MG, Grid<Real>&A0, Grid<Real>& Ai, Grid<R
 };
 
 //! Apply WT-style ICP
-void ApplyPreconditionIncompCholesky(Grid<Real>& dst, Grid<Real>& Var1, FlagGrid& flags,
+void ApplyPreconditionIncompCholesky(Grid<Real>& dst, Grid<Real>& Var1, const FlagGrid& flags,
 				Grid<Real>& A0, Grid<Real>& Ai, Grid<Real>& Aj, Grid<Real>& Ak,
 				Grid<Real>& orgA0, Grid<Real>& orgAi, Grid<Real>& orgAj, Grid<Real>& orgAk)
 {
@@ -132,7 +132,7 @@ void ApplyPreconditionIncompCholesky(Grid<Real>& dst, Grid<Real>& Var1, FlagGrid
 }
 
 //! Apply Bridson-style mICP
-void ApplyPreconditionModifiedIncompCholesky2(Grid<Real>& dst, Grid<Real>& Var1, FlagGrid& flags,
+void ApplyPreconditionModifiedIncompCholesky2(Grid<Real>& dst, Grid<Real>& Var1, const FlagGrid& flags,
 				Grid<Real>& Aprecond, 
 				Grid<Real>& A0, Grid<Real>& Ai, Grid<Real>& Aj, Grid<Real>& Ak) 
 {
@@ -179,7 +179,7 @@ double GridDotProduct (const Grid<Real>& a, const Grid<Real>& b) {
 
 //! Kernel: compute residual (init) and add to sigma
 KERNEL(idx, reduce=+) returns(double sigma=0)
-double InitSigma (FlagGrid& flags, Grid<Real>& dst, Grid<Real>& rhs, Grid<Real>& temp) 
+double InitSigma (const FlagGrid& flags, Grid<Real>& dst, Grid<Real>& rhs, Grid<Real>& temp)
 {    
 	const double res = rhs[idx] - temp[idx]; 
 	dst[idx] = (Real)res;
@@ -199,22 +199,19 @@ KERNEL(idx) void UpdateSearchVec (Grid<Real>& dst, Grid<Real>& src, Real factor)
 //  CG class
 
 template<class APPLYMAT>
-GridCg<APPLYMAT>::GridCg(Grid<Real>& dst, Grid<Real>& rhs, Grid<Real>& residual, Grid<Real>& search, FlagGrid& flags, Grid<Real>& tmp, 
+GridCg<APPLYMAT>::GridCg(Grid<Real>& dst, Grid<Real>& rhs, Grid<Real>& residual, Grid<Real>& search, const FlagGrid& flags, Grid<Real>& tmp,
 			   Grid<Real>* pA0, Grid<Real>* pAi, Grid<Real>* pAj, Grid<Real>* pAk) :
 	GridCgInterface(), mInited(false), mIterations(0), mDst(dst), mRhs(rhs), mResidual(residual),
 	mSearch(search), mFlags(flags), mTmp(tmp), mpA0(pA0), mpAi(pAi), mpAj(pAj), mpAk(pAk),
 	mPcMethod(PC_None), mpPCA0(nullptr), mpPCAi(nullptr), mpPCAj(nullptr), mpPCAk(nullptr), mMG(nullptr), mSigma(0.), mAccuracy(VECTOR_EPSILON), mResNorm(1e20) 
-{
-	dst.clear();
-	residual.clear();
-	search.clear();
-	tmp.clear();            
-}
+{ }
 
 template<class APPLYMAT>
 void GridCg<APPLYMAT>::doInit() {
 	mInited = true;
+	mIterations = 0;
 
+	mDst.clear();
 	mResidual.copyFrom( mRhs ); // p=0, residual = b
 	
 	if (mPcMethod == PC_ICP) {
@@ -270,9 +267,8 @@ bool GridCg<APPLYMAT>::iterate() {
 	if(this->mUseL2Norm) { 
 		mResNorm = GridSumSqr(mResidual).sum; 
 	} else {
-		mResNorm = mResidual.getMaxAbsValue();        
+		mResNorm = mResidual.getMaxAbs();        
 	}
-	//if(mIterations % 10 == 9) debMsg("GridCg::Iteration i="<<mIterations<<", resNorm="<<mResNorm<<" accuracy="<<mAccuracy, 1);
 
 	// abort here to safe some work...
 	if(mResNorm<mAccuracy) {
@@ -288,6 +284,15 @@ bool GridCg<APPLYMAT>::iterate() {
 
 	debMsg("GridCg::iterate i="<<mIterations<<" sigmaNew="<<sigmaNew<<" sigmaLast="<<mSigma<<" alpha="<<alpha<<" beta="<<beta<<" ", CG_DEBUGLEVEL);
 	mSigma = sigmaNew;
+
+	if(!(mResNorm<1e35)) {
+		if(mPcMethod == PC_MGP) {
+			// diverging solves can be caused by the static multigrid mode, we cannot detect this here, though
+			// only the pressure solve call "knows" whether the MG is static or dynamics...
+			debMsg("GridCg::iterate: Warning - this diverging solve can be caused by the 'static' mode of the MG preconditioner. If the static mode is active, try switching to dynamic.", 1);
+		}
+		errMsg("GridCg::iterate: The CG solver diverged, residual norm > 1e30, stopping.");
+	}
 	
 	//debMsg("PB-CG-Norms::p"<<sqrt( GridOpNormNosqrt(mpDst, mpFlags).getValue() ) <<" search"<<sqrt( GridOpNormNosqrt(mpSearch, mpFlags).getValue(), CG_DEBUGLEVEL ) <<" res"<<sqrt( GridOpNormNosqrt(mpResidual, mpFlags).getValue() ) <<" tmp"<<sqrt( GridOpNormNosqrt(mpTmp, mpFlags).getValue() ), CG_DEBUGLEVEL ); // debug
 	return true;
@@ -332,5 +337,92 @@ void GridCg<APPLYMAT>::setMGPreconditioner(PreconditionType method, GridMg* MG) 
 // explicit instantiation
 template class GridCg<ApplyMatrix>;
 template class GridCg<ApplyMatrix2D>;
+
+
+
+//***************************************************************************** 
+// diffusion for real and vec grids, e.g. for viscosity
+
+
+//! do a CG solve for diffusion; note: diffusion coefficient alpha given in grid space, 
+//  rescale in python file for discretization independence (or physical correspondence)
+//  see lidDrivenCavity.py for an example
+PYTHON() void cgSolveDiffusion(const FlagGrid& flags, GridBase& grid,
+						Real alpha = 0.25, Real cgMaxIterFac = 1.0, Real cgAccuracy   = 1e-4 )
+{
+	// reserve temp grids
+	FluidSolver* parent = flags.getParent();
+	Grid<Real> rhs(parent);
+	Grid<Real> residual(parent), search(parent), tmp(parent);
+	Grid<Real> A0(parent), Ai(parent), Aj(parent), Ak(parent);
+		
+	// setup matrix and boundaries
+	FlagGrid flagsDummy(parent);
+	flagsDummy.setConst(FlagGrid::TypeFluid);
+	MakeLaplaceMatrix (flagsDummy, A0, Ai, Aj, Ak);
+
+	FOR_IJK(flags) {
+		if(flags.isObstacle(i,j,k)) {
+			Ai(i,j,k)  = Aj(i,j,k)  = Ak(i,j,k)  = 0.0;
+			A0(i,j,k)  = 1.0;
+		} else {
+			Ai(i,j,k) *= alpha;
+			Aj(i,j,k) *= alpha;
+			Ak(i,j,k) *= alpha;
+			A0(i,j,k) *= alpha;
+			A0(i,j,k) += 1.;
+		}
+	}
+
+	GridCgInterface *gcg;
+	// note , no preconditioning for now...
+	const int maxIter = (int)(cgMaxIterFac * flags.getSize().max()) * (flags.is3D() ? 1 : 4);
+	
+	if (grid.getType() & GridBase::TypeReal) {
+		Grid<Real>& u = ((Grid<Real>&) grid);
+		rhs.copyFrom(u); 
+		if (flags.is3D())
+			gcg = new GridCg<ApplyMatrix  >(u, rhs, residual, search, flags, tmp, &A0, &Ai, &Aj, &Ak );
+		else
+			gcg = new GridCg<ApplyMatrix2D>(u, rhs, residual, search, flags, tmp, &A0, &Ai, &Aj, &Ak ); 
+
+		gcg->setAccuracy( cgAccuracy ); 
+		gcg->solve(maxIter);
+
+		debMsg("FluidSolver::solveDiffusion iterations:"<<gcg->getIterations()<<", res:"<<gcg->getSigma(), CG_DEBUGLEVEL);
+	}
+	else 
+	if( (grid.getType() & GridBase::TypeVec3) || (grid.getType() & GridBase::TypeVec3) ) 
+	{    
+		Grid<Vec3>& vec = ((Grid<Vec3>&) grid);
+		Grid<Real> u(parent);
+
+		// core solve is same as for a regular real grid 
+		if (flags.is3D())
+			gcg = new GridCg<ApplyMatrix  >(u, rhs, residual, search, flags, tmp, &A0, &Ai, &Aj, &Ak );
+		else
+			gcg = new GridCg<ApplyMatrix2D>(u, rhs, residual, search, flags, tmp, &A0, &Ai, &Aj, &Ak ); 
+		gcg->setAccuracy( cgAccuracy ); 
+
+		// diffuse every component separately
+		for(int component = 0; component< (grid.is3D() ? 3:2); ++component) {
+			getComponent( vec, u, component );
+			gcg->forceReinit(); 
+
+			rhs.copyFrom(u); 
+			gcg->solve(maxIter);
+			debMsg("FluidSolver::solveDiffusion vec3, iterations:"<<gcg->getIterations()<<", res:"<<gcg->getSigma(), CG_DEBUGLEVEL);
+
+			setComponent( u, vec, component );
+		}
+	} else {
+		errMsg("cgSolveDiffusion: Grid Type is not supported (only Real, Vec3, MAC, or Levelset)");
+	}
+
+	delete gcg;
+}
+
+
+
 
 }; // DDF

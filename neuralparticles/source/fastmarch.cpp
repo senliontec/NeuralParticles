@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Fast marching and extrapolation
  *
@@ -21,7 +21,7 @@ using namespace std;
 namespace Manta {
 	
 template<class COMP, int TDIR>
-FastMarch<COMP,TDIR>::FastMarch(FlagGrid& flags, Grid<int>& fmFlags, Grid<Real>& levelset, Real maxTime, MACGrid* velTransport )
+FastMarch<COMP,TDIR>::FastMarch(const FlagGrid& flags, Grid<int>& fmFlags, Grid<Real>& levelset, Real maxTime, MACGrid* velTransport )
 	: mLevelset(levelset), mFlags(flags), mFmFlags(fmFlags)
 {
 	if (velTransport)
@@ -256,40 +256,40 @@ void knExtrapolateMACSimple (MACGrid& vel, int distance , Grid<int>& tmp , const
 		vel(p)[c] = avgVel / nbs;
 	}
 }
-// NT_DEBUG, todo - test w/o single threaded, should work...
-KERNEL(bnd=0, single)
-void knExtrapolateIntoBnd (FlagGrid& flags, MACGrid& vel)
+//! copy velocity into domain side, note - don't read & write same grid, hence velTmp copy
+KERNEL(bnd=0)
+void knExtrapolateIntoBnd (FlagGrid& flags, MACGrid& vel, const MACGrid& velTmp)
 {
 	int c=0;
 	Vec3 v(0,0,0);
 	if( i==0 ) { 
-		v = vel(i+1,j,k);
+		v = velTmp(i+1,j,k);
 		if(v[0] < 0.) v[0] = 0.;
 		c++;
 	}
 	else if( i==(flags.getSizeX()-1) ) { 
-		v = vel(i-1,j,k);
+		v = velTmp(i-1,j,k);
 		if(v[0] > 0.) v[0] = 0.;
 		c++;
 	}
 	if( j==0 ) { 
-		v = vel(i,j+1,k);
+		v = velTmp(i,j+1,k);
 		if(v[1] < 0.) v[1] = 0.;
 		c++;
 	}
 	else if( j==(flags.getSizeY()-1) ) { 
-		v = vel(i,j-1,k);
+		v = velTmp(i,j-1,k);
 		if(v[1] > 0.) v[1] = 0.;
 		c++;
 	}
 	if(flags.is3D()) {
 	if( k==0 ) { 
-		v = vel(i,j,k+1);
+		v = velTmp(i,j,k+1);
 		if(v[2] < 0.) v[2] = 0.;
 		c++;
 	}
 	else if( k==(flags.getSizeZ()-1) ) { 
-		v = vel(i,j,k-1);
+		v = velTmp(i,j,k-1);
 		if(v[2] > 0.) v[2] = 0.;
 		c++;
 	} }
@@ -368,8 +368,9 @@ PYTHON() void extrapolateMACSimple (FlagGrid& flags, MACGrid& vel, int distance 
 		knUnprojectNormalComp( flags, vel, *phiObs, distance );
 	}
 
-	// copy tangential values into sides
-	knExtrapolateIntoBnd(flags, vel);
+	// copy tangential values into sides of domain
+	MACGrid velTmp( flags.getParent() ); velTmp.copyFrom(vel);
+	knExtrapolateIntoBnd(flags, vel, velTmp);
 }
 
 KERNEL(bnd=1)
@@ -505,17 +506,24 @@ PYTHON() void extrapolateLsSimple (Grid<Real>& phi, int distance = 4, bool insid
 }
 
 // extrapolate centered vec3 values from marked fluid cells
-PYTHON() void extrapolateVec3Simple (Grid<Vec3>& vel, Grid<Real>& phi, int distance = 4)
+PYTHON() void extrapolateVec3Simple (Grid<Vec3>& vel, Grid<Real>& phi, int distance = 4, bool inside=false)
 {
 	Grid<int> tmp( vel.getParent() );
 	tmp.clear();
 	const int dim = (vel.is3D() ? 3:2);
 
-	// mark all inside
-	FOR_IJK_BND(vel,1) {
-		if ( phi(i,j,k) < 0. ) { tmp(i,j,k) = 1; }
-	} 
-	// + first layer outside
+ 	// mark initial cells, by default, march outside
+ 	if(!inside) {
+ 		// mark all inside
+ 		FOR_IJK_BND(phi,1) {
+ 			if ( phi(i,j,k) < 0. ) { tmp(i,j,k) = 1; }
+ 		}
+ 	} else {
+ 		FOR_IJK_BND(phi,1) {
+ 			if ( phi(i,j,k) > 0. ) { tmp(i,j,k) = 1; }
+ 		}
+  	}
+	// + first layer next to initial cells
 	FOR_IJK_BND(vel,1) {
 		Vec3i p(i,j,k);
 		if ( tmp(p) ) continue;

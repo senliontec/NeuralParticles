@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * QT OpenGL widget
  *
@@ -240,6 +240,8 @@ bool GLWidget::keyProcess(int key, int modifier, bool down)
 		else if (key == Qt::Key_V && shift)         { emit painterEvent(Painter::EventNextVecDisplayMode); }
 		else if (key == Qt::Key_V)                  { emit painterEvent(Painter::EventNextVec);  updatePlane(mPlane); }
 		// grid scaling
+		else if (key == Qt::Key_Colon)              { emit painterEvent(Painter::EventScaleVecDownSm); }
+		else if (key == Qt::Key_QuoteDbl)           { emit painterEvent(Painter::EventScaleVecUpSm); }
 		else if (key == Qt::Key_Semicolon)          { emit painterEvent(Painter::EventScaleVecDown); }
 		else if (key == Qt::Key_Apostrophe)         { emit painterEvent(Painter::EventScaleVecUp); }
 

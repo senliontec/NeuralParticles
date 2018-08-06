@@ -84,11 +84,13 @@ namespace Manta
 		vel(i,j,k) = magnitude * getNormalized(tmp);
 	}
 
-	KERNEL(bnd=1) void knCosDisplacement(Grid<Real>& displacement, const Grid<Vec3>& grid, float fac) {
+	KERNEL(bnd=1) 
+	void knCosDisplacement(Grid<Real>& displacement, const Grid<Vec3>& grid, float fac) {
 		Vec3 v = getNormalized(grid(i,j,k));
 		displacement(i,j,k) = std::cos(std::acos(v.x) * fac) * std::cos(std::acos(v.y) * fac);
 		if(displacement.is3D()) displacement(i,j,k) *= std::cos(std::acos(v.z) * fac);
 	}
+
 
 	//
 	// python functions
@@ -235,10 +237,44 @@ namespace Manta
 	}
 
 
-	PYTHON() void cosDisplacement(Grid<Real> &disp, const Grid<Vec3> &grid, float fac) {
+	PYTHON() 
+	void cosDisplacement(Grid<Real> &disp, const Grid<Vec3> &grid, float fac) {
 		knCosDisplacement(disp, grid, fac);
 	}
-	/*PYTHON()
+
+	/*PYTHON() 
+	void getPointsOnSurface(std::vector<IndexInt> &onSurface, const BasicParticleSystem &x, const Grid<Real> &g, float thres) {
+		if(std::abs(g.getInterpolated(x[idx].pos)) < thres) {
+			onSurface.push_back(idx);
+		}
+	}
+
+	PYTHON() 
+	void getParticlePatches(PyArrayContainer patches, const BasicParticleSystem &x, const ParticleNeighbors &n, const Grid<Real> &g, float thres, int part_cnt, float pad_val) {
+		std::vector<IndexInt> patchCenters;
+		getPointsOnSurface(patchCenters, x, g, thres);
+ 
+		std::random_device rd;
+		std::mt19937 gen(rd());
+		gen.seed(23456);
+	
+		std::shuffle(patchCenters.begin(), patchCenters.end(), gen);
+
+		int j = 0;
+		for(const auto idx : patchCenters)
+		{
+			int i = 0;
+			for(ParticleNeighbors::Neighbors::const_iterator it=n.begin(idx); it!=n.end(i) && i < part_cnt; ++it, ++i) 
+			{
+				patches[j * part_cnt + i] = x[n.neighborIdx(it)].pos;
+			}		
+			for(; i < part_cnt; i++) {
+				patches[j * part_cnt + i] = pad_val;
+			}
+			j++;
+		}
+	}
+	PYTHON()
 	void extractSurfacePatches(const LevelsetGrid& phi0, const LevelsetGrid& phi1, float* patches, const int maxCnt, int* patchCnt, const float tol = 0.1f)
 	{
 		// TODO: use second levelset grid as reference + respect also scale!

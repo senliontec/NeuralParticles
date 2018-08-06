@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Grid representation
  *
@@ -173,11 +173,6 @@ public:
 	PYTHON() void setBound(T value, int boundaryWidth=1);
 	//! set all boundary cells to last inner value (Neumann)
 	PYTHON() void setBoundNeumann(int boundaryWidth=1);
-
-	//! for compatibility, old names:
-	PYTHON() Real getMaxAbsValue() { return getMaxAbs(); }
-	PYTHON() Real getMaxValue()    { return getMax(); }
-	PYTHON() Real getMinValue()    { return getMin(); }
 
 	//! debugging helper, print grid from Python
 	PYTHON() void printGrid(int zSlice=-1, int tSlice=-1,  bool printIndex=false, int bnd=0); 

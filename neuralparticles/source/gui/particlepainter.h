@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Painting particle systems
  *
@@ -33,7 +33,7 @@ public:
 	
 protected:
 	std::string getID();
-	int getScale();
+	Real getScale();
 	void update();
 	void updateText();
 	void processKeyEvent(PainterEvent e, int param);
@@ -51,7 +51,7 @@ protected:
 	bool mHavePdata;
 	Real mMaxVal;
 	std::string mPdataInfo;
-	std::map<PbClass*, int> mValScale; // 2^x
+	std::map<PbClass*, Real> mValScale;
 
 	void paintBasicSys();
 };    

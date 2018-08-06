@@ -7,7 +7,7 @@ import numpy as np
 
 import random
 
-import math
+import math, time
 
 
 def particle_range(arr, pos, r):
@@ -281,6 +281,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
             for t in range(t_start, t_stop):
                 for r in range(pv_start, pv_stop):
                     print(path_src%(d,v,t) + " (%d)"%r)
+                    
                     par, aux_par, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, pad_val=pad_val, par_aux=features, bnd=data_config['bnd']/fac_d)
                     main = np.append(main, par, axis=0)
                     pos = np.append(pos, positions, axis=0)

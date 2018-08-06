@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Preprocessor Main
  *
@@ -110,12 +110,12 @@ void doRegister(int argc, char* argv[]) {
 	
 	std::stringstream RegistrationsDefs;
 	std::stringstream Registrations;
-	for (int i = 2; i < argc-1; ++i) {
+	for (int i = 2; i < argc-1; i++) {
 		std::ifstream input(argv[i]);
 
 		for (std::string line; getline(input, line); )	{
 			int pos = line.find("void PbRegister_");
-			if (pos != std::string::npos) {
+			if (pos != (int)std::string::npos) {
 				std::string lineRegEnd = line.substr( pos, line.length() );
 				int endpos = lineRegEnd.find("{");
 				std::string lineFunc = lineRegEnd.substr( 0, endpos );

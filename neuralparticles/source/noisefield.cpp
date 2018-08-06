@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Noise field
  *
@@ -100,15 +100,15 @@ void WaveletNoiseField::generateTile( int loadFromFile) {
 	if(loadFromFile) {
 		FILE* fp = fopen(TILENAME,"rb"); 
 		if(fp) {
-			if(fread(noise3, sizeof(Real), n3d, fp)!=n3d) errMsg("Something wrong in fread()");
+			assertMsg( fread(noise3, sizeof(Real), n3d, fp) == n3d, "Failed to read wavelet noise tile, file invalid/corrupt? ("<<TILENAME<<") "); 
 			fclose(fp);
-			debMsg("noise tile loaded from file! " , 1);
+			debMsg("Noise tile loaded from file " TILENAME , 1);
 			mNoiseTile = noise3;
 			return;
 		}
 	}
 
-	debMsg("generating 3x " << n << "^3 noise tile " , 1);
+	debMsg("Generating 3x " << n << "^3 noise tile " , 1);
 	Real *temp13 = new Real[n3d];
 	Real *temp23 = new Real[n3d];
 
@@ -181,7 +181,7 @@ void WaveletNoiseField::generateTile( int loadFromFile) {
 		if(fp) {
 			fwrite(noise3, sizeof(Real), n3d, fp); 
 			fclose(fp);
-			debMsg( "saved to file! " , 1);
+			debMsg( "Noise field saved to file " , 1);
 		}
 	}
 }

@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * QT main window
  *
@@ -20,7 +20,6 @@
 #include <QAction>
 #include <QtOpenGL>
 #include <sstream>
-#include <iomanip>
 #include "meshpainter.h"
 #include "particlepainter.h"
 
@@ -137,8 +136,7 @@ void MainWnd::addControl(void* ctrl) {
 
 void MainWnd::setStep(int f, float time) {
 	std::stringstream s;
-	s.fill('0');
-	s << "Simulation frame " << std::setw(4) << f <<", time "<< std::fixed << std::setw(8) << std::setprecision(4) << time;
+	s << "Simulation frame " << f <<"\nTime "<<time; 
 	mInfo->setText(s.str().c_str());
 }
 
@@ -286,9 +284,6 @@ void MainWnd::nextParts() {
 }
 void MainWnd::nextPdata() {
 	emit painterEvent(Painter::EventToggleParticles); 
-}
-void MainWnd::nextRealDisplay() {
-	emit painterEvent(Painter::EventNextRealDisplayMode);
 }
 void MainWnd::nextVec3Display() {
 	emit painterEvent(Painter::EventNextVecDisplayMode); 

@@ -116,8 +116,8 @@ for i in range(t):
 	#reduceParticlesPoisson(pp, high_neighbor,factor,seed)
 	#reduceParticlesDens(pp, pD, factor, seed)
 	reduceParticlesNeighborsDens(pp, high_neighbor, pD, search_r, 1.0, minN, seed)
-	print(pD.getMinValue())
-	print(pD.getMaxValue())
+	print(pD.getMin())
+	print(pD.getMax())
 	lcnt = cntPts(t=pT, itype=FlagFluid)
 
 	print("particles reduced: %d -> %d (%.1f)" % (hcnt, lcnt, hcnt/lcnt))

@@ -34,16 +34,21 @@ def curvature(sdf):
     dif = np.gradient(normals(sdf))
     return (np.linalg.norm(dif[0],axis=-1)+np.linalg.norm(dif[1],axis=-1)+np.linalg.norm(dif[2],axis=-1))/3
 
+import time
 class ParticleIdxGrid:
     def __init__(self, particles, shape):
         #self.particles = particles
         self.shape = shape
         self.grid = np.empty(shape,dtype=object)
         self.grid[:] = [[[[] for x in range(shape[2])] for y in range(shape[1])] for z in range(shape[0])]
+        
+        t = np.zeros(len(particles))
         for i in range(len(particles)):
+            start = time.time()
             x,y,z = particles[i].astype(dtype="int32")
-            if x in range(self.shape[2]) and y in range(self.shape[1]) and z in range(self.shape[0]):
-                self.grid[z,y,x].append(i)
+            #if x in range(self.shape[2]) and y in range(self.shape[1]) and z in range(self.shape[0]):
+            self.grid[z,y,x].append(i)
+            t[i] = time.time() - start
 
     def get_cell(self, cell_idx):
         x,y,z = cell_idx.astype(dtype="int32")

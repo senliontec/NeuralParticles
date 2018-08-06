@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Use this file to test new functionality
  *
@@ -35,8 +35,10 @@ double minReduction(const Grid<Real>& v)
 		sum = v[idx];
 }
 
-// ... add own test code here if necessary ...
 
+
+
+// ... add more test code here if necessary ...
 
 } //namespace
 

@@ -81,16 +81,16 @@ class IISPH:
         # boundary setup
         self.gFlags.initDomain(self.bnd-1)
 
-        begin = self.pp.size()
-        sampleFlagsWithParticles(flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0, ftype=2, notiming=True)
-        end = self.pp.size()
+        begin = self.pp.pySize()
+        sampleFlagsWithParticles(flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0, ftype=2)
+        end = self.pp.pySize()
 
         self.pT.setConstRange(s=2, begin=begin, end=end, notiming=True)
 
         self.gFlags.updateFromLevelset(init_phi)
-        begin = self.pp.size()
+        begin = self.pp.pySize()
         sampleLevelsetWithParticles(phi=init_phi, flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0.3)
-        end = self.pp.size()
+        end = self.pp.pySize()
         self.pT.setConstRange(s=1, begin=begin, end=end, notiming=True)
 
         self.init_sph()
@@ -126,7 +126,7 @@ class IISPH:
         
         if self.sdt is None:
             adt = min(self.s.frameLength, self.kern.supportRadius()/self.sph.c)
-            adt = self.sph.limitDtByVmax(dt=adt, h=self.kern.supportRadius(), vmax=self.pV.getMaxAbsValue(), a=0.4)
+            adt = self.sph.limitDtByVmax(dt=adt, h=self.kern.supportRadius(), vmax=self.pV.getMaxAbs(), a=0.4)
             self.s.adaptTimestepByDt(adt)
         else:
             self.s.adaptTimestepByDt(self.sdt)

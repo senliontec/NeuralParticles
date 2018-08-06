@@ -4,8 +4,8 @@
  * Copyright 2011-2014 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Base class for all Python-exposed classes
  *
@@ -86,8 +86,8 @@ protected:
 
 //!\cond Register
 
-void pbFinalizePlugin(FluidSolver* parent, const std::string& name, const bool doTime=true);
-void pbPreparePlugin(FluidSolver* parent, const std::string& name, const bool doTime=true);
+void pbFinalizePlugin(FluidSolver* parent, const std::string& name, bool doTime=true);
+void pbPreparePlugin(FluidSolver* parent, const std::string& name, bool doTime=true);
 void pbSetError(const std::string& fn, const std::string& ex);
 
 //!\endcond

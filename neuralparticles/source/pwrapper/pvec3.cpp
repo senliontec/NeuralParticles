@@ -4,18 +4,16 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Vec3 class extension for python
  *
  ******************************************************************************/
 
 #include "pythonInclude.h"
-#include <math.h>
 #include <string>
 #include <sstream>
-#include <limits>
 #include "vectorbase.h"
 #include "structmember.h"
 #include "manta.h"

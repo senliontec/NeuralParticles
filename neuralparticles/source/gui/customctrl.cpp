@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * GUI extension from python
  *
@@ -135,6 +135,7 @@ extern GuiThread* gGuiThread;
 
 Gui::Gui() : 
 	PbClass(NULL), mGuiPtr(gGuiThread), mMainPtr(gMainThread) {     
+	if( getenv("MANTA_DISABLE_UI") && atoi( getenv("MANTA_DISABLE_UI") )) { errMsg("Cannot create GUI object, GUI disabled"); }
 }
 
 void Gui::setBackgroundMesh(Mesh* m) {
@@ -163,7 +164,6 @@ void Gui::nextParts()    { QMetaObject::invokeMethod(mGuiPtr->getWindow(), "next
 void Gui::nextPdata()    { QMetaObject::invokeMethod(mGuiPtr->getWindow(), "nextPdata" ); }
 void Gui::nextMesh()     { QMetaObject::invokeMethod(mGuiPtr->getWindow(), "nextMesh" ); }
 
-void Gui::nextRealDisplay() { QMetaObject::invokeMethod(mGuiPtr->getWindow(), "nextRealDisplay" ); }
 void Gui::nextVec3Display() { QMetaObject::invokeMethod(mGuiPtr->getWindow(), "nextVec3Display" ); }
 void Gui::nextPartDisplay() { QMetaObject::invokeMethod(mGuiPtr->getWindow(), "nextPartDisplay" ); }
 void Gui::nextMeshDisplay() { QMetaObject::invokeMethod(mGuiPtr->getWindow(), "nextMeshDisplay" ); }

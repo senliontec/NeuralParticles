@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Painting particle systems
  *
@@ -53,11 +53,13 @@ void ParticlePainter::update() {
 
 string ParticlePainter::getID() { return "ParticleBase"; }
 
-int ParticlePainter::getScale() {
+Real ParticlePainter::getScale() {
 	if (!mObject) return 0;
 	
 	if (mValScale.find(mObject) == mValScale.end()) {
-		mValScale[mObject] = 0;
+		Real s = 1.0;
+		//if (mLocalGrid->getType() & GridBase::TypeVec3) s = 0.4;
+		mValScale[mObject] = s;
 	}
 	return mValScale[mObject];
 	
@@ -67,9 +69,9 @@ void ParticlePainter::processKeyEvent(PainterEvent e, int param) {
 	if (e == EventNextSystem)
 		nextObject();
 	else if (e == EventScalePdataDown && mObject)
-		--mValScale[mObject];
+		mValScale[mObject] = getScale() * 0.5;
 	else if (e == EventScalePdataUp && mObject)
-		++mValScale[mObject];
+		mValScale[mObject] = getScale() * 2.0;
 	else if (e == EventToggleParticles) {
 		mMode++;  // apply modulo later depending on particle system
 		//if(mMode>PaintVel) mMode=PaintOff;
@@ -89,7 +91,7 @@ void ParticlePainter::updateText() {
 		s << mLocal->infoString() << endl;
 		s << mPdataInfo;
 		if(mHavePdata) {
-			s << "-> Max " << fixed << setprecision(2) << mMaxVal << endl << "-> Scale 2^" << getScale() << endl;
+			s << "-> Max " << fixed << setprecision(2) << mMaxVal << "  Scale " << getScale() << endl;
 		}
 	}
 	mInfo->setText( s.str().c_str() );    
@@ -178,8 +180,7 @@ void ParticlePainter::paintBasicSys() {
 	int dim = mGridRef->getDim();
 	Real factor = mGridRef->getMax() / mLocal->getParent()->getGridSize()[dim];
 	int plane = factor * mGridRef->getPlane();
-	const int sscale = getScale();
-	const Real scale = (sscale<0) ? 1./(1<<-sscale) : (1<<sscale);
+	Real scale = getScale(); 
 	float dx = mLocal->getParent()->getDx();
 
 	// draw other particle data, if available

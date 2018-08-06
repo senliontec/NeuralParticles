@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Python argument wrappers and conversion tools
  *
@@ -210,7 +210,11 @@ protected:
 	std::vector<void*> mTmpStorage;
 };
 
-
 } // namespace
+
+#if NUMPY==1
+#include "numpyWrap.h"
+#endif
+
 #endif
 #endif

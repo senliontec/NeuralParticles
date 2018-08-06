@@ -4,13 +4,12 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Random numbers
  *
- * Based on GPL code by Makoto Matsumoto, Takuji Nishimura, and Shawn Cokus
- * Richard J. Wagner  v0.5  7 November 2000  rjwagner@writeme.com
+ * Based on an example by Makoto Matsumoto, Takuji Nishimura, Shawn Cokus, and Richard J. Wagner
  *
  ******************************************************************************/
 
@@ -20,10 +19,8 @@
 namespace Manta {
 
 #include <iostream>
-#include <limits.h>
 #include <stdio.h>
 #include <time.h>
-#include <math.h>
 #include "vectorbase.h"
 
 class MTRand {
@@ -289,14 +286,14 @@ inline MTRand::uint32 MTRand::hash( time_t t, clock_t c )
 	unsigned char *p = (unsigned char *) &t;
 	for( size_t i = 0; i < sizeof(t); ++i )
 	{
-		h1 *= UCHAR_MAX + 2U;
+		h1 *= std::numeric_limits<unsigned char>::max() + 2U;
 		h1 += p[i];
 	}
 	uint32 h2 = 0;
 	p = (unsigned char *) &c;
 	for( size_t j = 0; j < sizeof(c); ++j )
 	{
-		h2 *= UCHAR_MAX + 2U;
+		h2 *= std::numeric_limits<unsigned char>::max() + 2U;
 		h2 += p[j];
 	}
 	return ( h1 + differ++ ) ^ h2;

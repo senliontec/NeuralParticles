@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Plugin timing
  *
@@ -13,7 +13,6 @@
 
 #include "timing.h"
 #include <fstream>
-#include <iomanip>
 
 using namespace std;
 namespace Manta {
@@ -72,42 +71,43 @@ void TimingData::print() {
 		for (vector<TimingSet>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++)
 			total += it2->cur;
 
-	std::cout << std::endl << "-- STEP " << std::setw(3) << num << " ----------------------------" << std::endl;
+	printf("\n-- STEP %3d ----------------------------\n", num);
 	for (it = mData.begin(); it != mData.end(); it++) {
 		for (vector<TimingSet>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
 			if (!it2->updated) continue;
 			string name = it->first;
 			if (it->second.size() > 1 && !it2->solver.empty())
 				name += "[" + it2->solver + "]";
-			std::cout << "["<< std::fixed << std::setw(5) << std::setprecision(2) <<
-				(100.0*((Real)it2->cur.time / (Real)total.time)) << "%] " <<
-				name << " (" << std::setprecision(5) << it2->cur << ")" << std::endl;
+			printf("[%4.1f%%] %s (%s)\n", 100.0*((Real)it2->cur.time / (Real)total.time),
+										  name.c_str(), it2->cur.toString().c_str());
 		}
 	}
 	step();
-
-	std::cout << std::string(40, '-') << std::endl <<
-		"Total: " << std::fixed << std::setprecision(5) << total << std::endl << std::endl;
+		
+	printf("----------------------------------------\n");
+	printf("Total : %s\n\n", total.toString().c_str());
 }
 
 void TimingData::saveMean(const string& filename) {
 	ofstream ofs(filename.c_str());
-	if (!ofs.good()) errMsg("can't open " + filename + " as timing log");
+	step();
+	if (!ofs.good())
+		errMsg("can't open " + filename + " as timing log");
 	ofs << "Mean timings of " << num << " steps :" <<endl <<endl;
 	MuTime total;
 	total.clear();
-	std::map< std::string, std::vector<TimingSet> >::iterator it;
+	std::map<std::string, std::vector<TimingSet> >::iterator it;
 	for (it = mData.begin(); it != mData.end(); it++)
 		for (vector<TimingSet>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
-			total += it2->total;
+			total += it2->cur;
 			string name = it->first;
 			if (it->second.size() > 1)
 				name += "[" + it2->solver + "]";
-
-			ofs << name << " " << (it2->total / it2->num) << " (" << it2->num << " calls)" << endl;
+			
+			ofs << name << " " << (it2->total / it2->num) << endl;
 		}
 	 
-	ofs << endl << "Total : " << total.toSecond() << "s (mean " << total.toSecond()/num << "s)" << endl;
+	ofs << endl << "Total : " << total << " (mean " << total/num << ")" << endl;
 	ofs.close();
 }
  

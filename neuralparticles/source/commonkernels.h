@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Common grid kernels
  *
@@ -23,7 +23,7 @@ namespace Manta {
    
 //! Kernel: Invert real values, if positive and fluid
 KERNEL(idx) 
-void InvertCheckFluid (FlagGrid& flags, Grid<Real>& grid) 
+void InvertCheckFluid (const FlagGrid& flags, Grid<Real>& grid)
 {
 	if (flags.isFluid(idx) && grid[idx] > 0)
 		grid[idx] = 1.0 / grid[idx];
@@ -31,12 +31,13 @@ void InvertCheckFluid (FlagGrid& flags, Grid<Real>& grid)
 
 //! Kernel: Squared sum over grid
 KERNEL(idx, reduce=+) returns(double sum=0)
-double GridSumSqr (Grid<Real>& grid) {
+double GridSumSqr (const Grid<Real>& grid) {
 	sum += square((double)grid[idx]);
 }
 
 //! Kernel: rotation operator \nabla x v for centered vector fields
-KERNEL(bnd=1) void CurlOp (const Grid<Vec3>& grid, Grid<Vec3>& dst) {
+KERNEL(bnd=1) 
+void CurlOp (const Grid<Vec3>& grid, Grid<Vec3>& dst) {
 	Vec3 v = Vec3(0. , 0. , 
 			   0.5*((grid(i+1,j,k).y - grid(i-1,j,k).y) - (grid(i,j+1,k).x - grid(i,j-1,k).x)) );
 	if(dst.is3D()) {
@@ -47,13 +48,16 @@ KERNEL(bnd=1) void CurlOp (const Grid<Vec3>& grid, Grid<Vec3>& dst) {
 };
 
 //! Kernel: divergence operator (from MAC grid)
-KERNEL(bnd=1) void DivergenceOpMAC(Grid<Real>& div, const MACGrid& grid) {
-	div(i,j,k) = grid(i+1, j, k).x - grid(i, j, k).x + grid(i, j+1, k).y - grid(i, j, k).y;
-	if(grid.is3D()) div(i, j, k) += grid(i, j, k+1).z - grid(i, j, k).z;
+KERNEL(bnd=1) 
+void DivergenceOpMAC(Grid<Real>& div, const MACGrid& grid) {
+	Vec3 del = Vec3(grid(i+1,j,k).x, grid(i,j+1,k).y, 0.) - grid(i,j,k); 
+	if(grid.is3D()) del[2] += grid(i,j,k+1).z;
+	else            del[2]  = 0.;
+	div(i,j,k) = del.x + del.y + del.z;
 }
 
 //! Kernel: gradient operator for MAC grid
-KERNEL(bnd=1) void GradientOpMAC(MACGrid& gradient, const Grid<Real>& grid) {
+KERNEL(bnd=1)void GradientOpMAC(MACGrid& gradient, const Grid<Real>& grid) {
 	Vec3 grad = (Vec3(grid(i,j,k)) - Vec3(grid(i-1,j,k), grid(i,j-1,k), 0. ));
 	if(grid.is3D()) grad[2] -= grid(i,j,k-1);
 	else            grad[2]  = 0.;

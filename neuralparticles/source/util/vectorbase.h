@@ -4,8 +4,8 @@
  * Copyright 2011-2016 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Basic vector class
  *
@@ -21,7 +21,7 @@
 
 #include <stdio.h>
 #include <string>
-#include <cmath>
+#include <limits>
 #include <iostream>
 #include "general.h"
 
@@ -49,30 +49,11 @@
 // value as a threshold.
 #if FLOATINGPOINT_PRECISION==1
 	typedef float Real;
-#   define FP_REAL_MAX __FLT_MAX__
 #   define VECTOR_EPSILON (1e-6f)
 #else
 	typedef double Real;
-#   define FP_REAL_MAX __DBL_MAX__
 #   define VECTOR_EPSILON (1e-10)
 #endif
-
-// windos, hardcoded limits for now (e.g. MSVC compiler)
-// some of these defines can be needed for linux systems as well (e.g. FLT_MAX)
-#ifndef __FLT_MAX__
-#   ifdef FLT_MAX  // try to use it instead
-#       define __FLT_MAX__ FLT_MAX
-#   else 
-#       define __FLT_MAX__ 3.402823466e+38f
-#   endif // FLT_MAX
-#endif 
-#ifndef __DBL_MAX__
-#   ifdef DBL_MAX // try to use it instead
-#       define __DBL_MAX__ DBL_MAX
-#   else 
-#       define __DBL_MAX__ 1.7976931348623158e+308
-#   endif // DBL_MAX
-#endif 
 
 #ifndef M_PI
 #   define M_PI 3.1415926536
@@ -94,6 +75,9 @@ public:
 	
 	//! Copy-Constructor
 	inline Vector3D ( const Vector3D<S> &v ) : x(v.x), y(v.y), z(v.z) {}
+
+        //! Copy-Constructor
+        inline Vector3D ( const int * v) : x((S)v[0]), y((S)v[1]), z((S)v[2]) {}
 
 	//! Copy-Constructor
 	inline Vector3D ( const float * v) : x((S)v[0]), y((S)v[1]), z((S)v[2]) {}
@@ -392,14 +376,18 @@ inline S norm ( const Vector3D<S>& v ) {
 	if     (        l      <= VECTOR_EPSILON*VECTOR_EPSILON ) return(0.);
 	return ( fabs ( l-1. ) <  VECTOR_EPSILON*VECTOR_EPSILON ) ? 1. : sqrt ( l );
 }
-inline Real norm(const Real v) { return fabs(v); }
 
 //! Compute squared magnitude
 template<class S>
 inline S normSquare ( const Vector3D<S>& v ) {
 	return v.x*v.x + v.y*v.y + v.z*v.z;
 }
+
+//! compatibility, allow use of int, Real and Vec inputs with norm/normSquare
+inline Real norm(const Real v) { return fabs(v); }
 inline Real normSquare(const Real v) { return square(v); }
+inline Real norm(const int v) { return abs(v); }
+inline Real normSquare(const int v) { return square(v); }
 
 //! Returns a normalized vector
 template<class S>

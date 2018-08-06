@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Functions for property setting/getting via python
  *
@@ -33,13 +33,13 @@ namespace Manta {
 //******************************************************************************
 // Free functions
 
-void pbPreparePlugin(FluidSolver* parent, const string& name, const bool doTime) {
+void pbPreparePlugin(FluidSolver* parent, const string& name, bool doTime) {
 	if(doTime) TimingData::instance().start(parent, name);
 }
 
-void pbFinalizePlugin(FluidSolver *parent, const string& name, const bool doTime) {
-	if(doTime) TimingData::instance().stop(parent, name);
-
+void pbFinalizePlugin(FluidSolver *parent, const string& name, bool doTime) {
+    if(doTime) TimingData::instance().stop(parent, name);
+	
 	// GUI update, also print name of parent if there's more than one
 	std::ostringstream msg;
 	if (name != "FluidSolver::step") 

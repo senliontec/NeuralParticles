@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Conjugate gradient solver
  *
@@ -46,6 +46,9 @@ class GridCgInterface {
 		virtual void setAccuracy(Real set) = 0;
 		virtual Real getAccuracy() const = 0;
 
+		//! force reinit upon next iterate() call, can be used for doing multiple solves
+		virtual void forceReinit() = 0;
+
 		void setUseL2Norm(bool set) { mUseL2Norm = set; }
 
 	protected:
@@ -63,7 +66,7 @@ template<class APPLYMAT>
 class GridCg : public GridCgInterface {
 	public:
 		//! constructor
-		GridCg(Grid<Real>& dst, Grid<Real>& rhs, Grid<Real>& residual, Grid<Real>& search, FlagGrid& flags, Grid<Real>& tmp, 
+		GridCg(Grid<Real>& dst, Grid<Real>& rhs, Grid<Real>& residual, Grid<Real>& search, const FlagGrid& flags, Grid<Real>& tmp, 
 				Grid<Real>* A0, Grid<Real>* pAi, Grid<Real>* pAj, Grid<Real>* pAk);
 		~GridCg() {}
 		
@@ -73,6 +76,7 @@ class GridCg : public GridCgInterface {
 		//! init pointers, and copy values from "normal" matrix
 		void setICPreconditioner(PreconditionType method, Grid<Real> *A0, Grid<Real> *Ai, Grid<Real> *Aj, Grid<Real> *Ak);
 		void setMGPreconditioner(PreconditionType method, GridMg* MG);
+		void forceReinit() { mInited = false; }
 		
 		// Accessors        
 		Real getSigma() const { return mSigma; }
@@ -91,7 +95,7 @@ class GridCg : public GridCgInterface {
 		Grid<Real>& mRhs;
 		Grid<Real>& mResidual;
 		Grid<Real>& mSearch;
-		FlagGrid& mFlags;
+		const FlagGrid& mFlags;
 		Grid<Real>& mTmp;
 
 		Grid<Real> *mpA0, *mpAi, *mpAj, *mpAk;
@@ -112,7 +116,7 @@ class GridCg : public GridCgInterface {
 
 //! Kernel: Apply symmetric stored Matrix
 KERNEL(idx) 
-void ApplyMatrix (FlagGrid& flags, Grid<Real>& dst, Grid<Real>& src, 
+void ApplyMatrix (const FlagGrid& flags, Grid<Real>& dst, const Grid<Real>& src, 
 				  Grid<Real>& A0, Grid<Real>& Ai, Grid<Real>& Aj, Grid<Real>& Ak)
 {
 	if (!flags.isFluid(idx)) {
@@ -130,7 +134,7 @@ void ApplyMatrix (FlagGrid& flags, Grid<Real>& dst, Grid<Real>& src,
 
 //! Kernel: Apply symmetric stored Matrix. 2D version
 KERNEL(idx) 
-void ApplyMatrix2D (FlagGrid& flags, Grid<Real>& dst, Grid<Real>& src, 
+void ApplyMatrix2D (const FlagGrid& flags, Grid<Real>& dst, const Grid<Real>& src, 
 					Grid<Real>& A0, Grid<Real>& Ai, Grid<Real>& Aj, Grid<Real>& Ak)
 {
 	unusedParameter(Ak); // only there for parameter compatibility with ApplyMatrix
@@ -148,37 +152,36 @@ void ApplyMatrix2D (FlagGrid& flags, Grid<Real>& dst, Grid<Real>& src,
 
 //! Kernel: Construct the matrix for the poisson equation
 KERNEL (bnd=1) 
-void MakeLaplaceMatrix(const FlagGrid &flags, Grid<Real> &A0, Grid<Real> &Ai, Grid<Real> &Aj, Grid<Real> &Ak, const MACGrid *fractions=NULL)
-{
+void MakeLaplaceMatrix(const FlagGrid& flags, Grid<Real>& A0, Grid<Real>& Ai, Grid<Real>& Aj, Grid<Real>& Ak, const MACGrid* fractions = 0) {
 	if (!flags.isFluid(i,j,k))
 		return;
 	
 	if(!fractions) {
 		// diagonal, A0
-		if (!flags.isObstacle(i-1,j,k)) A0(i,j,k) += 1.;
-		if (!flags.isObstacle(i+1,j,k)) A0(i,j,k) += 1.;
-		if (!flags.isObstacle(i,j-1,k)) A0(i,j,k) += 1.;
-		if (!flags.isObstacle(i,j+1,k)) A0(i,j,k) += 1.;
+		if (!flags.isObstacle(i-1,j,k))                 A0(i,j,k) += 1.;
+		if (!flags.isObstacle(i+1,j,k))                 A0(i,j,k) += 1.;
+		if (!flags.isObstacle(i,j-1,k))                 A0(i,j,k) += 1.;
+		if (!flags.isObstacle(i,j+1,k))                 A0(i,j,k) += 1.;
 		if (flags.is3D() && !flags.isObstacle(i,j,k-1)) A0(i,j,k) += 1.;
 		if (flags.is3D() && !flags.isObstacle(i,j,k+1)) A0(i,j,k) += 1.;
 		
 		// off-diagonal entries
-		if (flags.isFluid(i+1,j,k)) Ai(i,j,k) = -1.;
-		if (flags.isFluid(i,j+1,k)) Aj(i,j,k) = -1.;
+		if (flags.isFluid(i+1,j,k))                 Ai(i,j,k) = -1.;
+		if (flags.isFluid(i,j+1,k))                 Aj(i,j,k) = -1.;
 		if (flags.is3D() && flags.isFluid(i,j,k+1)) Ak(i,j,k) = -1.;
 	} else {
 		// diagonal
-		A0(i,j,k) += fractions->get(i,j,k).x;
-		A0(i,j,k) += fractions->get(i+1,j,k).x;
-		A0(i,j,k) += fractions->get(i,j,k).y;
-		A0(i,j,k) += fractions->get(i,j+1,k).y;
-		if (flags.is3D()) A0(i,j,k) += fractions->get(i,j,k).z;
+		A0(i,j,k)                   += fractions->get(i  ,j,k).x;
+		A0(i,j,k)                   += fractions->get(i+1,j,k).x;
+		A0(i,j,k)                   += fractions->get(i,j  ,k).y;
+		A0(i,j,k)                   += fractions->get(i,j+1,k).y;
+		if (flags.is3D()) A0(i,j,k) += fractions->get(i,j,k  ).z;
 		if (flags.is3D()) A0(i,j,k) += fractions->get(i,j,k+1).z;
 
 		// off-diagonal entries
-		Ai(i,j,k) = -fractions->get(i+1,j,k).x;
-		Aj(i,j,k) = -fractions->get(i,j+1,k).y;
-		if (flags.is3D()) Ak(i,j,k) = -fractions->get(i,j,k+1).z;
+		if (flags.isFluid(i+1,j,k))                 Ai(i,j,k) = -fractions->get(i+1,j,k).x;
+		if (flags.isFluid(i,j+1,k))                 Aj(i,j,k) = -fractions->get(i,j+1,k).y;
+		if (flags.is3D() && flags.isFluid(i,j,k+1)) Ak(i,j,k) = -fractions->get(i,j,k+1).z;
 	}
 
 }

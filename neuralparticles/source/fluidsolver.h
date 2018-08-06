@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Main class for the fluid solver
  *
@@ -29,13 +29,11 @@ public:
 	PYTHON() FluidSolver(Vec3i gridSize, int dim=3, int fourthDim=-1);
 	virtual ~FluidSolver();
 	
-	PYTHON() void updateTimeState(const int frame) { mFrame=frame; mTimeTotal=(double)mFrame * mFrameLength; }
-
 	// accessors
 	PYTHON() Vec3i getGridSize() { return mGridSize; }
-	PYTHON() Real  getDx()       { return 1.0 / mGridSize.max(); }
-	inline Real    getDt()       { return mDt; }
-	inline Real    getTime()     { return mTimeTotal; }
+	inline Real  getDt() const      { return mDt; }
+	inline Real  getDx() const      { return 1.0 / mGridSize.max(); }
+	inline Real  getTime() const    { return mTimeTotal; }
 
 	//! Check dimensionality
 	inline bool is2D() const { return mDim==2; }

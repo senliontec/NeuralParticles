@@ -20,47 +20,56 @@ using namespace std;
 
 namespace Manta { 
 
-//! add Forces between fl/fl and fl/em cells (interpolate cell centered forces to MAC grid)
-KERNEL(bnd=1) void KnAddForceField(FlagGrid& flags, MACGrid& vel, Grid<Vec3>& force) {
+//! add constant force between fl/fl and fl/em cells
+KERNEL(bnd=1) void KnApplyForceField(const FlagGrid& flags, MACGrid& vel, const Grid<Vec3>& force, const Grid<Real>* include, bool additive, bool isMAC) {
 	bool curFluid = flags.isFluid(i,j,k);
 	bool curEmpty = flags.isEmpty(i,j,k);
 	if (!curFluid && !curEmpty) return;
-	
+	if (include && ((*include)(i,j,k) > 0.)) return;
+
+	Real forceX = (isMAC) ? force(i,j,k).x : 0.5*(force(i-1,j,k).x + force(i,j,k).x);
+	Real forceY = (isMAC) ? force(i,j,k).y : 0.5*(force(i,j-1,k).y + force(i,j,k).y);
+
+	Real forceZ = 0.;
+	if(vel.is3D())  
+		forceZ =  (isMAC) ? force(i,j,k).z : 0.5*(force(i,j,k-1).z + force(i,j,k).z);
+
 	if (flags.isFluid(i-1,j,k) || (curFluid && flags.isEmpty(i-1,j,k))) 
-		vel(i,j,k).x += 0.5*(force(i-1,j,k).x + force(i,j,k).x);
+		vel(i,j,k).x = (additive) ? vel(i,j,k).x+forceX : forceX;
 	if (flags.isFluid(i,j-1,k) || (curFluid && flags.isEmpty(i,j-1,k))) 
-		vel(i,j,k).y += 0.5*(force(i,j-1,k).y + force(i,j,k).y);
+		vel(i,j,k).y = (additive) ? vel(i,j,k).y+forceY : forceY;
 	if (vel.is3D() && (flags.isFluid(i,j,k-1) || (curFluid && flags.isEmpty(i,j,k-1))))
-		vel(i,j,k).z += 0.5*(force(i,j,k-1).z + force(i,j,k).z);
+		vel(i,j,k).z = (additive) ? vel(i,j,k).z+forceZ : forceZ;
 }
 
 //! add constant force between fl/fl and fl/em cells
-KERNEL(bnd=1) void KnAddForce(const FlagGrid& flags, MACGrid& vel, const Vec3& force) {
+KERNEL(bnd=1) void KnApplyForce(const FlagGrid& flags, MACGrid& vel, Vec3 force, const Grid<Real>* exclude, bool additive) {
 	bool curFluid = flags.isFluid(i,j,k);
 	bool curEmpty = flags.isEmpty(i,j,k);
 	if (!curFluid && !curEmpty) return;
-	
+	if (exclude && ((*exclude)(i,j,k) < 0.)) return;
+
 	if (flags.isFluid(i-1,j,k) || (curFluid && flags.isEmpty(i-1,j,k))) 
-		vel(i,j,k).x += force.x;
+		vel(i,j,k).x = (additive) ? vel(i,j,k).x+force.x : force.x;
 	if (flags.isFluid(i,j-1,k) || (curFluid && flags.isEmpty(i,j-1,k))) 
-		vel(i,j,k).y += force.y;
+		vel(i,j,k).y = (additive) ? vel(i,j,k).y+force.y : force.y;
 	if (vel.is3D() && (flags.isFluid(i,j,k-1) || (curFluid && flags.isEmpty(i,j,k-1))))
-		vel(i,j,k).z += force.z;
+		vel(i,j,k).z = (additive) ? vel(i,j,k).z+force.z : force.z;
 }
 
-//! add gravity forces to all fluid cells
-PYTHON() void addGravity(FlagGrid& flags, MACGrid& vel, const Vec3& gravity) {
-	const Vec3 f = gravity * flags.getParent()->getDt() / flags.getDx();
-	KnAddForce(flags, vel, f);
+//! add gravity forces to all fluid cells, automatically adapts to different grid sizes
+PYTHON() void addGravity(const FlagGrid& flags, MACGrid& vel, Vec3 gravity, const Grid<Real>* exclude=NULL) {
+	Vec3 f = gravity * flags.getParent()->getDt() / flags.getDx();
+	KnApplyForce(flags, vel, f, exclude, true);
 }
-//! add gravity forces to all fluid cells
-PYTHON() void addGravityNoScale(FlagGrid& flags, MACGrid& vel, const Vec3& gravity) {
+//! add gravity forces to all fluid cells , but dont account for changing cell size
+PYTHON() void addGravityNoScale(const FlagGrid& flags, MACGrid& vel, const Vec3& gravity, const Grid<Real>* exclude=NULL) {
 	const Vec3 f = gravity * flags.getParent()->getDt();
-	KnAddForce(flags, vel, f);
+	KnApplyForce(flags, vel, f, exclude, true);
 }
 
 //! kernel to add Buoyancy force 
-KERNEL(bnd=1) void KnAddBuoyancy(FlagGrid& flags, Grid<Real>& factor, MACGrid& vel, Vec3 strength) {    
+KERNEL(bnd=1) void KnAddBuoyancy(const FlagGrid& flags, const Grid<Real>& factor, MACGrid& vel, Vec3 strength) {    
 	if (!flags.isFluid(i,j,k)) return;
 	if (flags.isFluid(i-1,j,k))
 		vel(i,j,k).x += (0.5 * strength.x) * (factor(i,j,k)+factor(i-1,j,k));
@@ -71,7 +80,7 @@ KERNEL(bnd=1) void KnAddBuoyancy(FlagGrid& flags, Grid<Real>& factor, MACGrid& v
 }
 
 //! add Buoyancy force based on fctor (e.g. smoke density)
-PYTHON() void addBuoyancy(FlagGrid& flags, Grid<Real>& density, MACGrid& vel, Vec3 gravity, Real coefficient=1.) {
+PYTHON() void addBuoyancy(const FlagGrid& flags, const Grid<Real>& density, MACGrid& vel, Vec3 gravity, Real coefficient=1.) {
 	Vec3 f = -gravity * flags.getParent()->getDt() / flags.getParent()->getDx() * coefficient;
 	KnAddBuoyancy(flags,density, vel, f);
 }
@@ -173,21 +182,28 @@ PYTHON() void setInflowBcs(MACGrid& vel, string dir, Vec3 value) {
 // set obstacle boundary conditions
 
 //! set no-stick wall boundary condition between ob/fl and ob/ob cells
-KERNEL() void KnSetWallBcs(const FlagGrid& flags, MACGrid& vel) {
+KERNEL() void KnSetWallBcs(const FlagGrid& flags, MACGrid& vel, const MACGrid* obvel) {
 
 	bool curFluid = flags.isFluid(i,j,k);
 	bool curObs   = flags.isObstacle(i,j,k);
-	if (!curFluid && !curObs) return; 
+	Vec3 bcsVel(0.,0.,0.);
+	if (!curFluid && !curObs) return;
+
+	if (obvel) {
+		bcsVel.x = (*obvel)(i,j,k).x;
+		bcsVel.y = (*obvel)(i,j,k).y;
+		if((*obvel).is3D()) bcsVel.z = (*obvel)(i,j,k).z;
+	}
 
 	// we use i>0 instead of bnd=1 to check outer wall
-	if (i>0 && flags.isObstacle(i-1,j,k))						 vel(i,j,k).x = 0;
-	if (i>0 && curObs && flags.isFluid(i-1,j,k))				 vel(i,j,k).x = 0;
-	if (j>0 && flags.isObstacle(i,j-1,k))						 vel(i,j,k).y = 0;
-	if (j>0 && curObs && flags.isFluid(i,j-1,k))				 vel(i,j,k).y = 0;
+	if (i>0 && flags.isObstacle(i-1,j,k))						 vel(i,j,k).x = bcsVel.x;
+	if (i>0 && curObs && flags.isFluid(i-1,j,k))				 vel(i,j,k).x = bcsVel.x;
+	if (j>0 && flags.isObstacle(i,j-1,k))						 vel(i,j,k).y = bcsVel.y;
+	if (j>0 && curObs && flags.isFluid(i,j-1,k))				 vel(i,j,k).y = bcsVel.y;
 
 	if(!vel.is3D()) {                            				vel(i,j,k).z = 0; } else {
-	if (k>0 && flags.isObstacle(i,j,k-1))		 				vel(i,j,k).z = 0;
-	if (k>0 && curObs && flags.isFluid(i,j,k-1)) 				vel(i,j,k).z = 0; }
+	if (k>0 && flags.isObstacle(i,j,k-1))		 				vel(i,j,k).z = bcsVel.z;
+	if (k>0 && curObs && flags.isFluid(i,j,k-1)) 				vel(i,j,k).z = bcsVel.z; }
 	
 	if (curFluid) {
 		if ((i>0 && flags.isStick(i-1,j,k)) || (i<flags.getSizeX()-1 && flags.isStick(i+1,j,k)))
@@ -200,11 +216,13 @@ KERNEL() void KnSetWallBcs(const FlagGrid& flags, MACGrid& vel) {
 }
 
 //! set wall BCs for fill fraction mode, note - only needs obstacle SDF
-KERNEL() void KnSetWallBcsFrac(const FlagGrid& flags, const MACGrid& vel, MACGrid& velTarget, const Grid<Real>* phiObs, const int &boundaryWidth=0) {
+KERNEL() void KnSetWallBcsFrac(const FlagGrid& flags, const MACGrid& vel, MACGrid& velTarget, const MACGrid* obvel,
+							const Grid<Real>* phiObs, const int &boundaryWidth=0) 
+{ 
 	bool curFluid = flags.isFluid(i,j,k);
 	bool curObs   = flags.isObstacle(i,j,k);
 	velTarget(i,j,k) = vel(i,j,k);
-	if (!curFluid && !curObs) return; 
+	if (!curFluid && !curObs) return;
 
 	// zero normal component in all obstacle regions
 	if(flags.isInBounds(Vec3i(i,j,k),1)) {
@@ -230,7 +248,11 @@ KERNEL() void KnSetWallBcsFrac(const FlagGrid& flags, const MACGrid& vel, MACGri
 
 		normalize(dphi); 
 		Vec3 velMAC = vel.getAtMACX(i,j,k);
-		velTarget(i,j,k).x = velMAC.x - dot(dphi, velMAC) * dphi.x; 
+		velTarget(i,j,k).x = velMAC.x - dot(dphi, velMAC) * dphi.x;
+		if (obvel) { // TODO (sebbas): TBC
+			Vec3 obvelMAC = (*obvel).getAtMACX(i,j,k);
+			velTarget(i,j,k).x += dot(dphi, obvelMAC) * dphi.x;
+		}
 	}
 
 	if( curObs | flags.isObstacle(i,j-1,k) )  { 
@@ -253,7 +275,11 @@ KERNEL() void KnSetWallBcsFrac(const FlagGrid& flags, const MACGrid& vel, MACGri
 
 		normalize(dphi); 
 		Vec3 velMAC = vel.getAtMACY(i,j,k);
-		velTarget(i,j,k).y = velMAC.y - dot(dphi, velMAC) * dphi.y; 
+		velTarget(i,j,k).y = velMAC.y - dot(dphi, velMAC) * dphi.y;
+		if (obvel) { // TODO (sebbas): TBC
+			Vec3 obvelMAC = (*obvel).getAtMACY(i,j,k);
+			velTarget(i,j,k).y += dot(dphi, obvelMAC) * dphi.y;
+		}
 	}
 
 	if( phiObs->is3D() && (curObs | flags.isObstacle(i,j,k-1)) )  {
@@ -277,7 +303,11 @@ KERNEL() void KnSetWallBcsFrac(const FlagGrid& flags, const MACGrid& vel, MACGri
 
 		normalize(dphi); 
 		Vec3 velMAC = vel.getAtMACZ(i,j,k);
-		velTarget(i,j,k).z = velMAC.z - dot(dphi, velMAC) * dphi.z; 
+		velTarget(i,j,k).z = velMAC.z - dot(dphi, velMAC) * dphi.z;
+		if (obvel) { // TODO (sebbas): TBC
+			Vec3 obvelMAC = (*obvel).getAtMACZ(i,j,k);
+			velTarget(i,j,k).z += dot(dphi, obvelMAC) * dphi.z;
+		}
 	}
 	} // not at boundary
 
@@ -285,16 +315,49 @@ KERNEL() void KnSetWallBcsFrac(const FlagGrid& flags, const MACGrid& vel, MACGri
 
 //! set zero normal velocity boundary condition on walls
 // (optionally with second order accuracy using the obstacle SDF , fractions grid currentlyl not needed)
-PYTHON() void setWallBcs(const FlagGrid& flags, MACGrid& vel, const MACGrid* fractions=0, const Grid<Real>* phiObs=0, const int boundaryWidth=0) {
-	if(!phiObs) {
-		KnSetWallBcs(flags, vel);
+PYTHON() void setWallBcs(const FlagGrid& flags, MACGrid& vel, const MACGrid* obvel = 0, const MACGrid* fractions = 0, const Grid<Real>* phiObs = 0, int boundaryWidth=0) {
+	if(!phiObs || !fractions) {
+		KnSetWallBcs(flags, vel, obvel);
 	} else {
 		MACGrid tmpvel(vel.getParent());
-		KnSetWallBcsFrac(flags, vel, tmpvel, phiObs, boundaryWidth);
+		KnSetWallBcsFrac(flags, vel, tmpvel, obvel, phiObs, boundaryWidth);
 		vel.swap(tmpvel);
 	}
 }
 
+//! add Forces between fl/fl and fl/em cells (interpolate cell centered forces to MAC grid)
+KERNEL(bnd=1) void KnAddForceIfLower(const FlagGrid& flags, MACGrid& vel, const Grid<Vec3>& force) {
+	bool curFluid = flags.isFluid(i,j,k);
+	bool curEmpty = flags.isEmpty(i,j,k);
+	if (!curFluid && !curEmpty) return;
+
+	if (flags.isFluid(i-1,j,k) || (curFluid && flags.isEmpty(i-1,j,k))) {
+		Real forceMACX = 0.5*(force(i-1,j,k).x + force(i,j,k).x);
+		Real min = std::min(vel(i,j,k).x, forceMACX);
+		Real max = std::max(vel(i,j,k).x, forceMACX);
+		Real sum = vel(i,j,k).x + forceMACX;
+		vel(i,j,k).x = (forceMACX > 0) ? std::min(sum, max) : std::max(sum, min);
+	}
+	if (flags.isFluid(i,j-1,k) || (curFluid && flags.isEmpty(i,j-1,k))) {
+		Real forceMACY = 0.5*(force(i,j-1,k).y + force(i,j,k).y);
+		Real min = std::min(vel(i,j,k).y, forceMACY);
+		Real max = std::max(vel(i,j,k).y, forceMACY);
+		Real sum = vel(i,j,k).y + forceMACY;
+		vel(i,j,k).y = (forceMACY > 0) ? std::min(sum, max) : std::max(sum, min);
+	}
+	if (vel.is3D() && (flags.isFluid(i,j,k-1) || (curFluid && flags.isEmpty(i,j,k-1)))) {
+		Real forceMACZ = 0.5*(force(i,j,k-1).z + force(i,j,k).z);
+		Real min = std::min(vel(i,j,k).z, forceMACZ);
+		Real max = std::max(vel(i,j,k).z, forceMACZ);
+		Real sum = vel(i,j,k).z + forceMACZ;
+		vel(i,j,k).z = (forceMACZ > 0) ? std::min(sum, max) : std::max(sum, min);
+	}
+}
+
+// Initial velocity for smoke
+PYTHON() void setInitialVelocity(const FlagGrid& flags, MACGrid& vel, const Grid<Vec3>& invel) {
+	KnAddForceIfLower(flags, vel, invel);
+}
 
 //! Kernel: gradient norm operator
 KERNEL(bnd=1) void KnConfForce(Grid<Vec3>& force, const Grid<Real>& grid, const Grid<Vec3>& curl, Real str) {
@@ -305,7 +368,7 @@ KERNEL(bnd=1) void KnConfForce(Grid<Vec3>& force, const Grid<Real>& grid, const 
 	force(i,j,k) = str * cross(grad, curl(i,j,k));
 }
 
-PYTHON() void vorticityConfinement(MACGrid& vel, FlagGrid& flags, Real strength) {
+PYTHON() void vorticityConfinement(MACGrid& vel, const FlagGrid& flags, Real strength) {
 	Grid<Vec3> velCenter(flags.getParent()), curl(flags.getParent()), force(flags.getParent());
 	Grid<Real> norm(flags.getParent());
 	
@@ -313,11 +376,15 @@ PYTHON() void vorticityConfinement(MACGrid& vel, FlagGrid& flags, Real strength)
 	CurlOp(velCenter, curl);
 	GridNorm(norm, curl);
 	KnConfForce(force, norm, curl, strength);
-	KnAddForceField(flags, vel, force);
+	KnApplyForceField(flags, vel, force, NULL, true, false);
 }
 
-PYTHON() void addForceField(FlagGrid& flags, MACGrid& vel, Grid<Vec3>& force) {
-	KnAddForceField(flags, vel, force);
+PYTHON() void addForceField(const FlagGrid& flags, MACGrid& vel, const Grid<Vec3>& force, const Grid<Real>* region=NULL, bool isMAC=false) {
+	KnApplyForceField(flags, vel, force, region, true, isMAC);
+}
+
+PYTHON() void setForceField(const FlagGrid& flags, MACGrid& vel, const Grid<Vec3>& force, const Grid<Real>* region=NULL, bool isMAC=false) {
+	KnApplyForceField(flags, vel, force, region, false, isMAC);
 }
 
 } // namespace

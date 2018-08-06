@@ -217,7 +217,7 @@ public:
 			eigen[2] = l*(m-n) + p;
 		}
 
-		return eigen.sortDesc();
+		return eigen;
 	}
 
 	static Matrix3x3 I() { return Matrix3x3(1,0,0, 0,1,0, 0,0,1); }

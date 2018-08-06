@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Base class for particle systems
  *
@@ -30,11 +30,20 @@
 	#undef _DEBUG
 	#define NDEBUG
 	#include <Python.h>
+	#if NUMPY==1
+	#	define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+	#	include "numpy/arrayobject.h" 
+	#endif
 	#define _DEBUG
 	#undef NDEBUG
 
 #else
 	#include <Python.h>
+	#if NUMPY==1
+	#	define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+	#	include "numpy/arrayobject.h" 
+	#endif
 #endif
+
 
 #endif

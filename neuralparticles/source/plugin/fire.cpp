@@ -4,8 +4,8 @@
  * Copyright 2016 Sebastian Barschkis, Nils Thuerey
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL)
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Fire modeling plugin
  *
@@ -76,7 +76,7 @@ PYTHON() void processBurn(Grid<Real>& fuel, Grid<Real>& density, Grid<Real>& rea
 
 
 KERNEL (bnd=1)
-void KnUpdateFlame(Grid<Real>& react, Grid<Real>& flame)
+void KnUpdateFlame(const Grid<Real>& react, Grid<Real>& flame)
 {
 	if (react(i,j,k) > 0.0f)
 		flame(i,j,k) = pow(react(i,j,k), 0.5f);
@@ -84,7 +84,7 @@ void KnUpdateFlame(Grid<Real>& react, Grid<Real>& flame)
 		flame(i,j,k) = 0.0f;
 }
 
-PYTHON() void updateFlame(Grid<Real>& react, Grid<Real>& flame)
+PYTHON() void updateFlame(const Grid<Real>& react, Grid<Real>& flame)
 {
 	KnUpdateFlame(react, flame);
 }

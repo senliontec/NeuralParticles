@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Levelset
  *
@@ -23,9 +23,11 @@ class Mesh;
 PYTHON() class LevelsetGrid : public Grid<Real> {
 public:
 	PYTHON() LevelsetGrid(FluidSolver* parent, bool show = true);
+
+        LevelsetGrid(FluidSolver* parent, Real* data, bool show = true);
 	
 	//! reconstruct the levelset using fast marching
-	PYTHON() void reinitMarching(FlagGrid& flags, Real maxTime=4.0, 
+	PYTHON() void reinitMarching(const FlagGrid& flags, Real maxTime=4.0, 
 			MACGrid* velTransport=NULL, bool ignoreWalls=false, bool correctOuterLayer=true, 
 			int obstacleType = FlagGrid::TypeObstacle );
 
@@ -34,16 +36,10 @@ public:
 	
 	//! union with another levelset
 	PYTHON() void join(const LevelsetGrid& o);
-
-	//! difference from another levelset
-	PYTHON() void subtract(const LevelsetGrid &o);
-
-	//! intersection with another levelset
-	PYTHON() void intersect(const LevelsetGrid &o);
-
+	PYTHON() void subtract(const LevelsetGrid& o);
 	
 	//! initialize levelset from flags (+/- 0.5 heaviside)
-	PYTHON() void initFromFlags(FlagGrid& flags, bool ignoreWalls=false);
+	PYTHON() void initFromFlags(const FlagGrid& flags, bool ignoreWalls=false);
 	
 	static Real invalidTimeValue();
 };

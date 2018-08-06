@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Tools to setup fields and inflows
  *
@@ -25,7 +25,7 @@ namespace Manta {
 	
 //! Apply noise to grid
 KERNEL() 
-void KnApplyNoiseInfl(FlagGrid& flags, Grid<Real>& density, WaveletNoiseField& noise, Grid<Real>& sdf, Real scale, Real sigma) 
+void KnApplyNoiseInfl(const FlagGrid& flags, Grid<Real>& density, const WaveletNoiseField& noise, const Grid<Real>& sdf, Real scale, Real sigma)
 {
 	if (!flags.isFluid(i,j,k) || sdf(i,j,k) > sigma) return;
 	Real factor = clamp(1.0-0.5/sigma * (sdf(i,j,k)+sigma), 0.0, 1.0);
@@ -36,35 +36,36 @@ void KnApplyNoiseInfl(FlagGrid& flags, Grid<Real>& density, WaveletNoiseField& n
 }
 
 //! Init noise-modulated density inside shape
-PYTHON() void densityInflow(FlagGrid& flags, Grid<Real>& density, WaveletNoiseField& noise, Shape* shape, Real scale=1.0, Real sigma=0)
+PYTHON() void densityInflow(const FlagGrid& flags, Grid<Real>& density, const WaveletNoiseField& noise, Shape* shape, Real scale=1.0, Real sigma=0)
 {
 	Grid<Real> sdf = shape->computeLevelset();
 	KnApplyNoiseInfl(flags, density, noise, sdf, scale, sigma);
 }
 //! Apply noise to real grid based on an SDF
-KERNEL() void KnAddNoise(FlagGrid& flags, Grid<Real>& density, WaveletNoiseField& noise, Grid<Real>* sdf, Real scale) {
+KERNEL() void KnAddNoise(const FlagGrid& flags, Grid<Real>& density, const WaveletNoiseField& noise, const Grid<Real>* sdf, Real scale) {
 	if (!flags.isFluid(i,j,k) || (sdf && (*sdf)(i,j,k) > 0.) ) return;
 	density(i,j,k) += noise.evaluate(Vec3(i,j,k)) * scale;
 }
-PYTHON() void addNoise(FlagGrid& flags, Grid<Real>& density, WaveletNoiseField& noise, Grid<Real>* sdf=NULL, Real scale=1.0 ) {
+PYTHON() void addNoise(const FlagGrid& flags, Grid<Real>& density, const WaveletNoiseField& noise, const Grid<Real>* sdf=NULL, Real scale=1.0 ) {
 	KnAddNoise(flags, density, noise, sdf, scale );
 }
 
 //! sample noise field and set pdata with its values (for convenience, scale the noise values)
 KERNEL(pts) template<class T>
-void knSetPdataNoise(BasicParticleSystem& parts, ParticleDataImpl<T>& pdata, WaveletNoiseField& noise, Real scale) {
+void knSetPdataNoise(const BasicParticleSystem& parts, ParticleDataImpl<T>& pdata, const WaveletNoiseField& noise, Real scale) {
 	pdata[idx] = noise.evaluate( parts.getPos(idx) ) * scale;
 }
 KERNEL(pts) template<class T>
-void knSetPdataNoiseVec(BasicParticleSystem& parts, ParticleDataImpl<T>& pdata, WaveletNoiseField& noise, Real scale) {
+void knSetPdataNoiseVec(const BasicParticleSystem& parts, ParticleDataImpl<T>& pdata, const WaveletNoiseField& noise, Real scale) {
 	pdata[idx] = noise.evaluateVec( parts.getPos(idx) ) * scale;
 }
-PYTHON() void setNoisePdata    (BasicParticleSystem& parts, ParticleDataImpl<Real>& pd, WaveletNoiseField& noise, Real scale=1.) { knSetPdataNoise<Real>(parts, pd,noise,scale); }
-PYTHON() void setNoisePdataVec3(BasicParticleSystem& parts, ParticleDataImpl<Vec3>& pd, WaveletNoiseField& noise, Real scale=1.) { knSetPdataNoiseVec<Vec3>(parts, pd,noise,scale); }
-PYTHON() void setNoisePdataInt (BasicParticleSystem& parts, ParticleDataImpl<int >& pd, WaveletNoiseField& noise, Real scale=1.) { knSetPdataNoise<int> (parts, pd,noise,scale); }
+PYTHON() void setNoisePdata    (const BasicParticleSystem& parts, ParticleDataImpl<Real>& pd, const WaveletNoiseField& noise, Real scale=1.) { knSetPdataNoise<Real>(parts, pd,noise,scale); }
+PYTHON() void setNoisePdataVec3(const BasicParticleSystem& parts, ParticleDataImpl<Vec3>& pd, const WaveletNoiseField& noise, Real scale=1.) { knSetPdataNoiseVec<Vec3>(parts, pd,noise,scale); }
+PYTHON() void setNoisePdataInt (const BasicParticleSystem& parts, ParticleDataImpl<int >& pd, const WaveletNoiseField& noise, Real scale=1.) { knSetPdataNoise<int> (parts, pd,noise,scale); }
 
-//! SDF gradient from obstacle flags
-PYTHON() Grid<Vec3> obstacleGradient(FlagGrid& flags) {
+//! SDF gradient from obstacle flags, for turbulence.py
+//  FIXME, slow, without kernel...
+PYTHON() Grid<Vec3> obstacleGradient(const FlagGrid& flags) {
 	LevelsetGrid levelset(flags.getParent(),false);
 	Grid<Vec3> gradient(flags.getParent());
 	
@@ -88,9 +89,9 @@ PYTHON() Grid<Vec3> obstacleGradient(FlagGrid& flags) {
 	return gradient;
 }
 
-PYTHON() LevelsetGrid obstacleLevelset(FlagGrid& flags) {
-   LevelsetGrid levelset(flags.getParent(),false);
-	Grid<Vec3> gradient(flags.getParent());
+//! SDF from obstacle flags, for turbulence.py
+PYTHON() LevelsetGrid obstacleLevelset(const FlagGrid& flags) {
+	LevelsetGrid levelset(flags.getParent(),false);
 
 	// rebuild obstacle levelset
 	FOR_IDX(levelset) {
@@ -106,7 +107,7 @@ PYTHON() LevelsetGrid obstacleLevelset(FlagGrid& flags) {
 // blender init functions 
 
 KERNEL() 
-void KnApplyEmission(FlagGrid& flags, Grid<Real>& density, Grid<Real>& emission, bool isAbsolute) 
+void KnApplyEmission(const FlagGrid& flags, Grid<Real>& density, const Grid<Real>& emission, bool isAbsolute)
 {
 	if (!flags.isFluid(i,j,k) || emission(i,j,k) == 0.) return;
 	if (isAbsolute)
@@ -124,13 +125,13 @@ PYTHON() void applyEmission(FlagGrid& flags, Grid<Real>& density, Grid<Real>& em
 // blender init functions for meshes
 
 KERNEL() 
-void KnApplyDensity(FlagGrid& flags, Grid<Real>& density, Grid<Real>& sdf, Real value, Real sigma) 
+void KnApplyDensity(const FlagGrid& flags, Grid<Real>& density, const Grid<Real>& sdf, Real value, Real sigma)
 {
 	if (!flags.isFluid(i,j,k) || sdf(i,j,k) > sigma) return;
 	density(i,j,k) = value;
 }
 //! Init noise-modulated density inside mesh
-PYTHON() void densityInflowMeshNoise(FlagGrid& flags, Grid<Real>& density, WaveletNoiseField& noise, Mesh* mesh, Real scale=1.0, Real sigma=0)
+PYTHON() void densityInflowMeshNoise(const FlagGrid& flags, Grid<Real>& density, const WaveletNoiseField& noise, Mesh* mesh, Real scale=1.0, Real sigma=0)
 {
 	LevelsetGrid sdf(density.getParent(), false);
 	mesh->computeLevelset(sdf, 1.);
@@ -138,7 +139,7 @@ PYTHON() void densityInflowMeshNoise(FlagGrid& flags, Grid<Real>& density, Wavel
 }
 
 //! Init constant density inside mesh
-PYTHON() void densityInflowMesh(FlagGrid& flags, Grid<Real>& density, Mesh* mesh, Real value=1., Real cutoff = 7, Real sigma=0)
+PYTHON() void densityInflowMesh(const FlagGrid& flags, Grid<Real>& density, Mesh* mesh, Real value=1., Real cutoff = 7, Real sigma=0)
 {
 	LevelsetGrid sdf(density.getParent(), false);
 	mesh->computeLevelset(sdf, 2., cutoff);
@@ -233,11 +234,11 @@ PYTHON() void checkSymmetryVec3( Grid<Vec3>& a, Grid<Real>* err=NULL, bool symme
 
 
 // from simpleimage.cpp
-void projectImg( SimpleImage& img, Grid<Real>& val, int shadeMode=0, Real scale=1.);
+void projectImg( SimpleImage& img, const Grid<Real>& val, int shadeMode=0, Real scale=1.);
 
 //! output shaded (all 3 axes at once for 3D)
 //! shading modes: 0 smoke, 1 surfaces
-PYTHON() void projectPpmFull( Grid<Real>& val, string name, int shadeMode=0, Real scale=1.)
+PYTHON() void projectPpmFull( const Grid<Real>& val, string name, int shadeMode=0, Real scale=1.)
 {
 	SimpleImage img;
 	projectImg( img, val, shadeMode, scale );
@@ -256,8 +257,8 @@ PYTHON() void addTestParts( BasicParticleSystem& parts, int num)
 	parts.insertBufferedParticles();
 }
 
-// calculate the difference between two pdata fields (note - slow!, not parallelized)
-PYTHON() Real pdataMaxDiff ( ParticleDataBase* a, ParticleDataBase* b )
+//! calculate the difference between two pdata fields (note - slow!, not parallelized)
+PYTHON() Real pdataMaxDiff ( const ParticleDataBase* a, const ParticleDataBase* b )
 {    
 	double maxVal = 0.;
 	//debMsg(" PD "<< a->getType()<<"  as"<<a->getSizeSlow()<<"  bs"<<b->getSizeSlow() , 1);
@@ -266,21 +267,21 @@ PYTHON() Real pdataMaxDiff ( ParticleDataBase* a, ParticleDataBase* b )
 	
 	if (a->getType() & ParticleDataBase::TypeReal) 
 	{
-		ParticleDataImpl<Real>& av = *dynamic_cast<ParticleDataImpl<Real>*>(a);
-		ParticleDataImpl<Real>& bv = *dynamic_cast<ParticleDataImpl<Real>*>(b);
+                const ParticleDataImpl<Real>& av = *dynamic_cast<const ParticleDataImpl<Real>*>(a);
+                const ParticleDataImpl<Real>& bv = *dynamic_cast<const ParticleDataImpl<Real>*>(b);
 		FOR_PARTS(av) {
 			maxVal = std::max(maxVal, (double)fabs( av[idx]-bv[idx] ));
 		}
 	} else if (a->getType() & ParticleDataBase::TypeInt) 
 	{
-		ParticleDataImpl<int>& av = *dynamic_cast<ParticleDataImpl<int>*>(a);
-		ParticleDataImpl<int>& bv = *dynamic_cast<ParticleDataImpl<int>*>(b);
+                const ParticleDataImpl<int>& av = *dynamic_cast<const ParticleDataImpl<int>*>(a);
+                const ParticleDataImpl<int>& bv = *dynamic_cast<const ParticleDataImpl<int>*>(b);
 		FOR_PARTS(av) {
 			maxVal = std::max(maxVal, (double)fabs( (double)av[idx]-bv[idx] ));
 		}
 	} else if (a->getType() & ParticleDataBase::TypeVec3) {
-		ParticleDataImpl<Vec3>& av = *dynamic_cast<ParticleDataImpl<Vec3>*>(a);
-		ParticleDataImpl<Vec3>& bv = *dynamic_cast<ParticleDataImpl<Vec3>*>(b);
+                const ParticleDataImpl<Vec3>& av = *dynamic_cast<const ParticleDataImpl<Vec3>*>(a);
+                const ParticleDataImpl<Vec3>& bv = *dynamic_cast<const ParticleDataImpl<Vec3>*>(b);
 		FOR_PARTS(av) {
 			double d = 0.;
 			for(int c=0; c<3; ++c) { 
@@ -295,35 +296,26 @@ PYTHON() Real pdataMaxDiff ( ParticleDataBase* a, ParticleDataBase* b )
 	return maxVal;
 }
 
+
+//! calculate center of mass given density grid, for re-centering
+PYTHON() Vec3 calcCenterOfMass(const Grid<Real>& density)
+{
+	Vec3 p(0.0f);
+	Real w = 0.0f;
+	FOR_IJK(density){
+		p += density(i, j, k) * Vec3(i + 0.5f, j + 0.5f, k + 0.5f);
+		w += density(i, j, k);
+	}
+	if (w > 1e-6f)
+		p /= w;
+	return p;
+}
+
+
 //*****************************************************************************
 // helper functions for volume fractions (which are needed for second order obstacle boundaries)
 
 
-KERNEL() void kninitVortexVelocity(Grid<Real> &phiObs, MACGrid& vel, const Vec3 &center, const Real &radius) {
-	
-	if(phiObs(i,j,k) >= -1.) {
-
-		Real dx = i - center.x; if(dx>=0) dx -= .5; else dx += .5;
-		Real dy = j - center.y;
-		Real r = std::sqrt(dx*dx+dy*dy);
-		Real alpha = atan2(dy,dx);
-
-		vel(i,j,k).x = -std::sin(alpha)*(r/radius);
-
-		dx = i - center.x;
-		dy = j - center.y; if(dy>=0) dy -= .5; else dy += .5;
-		r = std::sqrt(dx*dx+dy*dy);
-		alpha = atan2(dy,dx);
-
-		vel(i,j,k).y = std::cos(alpha)*(r/radius);
-
-	}
-
-}
-
-PYTHON() void initVortexVelocity(Grid<Real> &phiObs, MACGrid& vel, const Vec3 &center, const Real &radius) {
-	kninitVortexVelocity(phiObs,  vel, center, radius);
-}
 
 inline static Real calcFraction(Real phi1, Real phi2)
 {
@@ -336,8 +328,8 @@ inline static Real calcFraction(Real phi1, Real phi2)
 	if (denom > -1e-04) return 0.5; 
 
 	Real frac = 1. - phi1/denom;
-	if(frac<0.01) frac = 0.; // skip , dont mark as fluid
-	return std::max(Real(0), std::min(Real(1), frac ));
+	if(frac<0.01) frac = 0.; // stomp small values , dont mark as fluid
+	return std::min(Real(1), frac );
 }
 
 KERNEL (bnd=1) 
@@ -405,30 +397,75 @@ void KnUpdateFractions(const FlagGrid& flags, const Grid<Real>& phiObs, MACGrid&
 
 }
 
+//! update fill fraction values
 PYTHON() void updateFractions(const FlagGrid& flags, const Grid<Real>& phiObs, MACGrid& fractions, const int &boundaryWidth=0) {
 	fractions.setConst( Vec3(0.) );
 	KnUpdateFractions(flags, phiObs, fractions, boundaryWidth);
 }
 
 KERNEL (bnd=1) 
-void KnUpdateFlags(FlagGrid& flags, MACGrid& fractions, Grid<Real>& phiObs) {
+void KnUpdateFlagsObs(FlagGrid& flags, const MACGrid* fractions, const Grid<Real>& phiObs, const Grid<Real>* phiOut ) {
 
-	Real test = 0.;
-	test += fractions.get(i  ,j,k).x;
-	test += fractions.get(i+1,j,k).x;
-	test += fractions.get(i,j  ,k).y;
-	test += fractions.get(i,j+1,k).y;
-	if (flags.is3D()) {
-	test += fractions.get(i,j,k  ).z;
-	test += fractions.get(i,j,k+1).z; }
+	bool isObs = false;
+	if(fractions) {
+		Real f = 0.;
+		f += fractions->get(i  ,j,k).x;
+		f += fractions->get(i+1,j,k).x;
+		f += fractions->get(i,j  ,k).y;
+		f += fractions->get(i,j+1,k).y;
+		if (flags.is3D()) {
+		f += fractions->get(i,j,k  ).z;
+		f += fractions->get(i,j,k+1).z; }
+		if(f==0.) isObs = true;
+	} else {
+		if(phiObs(i,j,k) < 0.) isObs = true;
+	}
 
-	if(test==0. && phiObs(i,j,k) < 0.) flags(i,j,k) = FlagGrid::TypeObstacle; 
-	else if(flags(i,j,k)!=FlagGrid::TypeOpen) flags(i,j,k) = FlagGrid::TypeEmpty;
+	bool isOutflow = false;
+ 	if (phiOut && (*phiOut)(i,j,k) < 0.) isOutflow = true;
+
+ 	if (isObs)          flags(i,j,k) = FlagGrid::TypeObstacle;
+ 	else if (isOutflow) flags(i,j,k) = (FlagGrid::TypeEmpty | FlagGrid::TypeOutflow);
+  	else                flags(i,j,k) = FlagGrid::TypeEmpty;
 }
 
-PYTHON() void setObstacleFlags(FlagGrid& flags, MACGrid& fractions, Grid<Real>& phiObs) {
-	KnUpdateFlags(flags,fractions, phiObs);
+//! update obstacle and outflow flags from levelsets
+//! optionally uses fill fractions for obstacle
+PYTHON() void setObstacleFlags(FlagGrid& flags, const Grid<Real>& phiObs, const MACGrid* fractions=NULL, const Grid<Real>* phiOut=NULL ) {
+	KnUpdateFlagsObs(flags, fractions, phiObs, phiOut );
 }
+
+
+//! small helper for test case test_1040_secOrderBnd.py
+KERNEL() void kninitVortexVelocity(const Grid<Real> &phiObs, MACGrid& vel, const Vec3 &center, const Real &radius) {
+	
+	if(phiObs(i,j,k) >= -1.) {
+
+		Real dx = i - center.x; if(dx>=0) dx -= .5; else dx += .5;
+		Real dy = j - center.y;
+		Real r = std::sqrt(dx*dx+dy*dy);
+		Real alpha = atan2(dy,dx);
+
+		vel(i,j,k).x = -std::sin(alpha)*(r/radius);
+
+		dx = i - center.x;
+		dy = j - center.y; if(dy>=0) dy -= .5; else dy += .5;
+		r = std::sqrt(dx*dx+dy*dy);
+		alpha = atan2(dy,dx);
+
+		vel(i,j,k).y = std::cos(alpha)*(r/radius);
+
+	}
+
+}
+
+PYTHON() void initVortexVelocity(const Grid<Real> &phiObs, MACGrid& vel, const Vec3 &center, const Real &radius) {
+	kninitVortexVelocity(phiObs,  vel, center, radius);
+}
+
+
+//*****************************************************************************
+// helper functions for blurring
 
 //! class for Gaussian Blur
 struct GaussianKernelCreator{

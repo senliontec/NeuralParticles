@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Globally used macros and functions
  *
@@ -107,24 +107,21 @@ struct remove_pointers<T&> {
 //! Timing class for preformance measuring
 struct MuTime {
 	MuTime() { get(); }
-	MuTime operator-(const MuTime& a) { return MuTime(*this) -= a; };
-	MuTime operator+(const MuTime& a) { return MuTime(*this) += a; };
-	MuTime operator/(unsigned long a) { return MuTime(*this) /= a; };
+	MuTime operator-(const MuTime& a) { MuTime b; b.time = time - a.time; return b; };
+	MuTime operator+(const MuTime& a) { MuTime b; b.time = time + a.time; return b; };
+	MuTime operator/(unsigned long a) { MuTime b; b.time = time / a; return b; };
 	MuTime& operator+=(const MuTime& a) { time += a.time; return *this; }
 	MuTime& operator-=(const MuTime& a) { time -= a.time; return *this; }
 	MuTime& operator/=(unsigned long a) { time /= a; return *this; }
-	std::string toString() const;
-	friend std::ostream& operator<<(std::ostream &os, const MuTime &t);
-
-	double toMillisecond() const { return static_cast<double>(time)/1e3; }
-	double toSecond() const { return static_cast<double>(time)/1e6;}
+	std::string toString();
 	
-	void clear() { time = 0; }
+    void clear() { time = 0; }
 	void get();
 	MuTime update();
 	
-	unsigned long time;	// microsecond
+	unsigned long time;
 };
+std::ostream& operator<< (std::ostream& os, const MuTime& t);
 	
 //! generate a string with infos about the current mantaflow build
 std::string buildInfoString();

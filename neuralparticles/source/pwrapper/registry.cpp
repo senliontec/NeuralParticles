@@ -4,8 +4,8 @@
  * Copyright 2011-2014 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Auto python registry
  *
@@ -169,12 +169,6 @@ PyMODINIT_FUNC PyInit_Main(void) {
 	WrapperRegistry::instance().initModule();   
 #endif
 }
-
-#ifdef BLENDER
-PyMODINIT_FUNC PyInit_Main_Obj(void) {
-	return PyInit_Main();	
-}
-#endif
 
 //******************************************************
 // WrapperRegistry
@@ -386,17 +380,12 @@ void WrapperRegistry::addConstants(PyObject* module) {
 	PyModule_AddObject(module,"SCENEFILE",Manta::toPy(mScriptName));
 
 	// expose compile flags
-#ifdef CUDA
-	PyModule_AddObject(module,"CUDA",Manta::toPy<bool>(true));
-#else
-	PyModule_AddObject(module,"CUDA",Manta::toPy<bool>(false));
-#endif
 #ifdef DEBUG
 	PyModule_AddObject(module,"DEBUG",Manta::toPy<bool>(true));
 #else
 	PyModule_AddObject(module,"DEBUG",Manta::toPy<bool>(false));
 #endif
-#ifdef MT
+#ifdef MANTA_MT
 	PyModule_AddObject(module,"MT",Manta::toPy<bool>(true));
 #else
 	PyModule_AddObject(module,"MT",Manta::toPy<bool>(false));
@@ -411,6 +400,8 @@ void WrapperRegistry::addConstants(PyObject* module) {
 #else
 	PyModule_AddObject(module,"DOUBLEPRECISION",Manta::toPy<bool>(false));
 #endif
+	// cuda off for now
+	PyModule_AddObject(module,"CUDA",Manta::toPy<bool>(false));
 }
 
 void WrapperRegistry::runPreInit() {
@@ -469,7 +460,7 @@ void WrapperRegistry::construct(const string& scriptname, const vector<string>& 
 	registerDummyTypes();
 	
 	// work around for certain gcc versions, cast to char*
-	PyImport_AppendInittab((char*)gDefaultModuleName.c_str(), PyInit_Main);
+	PyImport_AppendInittab( (char*)gDefaultModuleName.c_str(), PyInit_Main );
 }
 
 inline PyObject* castPy(PyTypeObject* p) { 

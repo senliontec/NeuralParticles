@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Grid representation
  *
@@ -15,10 +15,10 @@
 #include "levelset.h"
 #include "kernel.h"
 #include "commonkernels.h"
+#include "mantaio.h"
 #include <limits>
 #include <sstream>
 #include <cstring>
-#include "fileio.h"
 
 using namespace std;
 namespace Manta {
@@ -44,7 +44,7 @@ template<> inline GridBase::GridType typeList<Vec3>()  { return GridBase::TypeVe
 
 template<class T>
 Grid<T>::Grid(FluidSolver* parent, bool show)
-	: GridBase(parent)
+        : GridBase(parent), externalData(false)
 {
 	mType = typeList<T>();
 	mSize = parent->getGridSize();
@@ -57,7 +57,21 @@ Grid<T>::Grid(FluidSolver* parent, bool show)
 }
 
 template<class T>
-Grid<T>::Grid(const Grid<T>& a) : GridBase(a.getParent()) {
+Grid<T>::Grid(FluidSolver* parent, T* data, bool show)
+        : GridBase(parent), mData(data), externalData(true)
+{
+        mType = typeList<T>();
+        mSize = parent->getGridSize();
+
+        mStrideZ = parent->is2D() ? 0 : (mSize.x * mSize.y);
+        mDx = 1.0 / mSize.max();
+
+        setHidden(!show);
+}
+
+template<class T>
+Grid<T>::Grid(const Grid<T>& a)
+        : GridBase(a.getParent()), externalData(false) {
 	mSize = a.mSize;
 	mType = a.mType;
 	mStrideZ = a.mStrideZ;
@@ -69,7 +83,9 @@ Grid<T>::Grid(const Grid<T>& a) : GridBase(a.getParent()) {
 
 template<class T>
 Grid<T>::~Grid() {
-	mParent->freeGridPointer<T>(mData);
+    if(!externalData)  {
+        mParent->freeGridPointer<T>(mData);
+    }
 }
 
 template<class T>
@@ -82,9 +98,13 @@ void Grid<T>::swap(Grid<T>& other) {
 	if (other.getSizeX() != getSizeX() || other.getSizeY() != getSizeY() || other.getSizeZ() != getSizeZ())
 		errMsg("Grid::swap(): Grid dimensions mismatch.");
 	
+        if(externalData || other.externalData)
+            errMsg("Grid::swap(): Cannot swap if one grid stores externalData.");
+
 	T* dswap = other.mData;
 	other.mData = mData;
 	mData = dswap;
+
 }
 
 template<class T>
@@ -113,6 +133,10 @@ void Grid<T>::save(string name) {
 		writeGridUni(name, this);
 	else if (ext == ".vol")
 		writeGridVol(name, this);
+#	if OPENVDB==1
+	else if (ext == ".vdb")
+		writeGridVDB(name, this);
+#	endif // OPENVDB==1
 	else if (ext == ".txt")
 		writeGridTxt(name, this);
 	else
@@ -166,11 +190,6 @@ Real CompMaxVec(const Grid<Vec3>& val) {
 		maxVal = s;
 }
 
-
-template<class T> Grid<T>& Grid<T>::safeDivide (const Grid<T>& a) {
-	gridSafeDiv<T> (*this, a);
-	return *this;
-}
 template<class T> Grid<T>& Grid<T>::copyFrom (const Grid<T>& a, bool copyType ) {
 	assertMsg (a.mSize.x == mSize.x && a.mSize.y == mSize.y && a.mSize.z == mSize.z, "different grid resolutions "<<a.mSize<<" vs "<<this->mSize );
 	memcpy(mData, a.mData, sizeof(T) * mSize.x * mSize.y * mSize.z);
@@ -181,29 +200,59 @@ template<class T> Grid<T>& Grid<T>::copyFrom (const Grid<T>& a, bool copyType ) 
 	note: do not use , use copyFrom instead
 }*/
 
-template<class T> void Grid<T>::add(const Grid<T>& a)  { (*this) += a; }
-template<class T> void Grid<T>::sub(const Grid<T>& a)  { (*this) -= a; }
-template<class T> void Grid<T>::mult(const Grid<T>& a) { (*this) *= a; }
-template<class T> void Grid<T>::addConst(const T& a)   { (*this) += a; }
-template<class T> void Grid<T>::multConst(const T& a)  { (*this) *= a; }
+KERNEL(idx) template<class T> void knGridSetConstReal (Grid<T>& me, T val) { me[idx]  = val; }
+KERNEL(idx) template<class T> void knGridAddConstReal (Grid<T>& me, T val) { me[idx] += val; }
+KERNEL(idx) template<class T> void knGridMultConst (Grid<T>& me, T val) { me[idx] *= val; }
+
+KERNEL(idx) template<class T> void knGridSafeDiv (Grid<T>& me, const Grid<T>& other) { me[idx] = safeDivide(me[idx], other[idx]); }
+//KERNEL(idx) template<class T> void gridSafeDiv (Grid<T>& me, const Grid<T>& other) { me[idx] = safeDivide(me[idx], other[idx]); }
+
+KERNEL(idx) template<class T> void knGridClamp(Grid<T>& me, const T& min, const T& max) { me[idx] = clamp(me[idx], min, max); }
+
+template<typename T> inline void stomp(T &v, const T &th) { if(v<th) v=0; }
+template<> inline void stomp<Vec3>(Vec3 &v, const Vec3 &th) { if(v[0]<th[0]) v[0]=0; if(v[1]<th[1]) v[1]=0; if(v[2]<th[2]) v[2]=0; }
+KERNEL(idx) template<class T> void knGridStomp(Grid<T>& me, const T& threshold) { stomp(me[idx], threshold); }
+
+template<class T> Grid<T>& Grid<T>::safeDivide (const Grid<T>& a) {
+	knGridSafeDiv<T> (*this, a);
+	return *this;
+}
+
+template<class T> void Grid<T>::add(const Grid<T>& a) {
+	gridAdd<T,T>(*this, a);
+}
+template<class T> void Grid<T>::sub(const Grid<T>& a) {
+	gridSub<T,T>(*this, a);
+}
 template<class T> void Grid<T>::addScaled(const Grid<T>& a, const T& factor) { 
-	gridScaledAdd<T,T>(*this, a, factor);
+	gridScaledAdd<T,T> (*this, a, factor); 
 }
-template<class T> void Grid<T>::setConst(const T& a) {
-	gridSetConst<T>(*this, a);
+template<class T> void Grid<T>::setConst(T a) {
+	knGridSetConstReal<T>( *this, T(a) );
 }
-template<class T> void Grid<T>::clamp(const T& min, const T& max) {
-	gridClamp<T>(*this, min, max);
+template<class T> void Grid<T>::addConst(T a) {
+	knGridAddConstReal<T>( *this, T(a) );
+}
+template<class T> void Grid<T>::multConst(T a) {
+	knGridMultConst<T>( *this, a );
+}
+
+template<class T> void Grid<T>::mult(const Grid<T>& a) {
+	gridMult<T,T> (*this, a);
+}
+
+template<class T> void Grid<T>::clamp(Real min, Real max) {
+	knGridClamp<T> (*this, T(min), T(max) );
 }
 template<class T> void Grid<T>::stomp(const T& threshold) {
-	gridStomp<T>(*this, threshold);
+	knGridStomp<T>(*this, threshold);
 }
 
 template<> Real Grid<Real>::getMax() const {
-	return CompMaxReal(*this);
+	return CompMaxReal (*this);
 }
 template<> Real Grid<Real>::getMin() const {
-	return CompMinReal(*this);
+	return CompMinReal (*this);
 }
 template<> Real Grid<Real>::getMaxAbs() const {
 	Real amin = CompMinReal (*this);
@@ -234,6 +283,54 @@ template<class T> std::string Grid<T>::getDataPointer() {
 	std::ostringstream out;
 	out << mData ;
 	return out.str();
+}
+
+// L1 / L2 functions
+
+//! calculate L1 norm for whole grid with non-parallelized loop
+template<class GRID>
+Real loop_calcL1Grid (const GRID &grid, int bnd)
+{
+	double accu = 0., cnt = 0.;
+	FOR_IJKT_BND(grid, bnd) { accu += norm(grid(i,j,k,t)); }
+	return (Real)accu;
+}
+
+//! calculate L2 norm for whole grid with non-parallelized loop
+// note - kernels "could" be used here, but they can't be templated at the moment (also, that would
+// mean the bnd parameter is fixed)
+template<class GRID>
+Real loop_calcL2Grid(const GRID &grid, int bnd)
+{
+	double accu = 0.;
+	FOR_IJKT_BND(grid, bnd) {
+		accu += normSquare(grid(i,j,k,t)); // supported for real and vec3,4 types
+	}
+	return (Real)sqrt(accu);
+}
+
+//! compute L1 norm of whole grid content (note, not parallel at the moment)
+template<class T> Real Grid<T>::getL1(int bnd) {
+	return loop_calcL1Grid<Grid<T> >(*this, bnd);
+}
+//! compute L2 norm of whole grid content (note, not parallel at the moment)
+template<class T> Real Grid<T>::getL2(int bnd) {
+	return loop_calcL2Grid<Grid<T> >(*this, bnd);
+}
+
+KERNEL(reduce=+) returns(int cnt=0)
+int knCountCells(const FlagGrid& flags, int flag, int bnd, Grid<Real>* mask) { 
+	if(mask) (*mask)(i,j,k) = 0.;
+	if( bnd>0 && (!flags.isInBounds(Vec3i(i,j,k))) ) return;
+	if (flags(i,j,k) & flag ) {
+		cnt++; 
+		if(mask) (*mask)(i,j,k) = 1.;
+	}
+}
+
+//! count number of cells of a certain type flag (can contain multiple bits, checks if any one of them is set - not all!)
+int FlagGrid::countCells(int flag, int bnd, Grid<Real>* mask) {
+	return knCountCells(*this, flag, bnd, mask);
 }
 
 // compute maximal diference of two cells in the grid
@@ -285,7 +382,6 @@ PYTHON() void copyMacToVec3 (MACGrid &source, Grid<Vec3>& target)
 }
 
 PYTHON() void convertMacToVec3 (MACGrid &source , Grid<Vec3> &target) { debMsg("Deprecated - do not use convertMacToVec3... use copyMacToVec3 instead",1); copyMacToVec3(source,target); }
-PYTHON() void moveMacToCen(const MACGrid &source, Grid<Vec3>& target) { GetCentered(target, source); }
 
 //! vec3->mac grid conversion , but with full resampling 
 PYTHON() void resampleVec3ToMac (Grid<Vec3>& source, MACGrid &target ) {
@@ -328,13 +424,12 @@ PYTHON() void copyRealToVec3 (Grid<Real> &sourceX, Grid<Real> &sourceY, Grid<Rea
 }
 PYTHON() void convertLevelsetToReal (LevelsetGrid &source , Grid<Real> &target) { debMsg("Deprecated - do not use convertLevelsetToReal... use copyLevelsetToReal instead",1); copyLevelsetToReal(source,target); }
 
-template<class T> void Grid<T>::printGrid(int zSlice, bool printIndex) {
+template<class T> void Grid<T>::printGrid(int zSlice, bool printIndex, int bnd) {
 	std::ostringstream out;
 	out << std::endl;
-	const int bnd = 1;
 	FOR_IJK_BND(*this,bnd) {
 		IndexInt idx = (*this).index(i,j,k);
-		if(zSlice>=0 && k==zSlice) { 
+		if((zSlice>=0 && k==zSlice) || (zSlice<0)) { 
 			out << " ";
 			if(printIndex &&  this->is3D()) out << "  "<<i<<","<<j<<","<<k <<":";
 			if(printIndex && !this->is3D()) out << "  "<<i<<","<<j<<":";
@@ -472,35 +567,16 @@ void MACGrid::setBoundMAC(Vec3 value, int boundaryWidth, bool normalOnly) {
 	else            knSetBoundaryMACNorm( *this, value, boundaryWidth ); 
 }
 
-//! various sums of grid data
+
+//! helper kernels for getGridAvg
 KERNEL(idx, reduce=+) returns(double result=0.0)
-double knGridTotalSum(const Grid<Real>& a, const FlagGrid* flags) {
-	if(flags) { if(flags->isFluid(idx)) result += a[idx]; }
-	else      { result += a[idx]; }
+double knGridTotalSum(const Grid<Real>& a, FlagGrid* flags) {
+	if(flags) {	if(flags->isFluid(idx)) result += a[idx]; } 
+	else      {	result += a[idx]; } 
 }
-KERNEL(idx, reduce=+) returns(double result=0.0)
-double knGridTotalMagSum(const Grid<Real>& a, const FlagGrid* flags) {
-	if(flags) { if(flags->isFluid(idx)) result += std::fabs(a[idx]); }
-	else      { result += std::fabs(a[idx]); }
-}
-KERNEL(idx, reduce=+) returns(double result=0.0)
-double knGridTotalVecMagSum(const Grid<Vec3>& a, const FlagGrid* flags) {
-	if(flags) { if(flags->isFluid(idx)) result += norm(a[idx]); }
-	else      { result += norm(a[idx]); }
-}
-KERNEL(idx, reduce=+) returns(double result=0.0)
-double knGridTotalSqrSum(const Grid<Vec3>& a, const FlagGrid* flags) {
-	if(flags) { if(flags->isFluid(idx)) result += normSquare(a[idx]); }
-	else      { result += normSquare(a[idx]); }
-}
-PYTHON() Real getGridTotalSum(const Grid<Real>& a, const FlagGrid* flags=NULL) { return knGridTotalSum(a, flags); }
-PYTHON() Real getGridTotalMagSum(const Grid<Real>& a, const FlagGrid* flags=NULL) { return knGridTotalMagSum(a, flags); }
-PYTHON() Real getGridTotalVecMagSum(const Grid<Vec3>& a, const FlagGrid* flags=NULL) { return knGridTotalVecMagSum(a, flags); }
-PYTHON() Real getGridTotalSqrSum(const Grid<Vec3>& a, const FlagGrid* flags=NULL) { return knGridTotalSqrSum(a, flags); }
 
 KERNEL(idx, reduce=+) returns(int numEmpty=0)
-int knCountFluidCells(const FlagGrid& flags) { if (flags.isFluid(idx) ) numEmpty++; }
-PYTHON() int getCountFluidCells(const FlagGrid& flags) { return knCountFluidCells(flags); }
+int knCountFluidCells(FlagGrid& flags) { if (flags.isFluid(idx) ) numEmpty++; }
 
 //! averaged value for all cells (if flags are given, only for fluid cells)
 PYTHON() Real getGridAvg(Grid<Real>& source, FlagGrid* flags=NULL) 
@@ -518,15 +594,15 @@ PYTHON() Real getGridAvg(Grid<Real>& source, FlagGrid* flags=NULL)
 
 //! transfer data between real and vec3 grids
 
-KERNEL(idx) void knGetComponent(Grid<Vec3>& source, Grid<Real>& target, int component) { 
+KERNEL(idx) void knGetComponent(const Grid<Vec3>& source, Grid<Real>& target, int component) { 
 	target[idx] = source[idx][component]; 
 }
-PYTHON() void getComponent(Grid<Vec3>& source, Grid<Real>& target, int component) { knGetComponent(source, target, component); }
+PYTHON() void getComponent(const Grid<Vec3>& source, Grid<Real>& target, int component) { knGetComponent(source, target, component); }
 
-KERNEL(idx) void knSetComponent(Grid<Real>& source, Grid<Vec3>& target, int component) { 
+KERNEL(idx) void knSetComponent(const Grid<Real>& source, Grid<Vec3>& target, int component) { 
 	target[idx][component] = source[idx]; 
 }
-PYTHON() void setComponent(Grid<Real>& source, Grid<Vec3>& target, int component) { knSetComponent(source, target, component); }
+PYTHON() void setComponent(const Grid<Real>& source, Grid<Vec3>& target, int component) { knSetComponent(source, target, component); }
 
 //******************************************************************************
 // Specialization classes
@@ -573,12 +649,13 @@ void FlagGrid::InitMaxZWall(const int &boundaryWidth, Grid<Real>& phiWalls) {
 	}
 }
 
-void FlagGrid::initDomain(const int &boundaryWidth,
-			  const string &wallIn,
-			  const string &openIn,
-			  const string &inflowIn,
-			  const string &outflowIn,
-			  Grid<Real>* phiWalls) {
+void FlagGrid::initDomain( const int &boundaryWidth
+	                     , const string &wallIn
+						 , const string &openIn
+						 , const string &inflowIn
+						 , const string &outflowIn 
+						 , Grid<Real>* phiWalls ) {
+	
 	int  types[6] = {0};
 	bool set  [6] = {false};
 	// make sure we have at least 6 entries
@@ -684,27 +761,9 @@ void FlagGrid::initBoundaries(const int &boundaryWidth, const int *types) {
 	}
 }
 
-void FlagGrid::minifyFrom(const FlagGrid &flags, const Vec3i &scale) {
-	FOR_IJK(*this) {
-		if(isObstacle(i,j,k)) continue;
-		bool fluidP = false;
-		for(int si=0; si<scale.x; ++si) {
-			for(int sj=0; sj<scale.y; ++sj) {
-				for(int sk=0; sk<(is3D() ? scale.z : 1); ++sk) {
-					fluidP |= flags.isFluid(i*scale.x+si, j*scale.y+sj, k*scale.z+sk);
-				}
-			}
-		}
-
-		(*this)(i,j,k) &= ~(TypeEmpty | TypeFluid); // clear empty/fluid flags
-		(*this)(i,j,k) |= (fluidP) ? TypeFluid : TypeEmpty; // set resepctive flag
-	}
-}
-
-void FlagGrid::updateFromLevelset(const LevelsetGrid& levelset) {
-	if(getSize()!=levelset.getSize()) return updateFromLevelsetNonMatched(levelset);
+void FlagGrid::updateFromLevelset(LevelsetGrid& levelset) {
 	FOR_IDX(*this) {
-		if (!isObstacle(idx)) {
+		if (!isObstacle(idx) && !isOutflow(idx)) {
 			const Real phi = levelset[idx];
 			if (phi <= levelset.invalidTimeValue()) continue;
 			
@@ -712,26 +771,7 @@ void FlagGrid::updateFromLevelset(const LevelsetGrid& levelset) {
 			mData[idx] |= (phi <= 0) ? TypeFluid : TypeEmpty; // set resepctive flag
 		}
 	}
-}
-
-KERNEL()
-void knUpdateFromLevelsetNonMatched(FlagGrid &flags, const LevelsetGrid &levelset,
-				    const Vec3 &factor, const Vec3 &offset, const int orderSpace) {
-	if(flags.isObstacle(i,j,k)) return;
-	Vec3 pos = Vec3(i,j,k)*factor + offset;
-	if(!flags.is3D()) pos[2] = 0; // allow 2d -> 3d
-	const Real phi = levelset.getInterpolatedHi(pos, orderSpace);
-	if(phi <= levelset.invalidTimeValue()) return;
-
-	flags(i,j,k) &= ~(FlagGrid::TypeEmpty | FlagGrid::TypeFluid); // clear empty/fluid flags
-	flags(i,j,k) |= (phi <= 0) ? FlagGrid::TypeFluid : FlagGrid::TypeEmpty; // set resepctive flag
-}
-
-void FlagGrid::updateFromLevelsetNonMatched(const LevelsetGrid &levelset, const int orderSpace) {
-	const Vec3 sourceFactor = calcGridSizeFactor(levelset.getSize(), getSize());
-	const Vec3 offset       = sourceFactor*0.5;
-	knUpdateFromLevelsetNonMatched(*this, levelset, sourceFactor, offset, orderSpace);
-}
+}   
 
 void FlagGrid::fillGrid(int type) {
 	FOR_IDX(*this) {
@@ -740,57 +780,10 @@ void FlagGrid::fillGrid(int type) {
 	}
 }
 
-void FlagGrid::extendRegion(const int region, const int exclude, const int depth) {
-	const int I=getSizeX()-1, J=getSizeY()-1, K=getSizeZ()-1;
-	for(int i_depth=0; i_depth<depth; ++i_depth) {
-		std::vector<int> update;
-		FOR_IJK(*this) {
-			if(get(i, j, k) & exclude) continue;
-			if((i>0 && (get(i-1, j, k)&region)) || (i<I && (get(i+1, j, k)&region)) ||
-			   (j>0 && (get(i, j-1, k)&region)) || (j<J && (get(i, j+1, k)&region)) ||
-			   (is3D() && ((k>0 && (get(i, j, k-1)&region)) || (k<K && (get(i, j, k+1)&region)))))
-				update.push_back(index(i, j, k));
-		}
+// flag grid helper
 
-		for(std::vector<int>::const_iterator it=update.begin(); it!=update.end(); ++it) {
-			mData[*it] = region;
-		}
-	}
-}
-
-void dfs(Grid<int> &r, const FlagGrid &flags, const IndexInt idx, const int c, const int type) {
-	r(idx) = c;
-	if((flags(idx-flags.getStrideX()) & type) && !r[idx-flags.getStrideX()]) dfs(r, flags, idx-flags.getStrideX(), c, type);
-	if((flags(idx+flags.getStrideX()) & type) && !r[idx+flags.getStrideX()]) dfs(r, flags, idx+flags.getStrideX(), c, type);
-	if((flags(idx-flags.getStrideY()) & type) && !r[idx-flags.getStrideY()]) dfs(r, flags, idx-flags.getStrideY(), c, type);
-	if((flags(idx+flags.getStrideY()) & type) && !r[idx+flags.getStrideY()]) dfs(r, flags, idx+flags.getStrideY(), c, type);
-	if(!flags.is3D()) return;
-	if((flags(idx-flags.getStrideZ()) & type) && !r[idx-flags.getStrideZ()]) dfs(r, flags, idx-flags.getStrideZ(), c, type);
-	if((flags(idx+flags.getStrideZ()) & type) && !r[idx+flags.getStrideZ()]) dfs(r, flags, idx+flags.getStrideZ(), c, type);
-}
-
-PYTHON() int getRegions(Grid<int> &r, const FlagGrid &flags, const int ctype) {
-	r.clear();
-	int n_regions = 0;
-
-	FOR_IDX(flags) {
-		if((flags(idx) & ctype) && !r(idx)) dfs(r, flags, idx, ++n_regions, ctype);
-	}
-	return n_regions;
-}
-
-PYTHON() void getRegionalCounts(Grid<int> &r, const FlagGrid &flags, const int ctype) {
-	const int n_regions = getRegions(r, flags, ctype);
-	std::vector<int> cnt(n_regions+1, 0);
-	FOR_IDX(flags) {
-		if(r[idx]>0) ++(cnt[r[idx]]);
-	}
-	FOR_IDX(flags) {
-		r[idx] = cnt[r[idx]];
-	}
-}
-
-bool isIsolatedFluidCell(const IndexInt idx, const FlagGrid &flags) {
+bool isIsolatedFluidCell(const IndexInt idx, const FlagGrid &flags)
+{
 	if(!flags.isFluid(idx)) return false;
 	if(flags.isFluid(idx-flags.getStrideX())) return false;
 	if(flags.isFluid(idx+flags.getStrideX())) return false;
@@ -803,12 +796,14 @@ bool isIsolatedFluidCell(const IndexInt idx, const FlagGrid &flags) {
 }
 
 KERNEL(idx)
-void knMarkIsolatedFluidCell(FlagGrid &flags, const int mark) {
+void knMarkIsolatedFluidCell(FlagGrid &flags, const int mark)
+{
 	if(isIsolatedFluidCell(idx, flags)) flags[idx] = mark;
 }
 
 PYTHON()
-void markIsolatedFluidCell(FlagGrid &flags, const int mark) {
+void markIsolatedFluidCell(FlagGrid &flags, const int mark)
+{
 	knMarkIsolatedFluidCell(flags, mark);
 }
 
@@ -852,10 +847,6 @@ PYTHON() void getCurvatureMAC(Grid<Real> &curvature, const Grid<Real> &grid) {
  
 PYTHON() void getDivergenceMAC(Grid<Real> &divergence, const MACGrid &grid) {
 	DivergenceOpMAC(divergence, grid);
-}
-
-PYTHON() void getLaplacian(Grid<Real> &laplacian, const Grid<Real> &grid) {
-	LaplaceOp(laplacian, grid);
 }
 
 // explicit instantiation

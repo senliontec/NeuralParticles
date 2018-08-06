@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Grid representation
  *
@@ -46,7 +46,7 @@ public:
 	//! Get Stride in Z dimension
 	inline IndexInt getStrideZ() const { return mStrideZ; }
 	
-	inline Real getDx() { return mDx; }
+	inline Real getDx() const { return mDx; }
 	
 	//! Check if indices are within bounds, otherwise error (should only be called when debugging)
 	inline void checkIndex(int i, int j, int k) const;
@@ -94,6 +94,8 @@ class Grid : public GridBase {
 public:
 	//! init new grid, values are set to zero
 	PYTHON() Grid(FluidSolver* parent, bool show = true);
+	//! init new grid with an existing array
+	Grid(FluidSolver* parent, T* data, bool show = true);
 	//! create new & copy content from another grid
 	Grid(const Grid<T>& a);
 	//! return memory to solver
@@ -104,7 +106,7 @@ public:
 	
 	PYTHON() void save(std::string name);
 	PYTHON() void load(std::string name);
-
+	
 	//! set all cells to zero
 	PYTHON() void clear();
 	
@@ -143,6 +145,7 @@ public:
 		case 1:  return interpol     <T>(mData, mSize, mStrideZ, pos); 
 		case 2:  return interpolCubic<T>(mData, mSize, mStrideZ, pos); 
 		default: assertMsg(false, "Unknown interpolation order "<<order); }
+		return T(0.); // should never be reached, just to prevent compiler warnings
 	}
 	
 	// assignment / copy
@@ -158,17 +161,18 @@ public:
 	PYTHON() void add(const Grid<T>& a);
 	PYTHON() void sub(const Grid<T>& a);
 	//! set all cells to constant value
-	PYTHON() void setConst(const T& s);
+	PYTHON() void setConst(T s);
 	//! add constant to all grid cells
-	PYTHON() void addConst(const T& s);
+	PYTHON() void addConst(T s);
 	//! add scaled other grid to current one (note, only "Real" factor, "T" type not supported here!)
 	PYTHON() void addScaled(const Grid<T>& a, const T& factor); 
 	//! multiply contents of grid
-	PYTHON() void mult(const Grid<T>& a);
+	PYTHON() void mult( const Grid<T>& a);
 	//! multiply each cell by a constant scalar value
-	PYTHON() void multConst(const T& s);
+	PYTHON() void multConst(T s);
 	//! clamp content to range (for vec3, clamps each component separately)
-	PYTHON() void clamp(const T& min, const T& max);
+	PYTHON() void clamp(Real min, Real max);
+	//! reduce small values to zero
 	PYTHON() void stomp(const T& threshold);
 	
 	// common compound operators
@@ -178,23 +182,21 @@ public:
 	PYTHON() Real getMax() const;
 	//! get min value in grid 
 	PYTHON() Real getMin() const;
-	//! get sum all values in grid
-	PYTHON() T getSum() const { T v(0.); FOR_IDX(*this) { v += mData[idx]; } return v; }
+	//! calculate L1 norm of grid content
+	PYTHON() Real getL1(int bnd=0);
+	//! calculate L2 norm of grid content
+	PYTHON() Real getL2(int bnd=0);
+
 	//! set all boundary cells to constant value (Dirichlet)
 	PYTHON() void setBound(T value, int boundaryWidth=1);
 	//! set all boundary cells to last inner value (Neumann)
 	PYTHON() void setBoundNeumann(int boundaryWidth=1);
 
-	//! for compatibility, old names:
-	PYTHON() Real getMaxAbsValue() { return getMaxAbs(); }
-	PYTHON() Real getMaxValue()    { return getMax(); }
-	PYTHON() Real getMinValue()    { return getMin(); }
-
 	//! get data pointer of grid
 	PYTHON() std::string getDataPointer();
 	
-	//! debugging helper, print grid from python
-	PYTHON() void printGrid(int zSlice=-1,  bool printIndex=false); 
+	//! debugging helper, print grid from python. skip boundary of width bnd
+	PYTHON() void printGrid(int zSlice=-1,  bool printIndex=false, int bnd=1); 
 
 	// c++ only operators
 	template<class S> Grid<T>& operator+=(const Grid<S>& a);
@@ -216,6 +218,7 @@ public:
 
 protected:
 	T* mData;
+	bool externalData;		// True if mData is managed outside of the Fluidsolver
 };
 
 // Python doesn't know about templates: explicit aliases needed
@@ -223,16 +226,14 @@ PYTHON() alias Grid<int>  IntGrid;
 PYTHON() alias Grid<Real> RealGrid;
 PYTHON() alias Grid<Vec3> VecGrid;
 
-class FlagGrid;
-
 //! Special function for staggered grids
 PYTHON() class MACGrid : public Grid<Vec3> {
 public:
 	PYTHON() MACGrid(FluidSolver* parent, bool show=true) : Grid<Vec3>(parent, show) { 
 		mType = (GridType)(TypeMAC | TypeVec3); }
-
-	PYTHON() void clearCell(const FlagGrid& flag, const int type);
-
+        MACGrid(FluidSolver* parent, Vec3* data, bool show=true) : Grid<Vec3>(parent, data, show) { 
+		mType = (GridType)(TypeMAC | TypeVec3); }
+	
 	// specialized functions for interpolating MAC information
 	inline Vec3 getCentered(int i, int j, int k) const;
 	inline Vec3 getCentered(const Vec3i& pos) const { return getCentered(pos.x, pos.y, pos.z); }
@@ -241,12 +242,13 @@ public:
 	inline Vec3 getAtMACZ(int i, int j, int k) const;
 	// interpolation
 	inline Vec3 getInterpolated(const Vec3& pos) const { return interpolMAC(mData, mSize, mStrideZ, pos); }
-	inline void setInterpolated(const Vec3& pos, const Vec3& val, Vec3* tmp) { setInterpolMAC(mData, mSize, mStrideZ, pos, val, tmp); }
+	inline void setInterpolated(const Vec3& pos, const Vec3& val, Vec3* tmp) const { return setInterpolMAC(mData, mSize, mStrideZ, pos, val, tmp); }
 	inline Vec3 getInterpolatedHi(const Vec3& pos, int order) const { 
 		switch(order) {
 		case 1:  return interpolMAC     (mData, mSize, mStrideZ, pos); 
 		case 2:  return interpolCubicMAC(mData, mSize, mStrideZ, pos); 
 		default: assertMsg(false, "Unknown interpolation order "<<order); }
+		return Vec3(0.); // should never be reached, just to prevent compiler warnings
 	}
 	// specials for mac grid:
 	template<int comp> inline Real getInterpolatedComponent(Vec3 pos) const { return interpolComponent<comp>(mData, mSize, mStrideZ, pos); }
@@ -255,6 +257,7 @@ public:
 		case 1:  return interpolComponent<comp>(mData, mSize, mStrideZ, pos); 
 		case 2:  return interpolCubicMAC(mData, mSize, mStrideZ, pos)[comp];  // warning - not yet optimized
 		default: assertMsg(false, "Unknown interpolation order "<<order); }
+		return 0.; // should never be reached, just to prevent compiler warnings
 	}
 
 	//! set all boundary cells of a MAC grid to certain value (Dirchlet). Respects staggered grid locations
@@ -269,7 +272,9 @@ PYTHON() class FlagGrid : public Grid<int> {
 public:
 	PYTHON() FlagGrid(FluidSolver* parent, int dim=3, bool show=true) : Grid<int>(parent, show) { 
 		mType = (GridType)(TypeFlags | TypeInt); }
-	
+	FlagGrid(FluidSolver* parent, int* data, int dim = 3, bool show=true) : Grid<int>(parent, data, show) { 
+            mType = (GridType)(TypeFlags | TypeInt); }	
+
 	//! types of cells, in/outflow can be combined, e.g., TypeFluid|TypeInflow
 	enum CellType { 
 		TypeNone     = 0,
@@ -284,16 +289,6 @@ public:
 		TypeReserved = 256,
 		// 2^10 - 2^14 reserved for moving obstacles
 	};
-
-	PYTHON() void andOp(const Grid<int>& a) { (*this) &= a; }
-	PYTHON() void OrOp(const Grid<int>& a) { (*this) |= a; }
-	PYTHON() void andScalarOp(const int a) { (*this) &= a; }
-	PYTHON() void OrScalarOp(const int a) { (*this) |= a; }
-
-	Grid<int>& operator&=(const Grid<int>& a);
-	Grid<int>& operator|=(const Grid<int>& a);
-	Grid<int>& operator&=(const int a);
-	Grid<int>& operator|=(const int a);
 		
 	//! access for particles
 	inline int getAt(const Vec3& pos) const { return mData[index((int)pos.x, (int)pos.y, (int)pos.z)]; }
@@ -336,20 +331,24 @@ public:
 	void InitMinZWall(const int &boundaryWidth, Grid<Real>& phiWalls);
 	void InitMaxZWall(const int &boundaryWidth, Grid<Real>& phiWalls);
 	// Python callables
-	PYTHON() void initDomain( const int &boundaryWidth   = 0,
-				  const std::string &wall    = "xXyYzZ",
-				  const std::string &open    = "      ",
-				  const std::string &inflow  = "      ",
-				  const std::string &outflow = "      ",
-				  Grid<Real>* phiWalls       = 0x00 );
+	PYTHON() void initDomain( const int &boundaryWidth   = 0 
+						  , const std::string &wall    = "xXyYzZ"
+						  , const std::string &open    = "      "
+						  , const std::string &inflow  = "      "
+						  , const std::string &outflow = "      "
+						  , Grid<Real>* phiWalls       = 0x00 );
+
 	void initBoundaries( const int &boundaryWidth, const int *types );
 
-	PYTHON() void minifyFrom(const FlagGrid &flags, const Vec3i &scale);
-	PYTHON() void updateFromLevelset(const LevelsetGrid& levelset);
+	//! set fluid flags inside levelset (liquids)
+	PYTHON() void updateFromLevelset(LevelsetGrid& levelset);    
+	//! set all cells (except obs/in/outflow) to type (fluid by default)
 	PYTHON() void fillGrid(int type=TypeFluid);
-	PYTHON() void extendRegion(const int region, const int exclude, const int depth);
 
-	void updateFromLevelsetNonMatched(const LevelsetGrid& levelset, const int orderSpace=1);
+	//! count no. of cells matching flags via "AND"
+	//! warning for large grids! only regular int returned (due to python interface)
+	//! optionally creates mask in RealGrid (1 where flag matches, 0 otherwise)
+	PYTHON() int countCells(int flag, int bnd=0, Grid<Real>* mask=NULL);
 };
 
 //! helper to compute grid conversion factor between local coordinates of two grids
@@ -373,8 +372,7 @@ void setComponent(const Grid<Real>& src, Grid<Vec3>& dst, int c);
 // Implementation of inline functions
 
 inline void GridBase::checkIndex(int i, int j, int k) const {
-	//if (i<0 || j<0  || i>=mSize.x || j>=mSize.y || (is3D() && (k<0|| k>= mSize.z))) {
-	if (i<0 || j<0  || i>=mSize.x || j>=mSize.y || k<0|| k>= mSize.z ) {
+	if (i<0 || j<0 || k<0 || i>=mSize.x || j>=mSize.y || k>=mSize.z) {
 		std::ostringstream s;
 		s << "Grid " << mName << " dim " << mSize << " : index " << i << "," << j << "," << k << " out of bound ";
 		errMsg(s.str());
@@ -408,20 +406,6 @@ bool GridBase::isInBounds(IndexInt idx) const {
 		return false;
 	}
 	return true;
-}
-
-inline void MACGrid::clearCell(const FlagGrid &flag, const int type) {
-	FOR_IJK(flag) {
-		if(flag(i,j,k)&type) {
-			(*this)(i, j, k).x = (*this)(i, j, k).y = 0;
-			if(getSizeX()<i+1) (*this)(i+1, j, k).x = 0;
-			if(getSizeY()<j+1) (*this)(i, j+1, k).y = 0;
-			if(is3D()) {
-				(*this)(i, j, k).z = 0;
-				if(getSizeZ()<k+1) (*this)(i, j, k+1).z = 0;
-			}
-		}
-	}
 }
 
 inline Vec3 MACGrid::getCentered(int i, int j, int k) const {
@@ -472,64 +456,49 @@ inline Vec3 MACGrid::getAtMACZ(int i, int j, int k) const {
 	return v;
 }
 
-template<typename T> inline void stomp(T &v, const T &th) { if(v<th) v=0; }
-template<> inline void stomp<Vec3>(Vec3 &v, const Vec3 &th) { if(v[0]<th[0]) v[0]=0; if(v[1]<th[1]) v[1]=0; if(v[2]<th[2]) v[2]=0; }
-
-KERNEL(idx) template<class T, class S> void gridAnd       (Grid<T>& me, const Grid<S>& other) { me[idx] &= other[idx]; }
-KERNEL(idx) template<class T, class S> void gridOr        (Grid<T>& me, const Grid<S>& other) { me[idx] |= other[idx]; }
-KERNEL(idx) template<class T, class S> void gridAdd       (Grid<T>& me, const Grid<S>& other) { me[idx] += other[idx]; }
-KERNEL(idx) template<class T, class S> void gridSub       (Grid<T>& me, const Grid<S>& other) { me[idx] -= other[idx]; }
-KERNEL(idx) template<class T, class S> void gridMult      (Grid<T>& me, const Grid<S>& other) { me[idx] *= other[idx]; }
-KERNEL(idx) template<class T, class S> void gridDiv       (Grid<T>& me, const Grid<S>& other) { me[idx] /= other[idx]; }
-KERNEL(idx) template<class T, class S> void gridAndScalar (Grid<T>& me, const S& other)       { me[idx] &= other; }
-KERNEL(idx) template<class T, class S> void gridOrScalar  (Grid<T>& me, const S& other)       { me[idx] |= other; }
-KERNEL(idx) template<class T, class S> void gridAddScalar (Grid<T>& me, const S& other)       { me[idx] += other; }
-KERNEL(idx) template<class T, class S> void gridMultScalar(Grid<T>& me, const S& other)       { me[idx] *= other; }
+KERNEL(idx) template<class T, class S> void gridAdd  (Grid<T>& me, const Grid<S>& other) { me[idx] += other[idx]; }
+KERNEL(idx) template<class T, class S> void gridSub  (Grid<T>& me, const Grid<S>& other) { me[idx] -= other[idx]; }
+KERNEL(idx) template<class T, class S> void gridMult (Grid<T>& me, const Grid<S>& other) { me[idx] *= other[idx]; }
+KERNEL(idx) template<class T, class S> void gridDiv  (Grid<T>& me, const Grid<S>& other) { me[idx] /= other[idx]; }
+KERNEL(idx) template<class T, class S> void gridAddScalar (Grid<T>& me, const S& other)  { me[idx] += other; }
+KERNEL(idx) template<class T, class S> void gridMultScalar(Grid<T>& me, const S& other)  { me[idx] *= other; }
 KERNEL(idx) template<class T, class S> void gridScaledAdd (Grid<T>& me, const Grid<T>& other, const S& factor) { me[idx] += factor * other[idx]; }
 
-KERNEL(idx) template<class T> void gridSafeDiv (Grid<T>& me, const Grid<T>& other) { me[idx] = safeDivide(me[idx], other[idx]); }
-KERNEL(idx) template<class T> void gridSetConst(Grid<T>& grid, const T& value) { grid[idx] = value; }
-KERNEL(idx) template<class T> void gridClamp(Grid<T>& me, const T& min, const T& max) { me[idx] = clamp(me[idx], min, max); }
-KERNEL(idx) template<class T> void gridStomp(Grid<T>& me, const T& threshold) { stomp(me[idx], threshold); }
+KERNEL(idx) template<class T> void gridSetConst(Grid<T>& grid, T value) { grid[idx] = value; }
 
-inline Grid<int>& FlagGrid::operator&=(const Grid<int>& a) { gridAnd<int,int>(*this, a);       return *this; }
-inline Grid<int>& FlagGrid::operator|=(const Grid<int>& a) { gridOr<int,int>(*this, a);        return *this; }
-inline Grid<int>& FlagGrid::operator&=(const int a)        { gridAndScalar<int,int>(*this, a); return *this; }
-inline Grid<int>& FlagGrid::operator|=(const int a)        { gridOrScalar<int,int>(*this, a);  return *this; }
-template<class T> template<class S> Grid<T>& Grid<T>::operator+=(const Grid<S>& a) {
-	gridAdd<T,S>(*this, a);
+template<class T> template<class S> Grid<T>& Grid<T>::operator+= (const Grid<S>& a) {
+	gridAdd<T,S> (*this, a);
 	return *this;
 }
-template<class T> template<class S> Grid<T>& Grid<T>::operator+=(const S& a) {
-	gridAddScalar<T,S>(*this, a);
+template<class T> template<class S> Grid<T>& Grid<T>::operator+= (const S& a) {
+	gridAddScalar<T,S> (*this, a);
 	return *this;
 }
-template<class T> template<class S> Grid<T>& Grid<T>::operator-=(const Grid<S>& a) {
-	gridSub<T,S>(*this, a);
+template<class T> template<class S> Grid<T>& Grid<T>::operator-= (const Grid<S>& a) {
+	gridSub<T,S> (*this, a);
 	return *this;
 }
-template<class T> template<class S> Grid<T>& Grid<T>::operator-=(const S& a) {
-	gridAddScalar<T,S>(*this, -a);
+template<class T> template<class S> Grid<T>& Grid<T>::operator-= (const S& a) {
+	gridAddScalar<T,S> (*this, -a);
 	return *this;
 }
-template<class T> template<class S> Grid<T>& Grid<T>::operator*=(const Grid<S>& a) {
-	gridMult<T,S>(*this, a);
+template<class T> template<class S> Grid<T>& Grid<T>::operator*= (const Grid<S>& a) {
+	gridMult<T,S> (*this, a);
 	return *this;
 }
-template<class T> template<class S> Grid<T>& Grid<T>::operator*=(const S& a) {
-	gridMultScalar<T,S>(*this, a);
+template<class T> template<class S> Grid<T>& Grid<T>::operator*= (const S& a) {
+	gridMultScalar<T,S> (*this, a);
 	return *this;
 }
-template<class T> template<class S> Grid<T>& Grid<T>::operator/=(const Grid<S>& a) {
-	gridDiv<T,S>(*this, a);
+template<class T> template<class S> Grid<T>& Grid<T>::operator/= (const Grid<S>& a) {
+	gridDiv<T,S> (*this, a);
 	return *this;
 }
-template<class T> template<class S> Grid<T>& Grid<T>::operator/=(const S& a) {
+template<class T> template<class S> Grid<T>& Grid<T>::operator/= (const S& a) {
 	S rez((S)1.0 / a);
-	gridMultScalar<T,S>(*this, rez);
+	gridMultScalar<T,S> (*this, rez);
 	return *this;
 }
-
 
 //******************************************************************************
 // Other helper functions
@@ -556,7 +525,7 @@ inline Vec3 getGradient(const Grid<Real>& data, int i, int j, int k) {
 
 // interpolate grid from one size to another size
 KERNEL() template<class S>
-void knInterpolateGridTempl(Grid<S>& target, const Grid<S>& source, const Vec3& sourceFactor, const Vec3 offset, const int orderSpace=1) {
+void knInterpolateGridTempl(Grid<S>& target, const Grid<S>& source, const Vec3& sourceFactor , Vec3 offset, int orderSpace=1 ) {
 	Vec3 pos = Vec3(i,j,k) * sourceFactor + offset;
 	if(!source.is3D()) pos[2] = 0; // allow 2d -> 3d
 	target(i,j,k) = source.getInterpolatedHi(pos, orderSpace);

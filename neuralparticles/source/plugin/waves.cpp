@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Wave equation
  *
@@ -70,7 +70,7 @@ PYTHON() void normalizeSumTo(Grid<Real>& height, Real target) {
 
 //! Kernel: Construct the right-hand side of the poisson equation
 KERNEL(bnd=1)
-void MakeRhsWE(FlagGrid& flags, Grid<Real>& rhs, Grid<Real>& ut, Grid<Real>& utm1,
+void MakeRhsWE(const FlagGrid& flags, Grid<Real>& rhs, const Grid<Real>& ut, const Grid<Real>& utm1,
 			Real s, bool crankNic=false) 
 {
 	rhs(i,j,k) = ( 2.*ut(i,j,k) - utm1(i,j,k) );
@@ -84,7 +84,7 @@ void MakeRhsWE(FlagGrid& flags, Grid<Real>& rhs, Grid<Real>& ut, Grid<Real>& utm
 
 
 //! do a CG solve for the wave equation (note, out grid only there for debugging... could be removed)
-PYTHON() void cgSolveWE(FlagGrid& flags, Grid<Real>& ut, Grid<Real>& utm1, Grid<Real>& out,
+PYTHON() void cgSolveWE(const FlagGrid& flags, Grid<Real>& ut, Grid<Real>& utm1, Grid<Real>& out,
 						bool crankNic     = false,
 						Real cSqr         = 0.25,
 						Real cgMaxIterFac = 1.5,

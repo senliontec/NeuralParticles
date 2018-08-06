@@ -4,8 +4,8 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Levelset
  *
@@ -29,7 +29,7 @@ static const int FlagInited = FastMarch<FmHeapEntryOut, +1>::FlagInited;
 static const Vec3i neighbors[6] = { Vec3i(-1,0,0), Vec3i(1,0,0), Vec3i(0,-1,0), Vec3i(0,1,0), Vec3i(0,0,-1), Vec3i(0,0,1) };
 	
 KERNEL(bnd=1) 
-void InitFmIn (FlagGrid& flags, Grid<int>& fmFlags, Grid<Real>& phi, bool ignoreWalls, int obstacleType) {
+void InitFmIn (const FlagGrid& flags, Grid<int>& fmFlags, Grid<Real>& phi, bool ignoreWalls, int obstacleType) {
 	const IndexInt idx = flags.index(i,j,k);
 	const Real v = phi[idx];
 	if (ignoreWalls) {
@@ -44,7 +44,7 @@ void InitFmIn (FlagGrid& flags, Grid<int>& fmFlags, Grid<Real>& phi, bool ignore
 }
 
 KERNEL(bnd=1) 
-void InitFmOut (FlagGrid& flags, Grid<int>& fmFlags, Grid<Real>& phi, bool ignoreWalls, int obstacleType) {
+void InitFmOut (const FlagGrid& flags, Grid<int>& fmFlags, Grid<Real>& phi, bool ignoreWalls, int obstacleType) {
 	const IndexInt idx = flags.index(i,j,k);
 	const Real v = phi[idx];
 	if (ignoreWalls) {
@@ -59,7 +59,7 @@ void InitFmOut (FlagGrid& flags, Grid<int>& fmFlags, Grid<Real>& phi, bool ignor
 }
 
 KERNEL(bnd=1) 
-void SetUninitialized (Grid<int>& flags, Grid<int>& fmFlags, Grid<Real>& phi, const Real val, int ignoreWalls, int obstacleType) {
+void SetUninitialized (const Grid<int>& flags, Grid<int>& fmFlags, Grid<Real>& phi, const Real val, int ignoreWalls, int obstacleType) {
 	if(ignoreWalls) {
 		if ( (fmFlags(i,j,k) != FlagInited) && ((flags(i,j,k) & obstacleType) == 0) ) {
 			phi(i,j,k) = val; }
@@ -69,7 +69,7 @@ void SetUninitialized (Grid<int>& flags, Grid<int>& fmFlags, Grid<Real>& phi, co
 }
 
 template<bool inward>
-inline bool isAtInterface(Grid<int>& fmFlags, Grid<Real>& phi, const Vec3i& p) {
+inline bool isAtInterface(const Grid<int>& fmFlags, Grid<Real>& phi, const Vec3i& p) {
 	// check for interface
 	int max = phi.is3D() ? 6 : 4;
 	for (int nb=0; nb<max; nb++) {
@@ -93,6 +93,12 @@ LevelsetGrid::LevelsetGrid(FluidSolver* parent, bool show)
 	mType = (GridType)(TypeLevelset | TypeReal);    
 }    
 
+LevelsetGrid::LevelsetGrid(FluidSolver* parent, Real* data, bool show)
+        : Grid<Real>(parent, data, show)
+{
+        mType = (GridType)(TypeLevelset | TypeReal);
+}
+
 Real LevelsetGrid::invalidTimeValue() {
 	return FastMarch<FmHeapEntryOut, 1>::InvalidTime();
 }
@@ -105,20 +111,14 @@ void LevelsetGrid::join(const LevelsetGrid& o) { KnJoin(*this, o); }
 
 //! subtract b, note does not preserve SDF!
 KERNEL(idx) void KnSubtract(Grid<Real>& a, const Grid<Real>& b) {
-	a[idx] = max(a[idx], -b[idx]);
-}
+	if(b[idx]<0.) a[idx] = b[idx] * -1.;
+} 
 void LevelsetGrid::subtract(const LevelsetGrid& o) { KnSubtract(*this, o); }
-
-//! Kernel: perform levelet intersection
-KERNEL(idx) void KnIntersect(Grid<Real>& a, const Grid<Real>& b) {
-	a[idx] = max(a[idx], b[idx]);
-}
-void LevelsetGrid::intersect(const LevelsetGrid &o) { KnIntersect(*this, o); }
 
 //! re-init levelset and extrapolate velocities (in & out)
 //  note - uses flags to identify border (could also be done based on ls values)
 static void doReinitMarch( Grid<Real>& phi,
-		FlagGrid& flags, Real maxTime, MACGrid* velTransport,
+		const FlagGrid& flags, Real maxTime, MACGrid* velTransport,
 		bool ignoreWalls, bool correctOuterLayer, int obstacleType )
 {
 	const int dim = (phi.is3D() ? 3 : 2); 
@@ -219,14 +219,14 @@ static void doReinitMarch( Grid<Real>& phi,
 
 //! call for levelset grids & external real grids
 
-void LevelsetGrid::reinitMarching( FlagGrid& flags, Real maxTime, MACGrid* velTransport,
+void LevelsetGrid::reinitMarching( const FlagGrid& flags, Real maxTime, MACGrid* velTransport,
 		bool ignoreWalls, bool correctOuterLayer, int obstacleType )
 {
 	doReinitMarch( *this, flags, maxTime, velTransport, ignoreWalls, correctOuterLayer, obstacleType );
 }
 
 
-void LevelsetGrid::initFromFlags(FlagGrid& flags, bool ignoreWalls) {
+void LevelsetGrid::initFromFlags(const FlagGrid& flags, bool ignoreWalls) {
 	FOR_IDX(*this) {
 		if (flags.isFluid(idx) || (ignoreWalls && flags.isObstacle(idx)))
 			mData[idx] = -0.5;

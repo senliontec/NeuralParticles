@@ -1,11 +1,11 @@
 // ----------------------------------------------------------------------------
 //
 // MantaFlow fluid solver framework
-// Copyright 2016 Kiwon Um, Nils Thuerey
+// Copyright 2016-2017 Kiwon Um, Nils Thuerey
 //
 // This program is free software, distributed under the terms of the
-// GNU General Public License (GPL)
-// http://www.gnu.org/licenses
+// Apache License, Version 2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Affine Particle-In-Cell
 //
@@ -16,14 +16,12 @@
 
 namespace Manta {
 
-const Real _0 = 0.;
-const Real _1 = 1.;
-
 KERNEL(pts, single)
 void knApicMapLinearVec3ToMACGrid(
 	const BasicParticleSystem &p, MACGrid &mg, MACGrid &vg, const ParticleDataImpl<Vec3> &vp,
 	const ParticleDataImpl<Vec3> &cpx, const ParticleDataImpl<Vec3> &cpy, const ParticleDataImpl<Vec3> &cpz,
-	const ParticleDataImpl<int> *ptype, const int exclude) {
+	const ParticleDataImpl<int> *ptype, const int exclude)
+{
 	if (!p.isActive(idx) || (ptype && ((*ptype)[idx] & exclude))) return;
 	const IndexInt dX[2] = { 0, vg.getStrideX() };
 	const IndexInt dY[2] = { 0, vg.getStrideY() };
@@ -32,15 +30,15 @@ void knApicMapLinearVec3ToMACGrid(
 	const Vec3 &pos = p[idx].pos, &vel = vp[idx];
 	const IndexInt fi = static_cast<IndexInt>(pos.x	   ), fj = static_cast<IndexInt>(pos.y	  ), fk = static_cast<IndexInt>(pos.z	  );
 	const IndexInt ci = static_cast<IndexInt>(pos.x-0.5), cj = static_cast<IndexInt>(pos.y-0.5), ck = static_cast<IndexInt>(pos.z-0.5);
-	const Real wfi = clamp(pos.x-fi, _0, _1), wfj = clamp(pos.y-fj, _0, _1), wfk = clamp(pos.z-fk, _0, _1);
-	const Real wci = clamp(Real(pos.x-ci-0.5), _0, _1), wcj = clamp(Real(pos.y-cj-0.5), _0, _1), wck = clamp(Real(pos.z-ck-0.5), _0, _1);
+	const Real wfi = clamp(pos.x-fi, Real(0), Real(1)), wfj = clamp(pos.y-fj, Real(0), Real(1)), wfk = clamp(pos.z-fk, Real(0), Real(1));
+	const Real wci = clamp(Real(pos.x-ci-0.5), Real(0), Real(1)), wcj = clamp(Real(pos.y-cj-0.5), Real(0), Real(1)), wck = clamp(Real(pos.z-ck-0.5), Real(0), Real(1));
 	// TODO: check index for safety
 	{			// u-face
 		const IndexInt gidx = fi*dX[1] + cj*dY[1] + ck*dZ[1];
 		const Vec3 gpos(fi, cj+0.5, ck+0.5);
-		const Real wi[2] = { _1-wfi, wfi };
-		const Real wj[2] = { _1-wcj, wcj };
-		const Real wk[2] = { _1-wck, wck };
+		const Real wi[2] = { Real(1)-wfi, wfi };
+		const Real wj[2] = { Real(1)-wcj, wcj };
+		const Real wk[2] = { Real(1)-wck, wck };
 		for(int i=0; i<2; ++i)
 			for(int j=0; j<2; ++j)
 				for(int k=0; k<2; ++k) {
@@ -53,9 +51,9 @@ void knApicMapLinearVec3ToMACGrid(
 	{			// v-face
 		const IndexInt gidx = ci*dX[1] + fj*dY[1] + ck*dZ[1];
 		const Vec3 gpos(ci+0.5, fj, ck+0.5);
-		const Real wi[2] = { _1-wci, wci };
-		const Real wj[2] = { _1-wfj, wfj };
-		const Real wk[2] = { _1-wck, wck };
+		const Real wi[2] = { Real(1)-wci, wci };
+		const Real wj[2] = { Real(1)-wfj, wfj };
+		const Real wk[2] = { Real(1)-wck, wck };
 		for(int i=0; i<2; ++i)
 			for(int j=0; j<2; ++j)
 				for(int k=0; k<2; ++k) {
@@ -69,9 +67,9 @@ void knApicMapLinearVec3ToMACGrid(
 	{			// w-face
 		const IndexInt gidx = ci*dX[1] + cj*dY[1] + fk*dZ[1];
 		const Vec3 gpos(ci+0.5, cj+0.5, fk);
-		const Real wi[2] = { _1-wci, wci };
-		const Real wj[2] = { _1-wcj, wcj };
-		const Real wk[2] = { _1-wfk, wfk };
+		const Real wi[2] = { Real(1)-wci, wci };
+		const Real wj[2] = { Real(1)-wcj, wcj };
+		const Real wk[2] = { Real(1)-wfk, wfk };
 		for(int i=0; i<2; ++i)
 			for(int j=0; j<2; ++j)
 				for(int k=0; k<2; ++k) {
@@ -88,7 +86,8 @@ void apicMapPartsToMAC(
 	const FlagGrid &flags, MACGrid &vel,
 	const BasicParticleSystem &parts, const ParticleDataImpl<Vec3> &partVel,
 	const ParticleDataImpl<Vec3> &cpx, const ParticleDataImpl<Vec3> &cpy, const ParticleDataImpl<Vec3> &cpz,
-	MACGrid *mass=NULL, const ParticleDataImpl<int> *ptype=NULL, const int exclude=0) {
+	MACGrid *mass=NULL, const ParticleDataImpl<int> *ptype=NULL, const int exclude=0)
+{
 	// affine map
 	// let's assume that the particle mass is constant, 1.0
 	const bool freeMass = !mass;
@@ -107,24 +106,25 @@ KERNEL(pts)
 void knApicMapLinearMACGridToVec3(
 	ParticleDataImpl<Vec3> &vp, ParticleDataImpl<Vec3> &cpx, ParticleDataImpl<Vec3> &cpy, ParticleDataImpl<Vec3> &cpz,
 	const BasicParticleSystem &p, const MACGrid &vg, const FlagGrid &flags,
-	const ParticleDataImpl<int> *ptype, const int exclude) {
+	const ParticleDataImpl<int> *ptype, const int exclude)
+{
 	if (!p.isActive(idx) || (ptype && ((*ptype)[idx] & exclude))) return;
 
-	vp[idx] = cpx[idx] = cpy[idx] = cpz[idx] = Vec3(_0);
+	vp[idx] = cpx[idx] = cpy[idx] = cpz[idx] = Vec3(Real(0));
 	const IndexInt dX[2] = {0, vg.getStrideX()}, dY[2] = {0, vg.getStrideY()}, dZ[2] = {0, vg.getStrideZ()};
-	const Real gw[2] = {-1.0, 1.0};
+	const Real gw[2] = {-Real(1), Real(1)};
 
 	const Vec3 &pos = p[idx].pos;
 	const IndexInt fi = static_cast<IndexInt>(pos.x	   ), fj = static_cast<IndexInt>(pos.y	  ), fk = static_cast<IndexInt>(pos.z	 );
 	const IndexInt ci = static_cast<IndexInt>(pos.x-0.5), cj = static_cast<IndexInt>(pos.y-0.5), ck = static_cast<IndexInt>(pos.z-0.5);
-	const Real wfi = clamp(pos.x-fi, _0, _1), wfj = clamp(pos.y-fj, _0, _1), wfk = clamp(pos.z-fk, _0, _1);
-	const Real wci = clamp(Real(pos.x-ci-0.5), _0, _1), wcj = clamp(Real(pos.y-cj-0.5), _0, _1), wck = clamp(Real(pos.z-ck-0.5), _0, _1);
+	const Real wfi = clamp(pos.x-fi, Real(0), Real(1)), wfj = clamp(pos.y-fj, Real(0), Real(1)), wfk = clamp(pos.z-fk, Real(0), Real(1));
+	const Real wci = clamp(Real(pos.x-ci-0.5), Real(0), Real(1)), wcj = clamp(Real(pos.y-cj-0.5), Real(0), Real(1)), wck = clamp(Real(pos.z-ck-0.5), Real(0), Real(1));
 	// TODO: check index for safety
 	{			// u
 		const IndexInt gidx = fi*dX[1] + cj*dY[1] + ck*dZ[1];
-		const Real wx[2] = { _1-wfi, wfi };
-		const Real wy[2] = { _1-wcj, wcj };
-		const Real wz[2] = { _1-wck, wck };
+		const Real wx[2] = { Real(1)-wfi, wfi };
+		const Real wy[2] = { Real(1)-wcj, wcj };
+		const Real wz[2] = { Real(1)-wck, wck };
 		for(int i=0; i<2; ++i)
 			for(int j=0; j<2; ++j)
 				for(int k=0; k<2; ++k) {
@@ -138,9 +138,9 @@ void knApicMapLinearMACGridToVec3(
 	}
 	{			// v
 		const IndexInt gidx = ci*dX[1] + fj*dY[1] + ck*dZ[1];
-		const Real wx[2] = { _1-wci, wci };
-		const Real wy[2] = { _1-wfj, wfj };
-		const Real wz[2] = { _1-wck, wck };
+		const Real wx[2] = { Real(1)-wci, wci };
+		const Real wy[2] = { Real(1)-wfj, wfj };
+		const Real wz[2] = { Real(1)-wck, wck };
 		for(int i=0; i<2; ++i)
 			for(int j=0; j<2; ++j)
 				for(int k=0; k<2; ++k) {
@@ -155,9 +155,9 @@ void knApicMapLinearMACGridToVec3(
 	if(!vg.is3D()) return;
 	{			// w
 		const IndexInt gidx = ci*dX[1] + cj*dY[1] + fk*dZ[1];
-		const Real wx[2] = { _1-wci, wci };
-		const Real wy[2] = { _1-wcj, wcj };
-		const Real wz[2] = { _1-wfk, wfk };
+		const Real wx[2] = { Real(1)-wci, wci };
+		const Real wy[2] = { Real(1)-wcj, wcj };
+		const Real wz[2] = { Real(1)-wfk, wfk };
 		for(int i=0; i<2; ++i)
 			for(int j=0; j<2; ++j)
 				for(int k=0; k<2; ++k) {
@@ -175,7 +175,8 @@ PYTHON()
 void apicMapMACGridToParts(
 	ParticleDataImpl<Vec3> &partVel, ParticleDataImpl<Vec3> &cpx, ParticleDataImpl<Vec3> &cpy, ParticleDataImpl<Vec3> &cpz,
 	const BasicParticleSystem &parts, const MACGrid &vel, const FlagGrid &flags,
-	const ParticleDataImpl<int> *ptype=NULL, const int exclude=0) {
+	const ParticleDataImpl<int> *ptype=NULL, const int exclude=0)
+{
 	knApicMapLinearMACGridToVec3(partVel, cpx, cpy, cpz, parts, vel, flags, ptype, exclude);
 }
 

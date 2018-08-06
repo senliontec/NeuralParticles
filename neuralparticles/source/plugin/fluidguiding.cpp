@@ -4,13 +4,12 @@
  * Copyright 2011 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Plugins for pressure correction: solve_pressure, and ghost fluid helpers
  *
  ******************************************************************************/
-#include <math.h>
 #include "vectorbase.h"
 #include "grid.h"
 #include "kernel.h"
@@ -47,7 +46,7 @@ Matrix get1DGaussianBlurKernel(const int n, const int sigma) {
 
 //! convolves in with 1D kernel (centred at the kernel's midpoint) in the x-direction
 //! (out must be a grid of zeros) 
-KERNEL() void apply1DKernelDirX(MACGrid &in, MACGrid &out, const Matrix &kernel) {
+KERNEL() void apply1DKernelDirX(const MACGrid &in, MACGrid &out, const Matrix &kernel) {
 	int nx = in.getSizeX();
 	int kn = kernel.n;
 	int kCentre = kn / 2;
@@ -60,7 +59,7 @@ KERNEL() void apply1DKernelDirX(MACGrid &in, MACGrid &out, const Matrix &kernel)
 
 //! convolves in with 1D kernel (centred at the kernel's midpoint) in the y-direction
 //! (out must be a grid of zeros)
-KERNEL() void apply1DKernelDirY(MACGrid &in, MACGrid &out, const Matrix &kernel) {
+KERNEL() void apply1DKernelDirY(const MACGrid &in, MACGrid &out, const Matrix &kernel) {
 	int ny = in.getSizeY();
 	int kn = kernel.n;
 	int kCentre = kn / 2;
@@ -73,7 +72,7 @@ KERNEL() void apply1DKernelDirY(MACGrid &in, MACGrid &out, const Matrix &kernel)
 
 //! convolves in with 1D kernel (centred at the kernel's midpoint) in the z-direction
 //! (out must be a grid of zeros)
-KERNEL() void apply1DKernelDirZ(MACGrid &in, MACGrid &out, const Matrix &kernel) {
+KERNEL() void apply1DKernelDirZ(const MACGrid &in, MACGrid &out, const Matrix &kernel) {
 	int nz = in.getSizeZ();
 	int kn = kernel.n;
 	int kCentre = kn / 2;
@@ -85,7 +84,7 @@ KERNEL() void apply1DKernelDirZ(MACGrid &in, MACGrid &out, const Matrix &kernel)
 }
 
 //! Apply separable Gaussian blur in 2D
-void applySeparableKernel2D(MACGrid &grid, FlagGrid &flags, const Matrix &kernel) {
+void applySeparableKernel2D(MACGrid &grid, const FlagGrid &flags, const Matrix &kernel) {
 	//int nx = grid.getSizeX(), ny = grid.getSizeY();
 	//int kn = kernel.n;
 	//int kCentre = kn / 2;
@@ -107,7 +106,7 @@ void applySeparableKernel2D(MACGrid &grid, FlagGrid &flags, const Matrix &kernel
 }
 
 //! Apply separable Gaussian blur in 3D
-void applySeparableKernel3D(MACGrid &grid, FlagGrid &flags, const Matrix &kernel) {
+void applySeparableKernel3D(MACGrid &grid, const FlagGrid &flags, const Matrix &kernel) {
 	//int nx = grid.getSizeX(), ny = grid.getSizeY(), nz = grid.getSizeZ();
 	//int kn = kernel.n;
 	//int kCentre = kn / 2;
@@ -131,7 +130,7 @@ void applySeparableKernel3D(MACGrid &grid, FlagGrid &flags, const Matrix &kernel
 }
 
 //! Apply separable Gaussian blur in 2D or 3D depending on input dimensions
-void applySeparableKernel(MACGrid &grid, FlagGrid &flags, const Matrix &kernel) {
+void applySeparableKernel(MACGrid &grid, const FlagGrid &flags, const Matrix &kernel) {
 	if (!grid.is3D()) applySeparableKernel2D(grid, flags, kernel);
 	else applySeparableKernel3D(grid, flags, kernel);
 }
@@ -156,14 +155,14 @@ Real getSNorm(const Real rho, const MACGrid &z, const MACGrid &z_prev) {
 
 //! Compute primal eps for the stopping criterion
 Real getEpsPri(const Real eps_abs, const Real eps_rel,
-	MACGrid &x, MACGrid &z) {
+        const MACGrid &x, const MACGrid &z) {
 	Real max_norm = max(x.getMaxAbs(), z.getMaxAbs());
 	Real eps_pri = sqrt(x.is3D() ? 3.0 : 2.0)*eps_abs + eps_rel*max_norm;
 	return eps_pri;
 }
 
 //! Compute dual eps for the stopping criterion
-Real getEpsDual(const Real eps_abs, const Real eps_rel, MACGrid &y) {
+Real getEpsDual(const Real eps_abs, const Real eps_rel, const MACGrid &y) {
 	Real eps_dual = sqrt(y.is3D() ? 3.0 : 2.0)*eps_abs + eps_rel*y.getMaxAbs();
 	return eps_dual;
 }
@@ -207,7 +206,7 @@ PYTHON() void setGradientYWeight(Grid<Real> &W, const int minY, const int maxY, 
 // More helper functions for fluid guiding
 	
 //! Apply Gaussian blur (either 2D or 3D) in a separable way
-void applySeparableGaussianBlur(MACGrid &grid, FlagGrid &flags, const Matrix &kernel1D) {
+void applySeparableGaussianBlur(MACGrid &grid, const FlagGrid &flags, const Matrix &kernel1D) {
 	assertMsg(gBlurPrecomputed, "Error - blue kernel not precomputed");
 	applySeparableKernel(grid, flags, kernel1D);
 }
@@ -225,7 +224,7 @@ void ADMM_precompute_Separable(int blurRadius) {
 }
 
 //! Apply approximate multiplication of inverse(M)
-void applyApproxInvM(MACGrid& v, FlagGrid &flags, MACGrid& invA) {
+void applyApproxInvM(MACGrid& v, const FlagGrid &flags, const MACGrid& invA) {
 	MACGrid v_new = MACGrid(v.getParent());
 	v_new.copyFrom(v); 
 	v_new.mult(invA);
@@ -239,7 +238,7 @@ void applyApproxInvM(MACGrid& v, FlagGrid &flags, MACGrid& invA) {
 
 //! Precompute Q, a reused quantity in the PD iterations
 //! Q = 2*G*G*(velT-velC)-sigma*velC
-void precomputeQ(MACGrid &Q, FlagGrid &flags, const MACGrid &velT_region, const MACGrid &velC, const Matrix &gBlurKernel, const Real sigma) {
+void precomputeQ(MACGrid &Q, const FlagGrid &flags, const MACGrid &velT_region, const MACGrid &velC, const Matrix &gBlurKernel, const Real sigma) {
 	Q.copyFrom(velT_region);
 	Q.sub(velC);
 	applySeparableGaussianBlur(Q, flags, gBlurKernel); 
@@ -250,7 +249,7 @@ void precomputeQ(MACGrid &Q, FlagGrid &flags, const MACGrid &velT_region, const 
 
 //! Precompute inverse(A), a reused quantity in the PD iterations
 //! A = 2*S^2 + p*I, invA = elementwise 1/A
-void precomputeInvA(MACGrid &invA, Grid<Real> &weight, const Real sigma) {
+void precomputeInvA(MACGrid &invA, const Grid<Real> &weight, const Real sigma) {
 	FOR_IJK(invA) {
 		Real val = 2 * weight(i, j, k)*weight(i, j, k) + sigma;
 		if (val<0.01) val = 0.01;
@@ -262,7 +261,7 @@ void precomputeInvA(MACGrid &invA, Grid<Real> &weight, const Real sigma) {
 }
 
 //! proximal operator of f , guiding 
-void prox_f(MACGrid& v, FlagGrid &flags, MACGrid& Q, const MACGrid& velC, const Real sigma, MACGrid& invA) {
+void prox_f(MACGrid& v, const FlagGrid &flags, const MACGrid& Q, const MACGrid& velC, const Real sigma, const MACGrid& invA) {
 	v.multConst(sigma);
 	v.add(Q);
 	applyApproxInvM(v, flags, invA);
@@ -272,22 +271,21 @@ void prox_f(MACGrid& v, FlagGrid &flags, MACGrid& Q, const MACGrid& velC, const 
 // *****************************************************************************
 
 // re-uses main pressure solve from pressure.cpp
-void solvePressure(
-	MACGrid &vel, Grid<Real> &pressure, FlagGrid &flags,
-	const Real cgAccuracy = 1e-3,
-	const Grid<Real> *phi = NULL,
-	const Grid<Real> *curv = NULL,
-	const Grid<Real> *perCellCorr = NULL,
-	const MACGrid *fractions = NULL,
-	const Real surfTens = 0.073,
-	const Real gfClamp = 1e-04,
-	const Real cgMaxIterFac = 1.5,
-	const bool precondition = true, // Deprecated, use preconditioner instead
+void solvePressure( 
+        MACGrid& vel, Grid<Real>& pressure, const FlagGrid& flags, Real cgAccuracy = 1e-3,
+    const Grid<Real>* phi = 0,
+    const Grid<Real>* perCellCorr = 0,
+    const MACGrid* fractions = 0,
+    Real gfClamp = 1e-04,
+    Real cgMaxIterFac = 1.5,
+    bool precondition = true, 
 	int preconditioner = 1,
-	const bool enforceCompatibility = false,
-	const bool useL2Norm = false,
-	const bool zeroPressureFixing = false,
-	Grid<Real> *retRhs = NULL);
+	bool enforceCompatibility = false,
+    bool useL2Norm = false, 
+	bool zeroPressureFixing = false,
+	const Grid<Real> *curv = NULL,
+	const Real surfTens = 0.0,
+	Grid<Real>* retRhs = NULL );
 
 //! Main function for fluid guiding , includes "regular" pressure solve
 PYTHON() void PD_fluid_guiding(MACGrid& vel, MACGrid& velT,
@@ -330,8 +328,8 @@ PYTHON() void PD_fluid_guiding(MACGrid& vel, MACGrid& velT,
 		z.addScaled(x, -tau);
 		Real cgAccuracyAdaptive = cgAccuracy;
 
-		solvePressure (z, pressure, flags, cgAccuracyAdaptive, phi, NULL, perCellCorr, fractions, 0, gfClamp,
-		    cgMaxIterFac, true, preconditioner, false, false, zeroPressureFixing, NULL );
+		solvePressure (z, pressure, flags, cgAccuracyAdaptive, phi, perCellCorr, fractions, gfClamp,
+		    cgMaxIterFac, true, preconditioner, false, false, zeroPressureFixing );
 
 		// y-update
 		y.copyFrom(z);

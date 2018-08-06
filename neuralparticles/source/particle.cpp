@@ -4,8 +4,8 @@
  * Copyright 2013 Tobias Pfaff, Nils Thuerey 
  *
  * This program is free software, distributed under the terms of the
- * GNU General Public License (GPL) 
- * http://www.gnu.org/licenses
+ * Apache License, Version 2.0 
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Particle data functionality
  *
@@ -15,13 +15,14 @@
 #include <numeric>
 #include <cstring>
 #include <limits>
+#include  <cstring>
 #if NO_ZLIB!=1
 #include <zlib.h>
 #endif
 #include "particle.h"
 #include "levelset.h"
-#include "fileio.h"
 #include "shapes.h"
+#include "mantaio.h"
 
 using namespace std;
 namespace Manta {
@@ -151,9 +152,9 @@ void BasicParticleSystem::writeParticlesText(const string name) const {
 	}
 	ofs.close();
 }
-void BasicParticleSystem::writeParticlesBobj(const std::string& name, const ParticleDataImpl<int> *pT, const int exclude) const {
+/*void BasicParticleSystem::writeParticlesBobj(const std::string& name, const ParticleDataImpl<int> *pT, const int exclude) const {
 	writeBobjFile(name, this, pT, exclude);
-}
+}*/
 
 void BasicParticleSystem::writeParticlesRawPositionsGz(const string name) const {
 #	if NO_ZLIB!=1
@@ -186,7 +187,7 @@ void BasicParticleSystem::writeParticlesRawVelocityGz(const string name) const {
 }
 
 
-void BasicParticleSystem::load(const string name) {
+void BasicParticleSystem::load(const string name ) {
 	if (name.find_last_of('.') == string::npos)
 		errMsg("file '" + name + "' does not have an extension");
 	string ext = name.substr(name.find_last_of('.'));
@@ -202,13 +203,12 @@ void BasicParticleSystem::save(const string name) const {
 	if (name.find_last_of('.') == string::npos)
 		errMsg("file '" + name + "' does not have an extension");
 	string ext = name.substr(name.find_last_of('.'));
-	if (ext == ".txt")
+	if (ext == ".txt") 
 		this->writeParticlesText(name);
-	else if (ext == ".uni")
+	else if (ext == ".uni") 
 		writeParticlesUni(name, this);
 	else if (ext == ".raw") // raw = uni for now
 		writeParticlesUni(name, this);
-
 	// raw data formats, very basic for simple data transfer to other programs
 	else if (ext == ".posgz") 
 		this->writeParticlesRawPositionsGz(name);
@@ -264,6 +264,7 @@ Real appxSurfHeight(const Shape &shape, const BasicParticleSystem &pts, const Re
 
 	return height;
 }
+
 
 // particle data
 
@@ -370,7 +371,7 @@ void ParticleDataImpl<T>::save(string name) {
 	if (name.find_last_of('.') == string::npos)
 		errMsg("file '" + name + "' does not have an extension");
 	string ext = name.substr(name.find_last_of('.'));
-	if (ext == ".uni")
+	if (ext == ".uni") 
 		writePdataUni<T>(name, this);
 	else if (ext == ".raw") // raw = uni for now
 		writePdataUni<T>(name, this);
@@ -398,20 +399,24 @@ ParticleDataBase::PdataType ParticleDataImpl<Vec3>::getType() const {
 int ParticleIndexData::flag = 0; 
 Vec3 ParticleIndexData::pos = Vec3(0.,0.,0.); 
 
-KERNEL(pts) template<class T, class S> void knPdataAdd    (ParticleDataImpl<T>& me, const ParticleDataImpl<S>& other) { me[idx] += other[idx]; }
-KERNEL(pts) template<class T, class S> void knPdataSub    (ParticleDataImpl<T>& me, const ParticleDataImpl<S>& other) { me[idx] -= other[idx]; }
-KERNEL(pts) template<class T, class S> void knPdataMult   (ParticleDataImpl<T>& me, const ParticleDataImpl<S>& other) { me[idx] *= other[idx]; }
-KERNEL(pts) template<class T, class S> void knPdataDiv    (ParticleDataImpl<T>& me, const ParticleDataImpl<S>& other) { me[idx] /= other[idx]; }
-KERNEL(pts) template<class T>          void knPdataSafeDiv(ParticleDataImpl<T>& me, const ParticleDataImpl<T>& other) { me[idx] = safeDivide(me[idx], other[idx]); }
+KERNEL(pts) template<class T> void knSetPdataConst(ParticleDataImpl<T>& pdata, T value) { pdata[idx] = value; }
 
-KERNEL(pts) template<class T, class S> void knPdataSetScalar    (ParticleDataImpl<T>& me, const S& other)  { me[idx]  = other; }
-KERNEL(pts) template<class T, class S> void knPdataSetScalarPart(ParticleDataImpl<T>& me, const S& other, const ParticleDataImpl<int>& t, const int itype) { if(t[idx]&itype) me[idx] = other; }
-KERNEL(pts) template<class T, class S> void knPdataAddScalar    (ParticleDataImpl<T>& me, const S& other)  { me[idx] += other; }
-KERNEL(pts) template<class T, class S> void knPdataMultScalar   (ParticleDataImpl<T>& me, const S& other)  { me[idx] *= other; }
+KERNEL(pts) template<class T, class S> void knPdataSet  (ParticleDataImpl<T>& me, const ParticleDataImpl<S>& other) { me[idx] += other[idx]; }
+KERNEL(pts) template<class T, class S> void knPdataAdd  (ParticleDataImpl<T>& me, const ParticleDataImpl<S>& other) { me[idx] += other[idx]; }
+KERNEL(pts) template<class T, class S> void knPdataSub  (ParticleDataImpl<T>& me, const ParticleDataImpl<S>& other) { me[idx] -= other[idx]; }
+KERNEL(pts) template<class T, class S> void knPdataMult (ParticleDataImpl<T>& me, const ParticleDataImpl<S>& other) { me[idx] *= other[idx]; }
+KERNEL(pts) template<class T, class S> void knPdataDiv  (ParticleDataImpl<T>& me, const ParticleDataImpl<S>& other) { me[idx] /= other[idx]; }
+
 KERNEL(pts) template<class T, class S> void knPdataInvMultScalar(ParticleDataImpl<T>& me, const S& other)  { me[idx] = other/me[idx]; }
-KERNEL(pts) template<class T, class S> void knPdataScaledAdd    (ParticleDataImpl<T>& me, const ParticleDataImpl<T>& other, const S& factor) { me[idx] += factor * other[idx]; }
+KERNEL(pts) template<class T, class S> void knPdataSetScalar (ParticleDataImpl<T>& me, const S& other)  { me[idx]  = other; }
+KERNEL(pts) template<class T, class S> void knPdataAddScalar (ParticleDataImpl<T>& me, const S& other)  { me[idx] += other; }
+KERNEL(pts) template<class T, class S> void knPdataMultScalar(ParticleDataImpl<T>& me, const S& other)  { me[idx] *= other; }
+KERNEL(pts) template<class T, class S> void knPdataScaledAdd (ParticleDataImpl<T>& me, const ParticleDataImpl<T>& other, const S& factor) { me[idx] += factor * other[idx]; }
 
-KERNEL(pts) template<class T> void knPdataClamp   (ParticleDataImpl<T>& me, const T vmin, const T vmax) { me[idx] = clamp(me[idx], vmin, vmax); }
+KERNEL(pts) template<class T> void knPdataSafeDiv (ParticleDataImpl<T>& me, const ParticleDataImpl<T>& other) { me[idx] = safeDivide(me[idx], other[idx]); }
+KERNEL(pts) template<class T> void knPdataSetConst(ParticleDataImpl<T>& pdata, T value) { pdata[idx] = value; }
+
+KERNEL(pts) template<class T> void knPdataClamp (ParticleDataImpl<T>& me, T min, T max) { me[idx] = clamp( me[idx], min, max); }
 KERNEL(pts) template<class T> void knPdataClampMin(ParticleDataImpl<T>& me, const T vmin)               { me[idx] = std::max(vmin, me[idx]); }
 KERNEL(pts) template<class T> void knPdataClampMax(ParticleDataImpl<T>& me, const T vmax)               { me[idx] = std::min(vmax, me[idx]); }
 KERNEL(pts)                   void knPdataClampMinVec3(ParticleDataImpl<Vec3>& me, const Real vmin)     {
@@ -431,23 +436,27 @@ KERNEL(pts)                   void knPdataClampMaxVec3(ParticleDataImpl<Vec3>& m
 template<typename T>
 ParticleDataImpl<T>& ParticleDataImpl<T>::copyFrom(const ParticleDataImpl<T>& a) {
 	assertMsg (a.mData.size() == mData.size() , "different pdata size "<<a.mData.size()<<" vs "<<this->mData.size() );
-	mData = a.mData;
+	memcpy( &mData[0], &a.mData[0], sizeof(T) * mData.size() );
 	return *this; 
 }
 
 template<typename T>
-void ParticleDataImpl<T>::setConst(const T& s) {
+void ParticleDataImpl<T>::setConst(T s) {
 	knPdataSetScalar<T,T> op( *this, s );
 }
 
 template<typename T>
-void ParticleDataImpl<T>::setConstRange(const T& s, const int begin, const int end) {
+void ParticleDataImpl<T>::setConstRange(T s, const int begin, const int end) {
 	for(int i=begin; i<end; ++i) (*this)[i] = s;
 }
 
+// special set by flag
+KERNEL(pts) template<class T, class S> void knPdataSetScalarIntFlag(ParticleDataImpl<T>& me, const S& other, const ParticleDataImpl<int>& t, const int itype) { 
+	if(t[idx]&itype) me[idx] = other; 
+} 
 template<typename T>
-void ParticleDataImpl<T>::setConstPart(const T& s, const ParticleDataImpl<int>& t, const int itype) {
-	knPdataSetScalarPart<T,T> op(*this, s, t, itype);
+void ParticleDataImpl<T>::setConstIntFlag(T s, const ParticleDataImpl<int>& t, const int itype) {
+	knPdataSetScalarIntFlag<T,T> op(*this, s, t, itype);
 }
 
 template<typename T>
@@ -460,7 +469,7 @@ void ParticleDataImpl<T>::sub(const ParticleDataImpl<T>& a) {
 }
 
 template<typename T>
-void ParticleDataImpl<T>::addConst(const T& s) {
+void ParticleDataImpl<T>::addConst(T s) {
 	knPdataAddScalar<T,T> op( *this, s );
 }
 
@@ -470,7 +479,7 @@ void ParticleDataImpl<T>::addScaled(const ParticleDataImpl<T>& a, const T& facto
 }
 
 template<typename T>
-void ParticleDataImpl<T>::mult(const ParticleDataImpl<T>& a) {
+void ParticleDataImpl<T>::mult( const ParticleDataImpl<T>& a) {
 	knPdataMult<T,T> op( *this, a );
 }
 
@@ -480,7 +489,7 @@ void ParticleDataImpl<T>::safeDiv(const ParticleDataImpl<T>& a) {
 }
 
 template<typename T>
-void ParticleDataImpl<T>::multConst(const T& s) {
+void ParticleDataImpl<T>::multConst(T s) {
 	knPdataMultScalar<T,T> op( *this, s );
 }
 
@@ -490,25 +499,25 @@ void ParticleDataImpl<T>::invMultConst(const T& s) {
 }
 
 template<typename T>
-void ParticleDataImpl<T>::clamp(const Real vmin, const Real vmax) {
+void ParticleDataImpl<T>::clamp(Real vmin, Real vmax) {
 	knPdataClamp<T> op( *this, vmin, vmax );
 }
 
 template<typename T>
-void ParticleDataImpl<T>::clampMin(const Real vmin) {
+void ParticleDataImpl<T>::clampMin(Real vmin) {
 	knPdataClampMin<T> op( *this, vmin );
 }
 template<typename T>
-void ParticleDataImpl<T>::clampMax(const Real vmax) {
+void ParticleDataImpl<T>::clampMax(Real vmax) {
 	knPdataClampMax<T> op( *this, vmax );
 }
 
 template<>
-void ParticleDataImpl<Vec3>::clampMin(const Real vmin) {
+void ParticleDataImpl<Vec3>::clampMin(Real vmin) {
 	knPdataClampMinVec3 op( *this, vmin );
 }
 template<>
-void ParticleDataImpl<Vec3>::clampMax(const Real vmax) {
+void ParticleDataImpl<Vec3>::clampMax(Real vmax) {
 	knPdataClampMaxVec3 op( *this, vmax );
 }
 
@@ -532,30 +541,32 @@ Real ParticleDataImpl<T>::sumMagnitude() const {
 template<typename T>
 KERNEL(pts, reduce=min) returns(Real minVal=std::numeric_limits<Real>::max())
 Real CompPdata_Min(const ParticleDataImpl<T>& val) {
-	if (val[idx] < minVal) minVal = val[idx];
+	if (val[idx] < minVal)
+		minVal = val[idx];
 }
 
 template<typename T>
 KERNEL(pts, reduce=max) returns(Real maxVal=-std::numeric_limits<Real>::max())
 Real CompPdata_Max(const ParticleDataImpl<T>& val) {
-	if (val[idx] > maxVal) maxVal = val[idx];
+	if (val[idx] > maxVal)
+		maxVal = val[idx];
 }
 
 template<typename T>
-Real ParticleDataImpl<T>::getMinValue() const {
-	return CompPdata_Min<T>(*this);
+Real ParticleDataImpl<T>::getMin() {
+	return CompPdata_Min<T> (*this);
 }
 
 template<typename T>
-Real ParticleDataImpl<T>::getMaxAbsValue() const {
-	Real amin = CompPdata_Min<T>(*this);
-	Real amax = CompPdata_Max<T>(*this);
+Real ParticleDataImpl<T>::getMaxAbs() {
+	Real amin = CompPdata_Min<T> (*this);
+	Real amax = CompPdata_Max<T> (*this);
 	return max( fabs(amin), fabs(amax));
 }
 
 template<typename T>
-Real ParticleDataImpl<T>::getMaxValue() const {
-	return CompPdata_Max<T>(*this);
+Real ParticleDataImpl<T>::getMax() {
+	return CompPdata_Max<T> (*this);
 } 
 
 template<typename T>
@@ -575,34 +586,35 @@ void ParticleDataImpl<T>::printPdata(IndexInt start, IndexInt stop, bool printIn
 }
 
 // specials for vec3
+// work on length values, ie, always positive (in contrast to scalar versions above)
 
-KERNEL(pts, reduce=min) returns(Real minVal=std::numeric_limits<Real>::max())
+KERNEL(pts, reduce=min) returns(Real minVal=-std::numeric_limits<Real>::max())
 Real CompPdata_MinVec3(const ParticleDataImpl<Vec3>& val) {
 	const Real s = normSquare(val[idx]);
-	if (s < minVal) minVal = s;
+	if (s < minVal)
+		minVal = s;
 }
 
-KERNEL(pts, reduce=max) returns(Real maxVal=-std::numeric_limits<Real>::max())
+KERNEL(pts, reduce=max) returns(Real maxVal=-std::numeric_limits<Real>::min())
 Real CompPdata_MaxVec3(const ParticleDataImpl<Vec3>& val) {
 	const Real s = normSquare(val[idx]);
-	if (s > maxVal) maxVal = s;
+	if (s > maxVal)
+		maxVal = s;
 }
 
 template<>
-Real ParticleDataImpl<Vec3>::getMinValue() const {
-	return sqrt(CompPdata_MinVec3(*this));
+Real ParticleDataImpl<Vec3>::getMin() {
+	return sqrt(CompPdata_MinVec3 (*this));
 }
 
 template<>
-Real ParticleDataImpl<Vec3>::getMaxAbsValue() const {
-	Real amin = CompPdata_MinVec3(*this);
-	Real amax = CompPdata_MaxVec3(*this);
-	return sqrt(max(amin, amax));
+Real ParticleDataImpl<Vec3>::getMaxAbs() {
+	return sqrt(CompPdata_MaxVec3 (*this));  // no minimum necessary here
 }
 
 template<>
-Real ParticleDataImpl<Vec3>::getMaxValue() const {
-	return sqrt(CompPdata_MaxVec3(*this));
+Real ParticleDataImpl<Vec3>::getMax() {
+	return sqrt(CompPdata_MaxVec3 (*this));
 }
 
 // utilities
