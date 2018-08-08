@@ -150,7 +150,7 @@ class PUNet(Network):
 
     def mask_loss(self, y_true, y_pred):
         if y_pred.get_shape()[1] > self.particle_cnt_dst:    
-            return (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[:,:self.particle_cnt_dst]) if self.mask else emd_loss(y_true, y_pred[:,:self.particle_cnt_dst])) / (y_pred[:,-1, 0])
+            return (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[:,:self.particle_cnt_dst]) if self.mask else emd_loss(y_true, y_pred[:,:self.particle_cnt_dst]))# / (y_pred[:,-1, 0])
         else:
             return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred * zero_mask(y_true, self.pad_val)) if self.mask else emd_loss(y_true, y_pred)
 
