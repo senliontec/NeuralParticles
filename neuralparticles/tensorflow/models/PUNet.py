@@ -14,6 +14,18 @@ from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
 from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
 from neuralparticles.tensorflow.losses.repulsion_loss import repulsion_loss
 
+def stack(X, axis, **kwargs):
+    def tmp(X):
+        import tensorflow as tf
+        return tf.stack(X,axis=axis)
+    return Lambda(tmp, **kwargs)(X)
+
+def unstack(X, axis, **kwargs):
+    def tmp(X):
+        import tensorflow as tf
+        return tf.unstack(X,axis=axis)
+    return Lambda(tmp, **kwargs)(X)
+
 class PUNet(Network):
     def _init_vars(self, **kwargs):
         self.model = None
@@ -62,13 +74,6 @@ class PUNet(Network):
         #if len(src_data) > 1:
         #    self.max_feature = np.max(np.abs(src_data[1]),axis=(0,1))
 
-        def stack(X):
-            import tensorflow as tf
-            return tf.stack(X,axis=1)
-
-        def unstack(X):
-            import tensorflow as tf
-            return tf.unstack(X,axis=1)
             
         input_xyz = Input((self.particle_cnt_src, 3), name="main_input")
         input_points = input_xyz
@@ -115,7 +120,7 @@ class PUNet(Network):
         x = concatenate(l, axis=1, name="pixel_conv") if self.particle_cnt_dst//self.particle_cnt_src > 1 else l[0]
 
         if self.truncate:
-            x_t = Lambda(unstack, name='unstack')(x)
+            x_t = unstack(x, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
             x_t = Dropout(self.dropout)(x_t)
             x_t = Dense(self.fac, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), name="truncation_1")(x_t)
@@ -123,6 +128,8 @@ class PUNet(Network):
             b = np.ones(1, dtype='float32')
             W = np.zeros((self.fac, 1), dtype='float32')
             trunc = Dense(1, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), weights=[W,b], name="truncation_2")(x_t)
+            #trunc = Input((1,))
+            #inputs.append(trunc)
             out_mask = trunc_mask(trunc, self.particle_cnt_dst, name="truncation_mask")
 
         x = Conv1D(self.fac*8, 1, name="coord_reconstruction_1")(x)
@@ -134,20 +141,33 @@ class PUNet(Network):
             self.short_model = Model(inputs=inputs, outputs=out)
             out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)], name="masked_coords")
             self.model = Model(inputs=inputs, outputs=[out,trunc])
+            trunc_exp = stack([trunc, trunc, trunc], 2)
+            out = concatenate([out, trunc_exp], 1)
+            self.train_model = Model(inputs=inputs, outputs=[out, trunc])
         else:
             self.model = Model(inputs=inputs, outputs=out)
+            self.train_model = Model(inputs=inputs, outputs=out)
 
+    def mask_loss(self, y_true, y_pred):
+        if y_pred.get_shape()[1] > self.particle_cnt_dst:    
+            return (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[:,:self.particle_cnt_dst]) if self.mask else emd_loss(y_true, y_pred[:,:self.particle_cnt_dst])) / (y_pred[:,-1, 0])
+        else:
+            return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred * zero_mask(y_true, self.pad_val)) if self.mask else emd_loss(y_true, y_pred)
 
-    def get_mask_loss(self, trunc=None):
-        if trunc is None: trunc = self.truncate
-        return lambda y_true, y_pred: emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred * (1.0 if trunc else zero_mask(y_true, self.pad_val))) if self.mask else emd_loss(y_true, y_pred) #repulsion_loss(y_pred, 10, 0.1, 0.1) + 
+    def particle_metric(self, y_true, y_pred):
+        if y_pred.get_shape()[1] > self.particle_cnt_dst:    
+            return (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[:,:self.particle_cnt_dst]) if self.mask else emd_loss(y_true, y_pred[:,:self.particle_cnt_dst]))
+        elif y_pred.get_shape()[1] < self.particle_cnt_dst:
+            return keras.losses.mse(y_true, y_pred)
+        else:
+            return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred * zero_mask(y_true, self.pad_val)) if self.mask else emd_loss(y_true, y_pred)
 
     def compile_model(self):
         if self.truncate:
-            self.short_model.compile(loss=self.get_mask_loss(False), optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
-            self.model.compile(loss=[self.get_mask_loss(), 'mse'], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=[1.0,1.0])
+            self.short_model.compile(loss=self.mask_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
+            self.train_model.compile(loss=[self.mask_loss, 'mse'], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), metrics=[self.particle_metric], loss_weights=[1.0,1.0])
         else:
-            self.model.compile(loss=self.get_mask_loss(), optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
+            self.train_model.compile(loss=self.mask_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
 
     def _train(self, epochs, **kwargs):
         src_data = kwargs.get("src")
@@ -158,13 +178,17 @@ class PUNet(Network):
 
         callbacks = kwargs.get("callbacks", [])
 
-        trunc_ref = np.count_nonzero(ref_data[:,:,:1] != self.pad_val, axis=1)/self.particle_cnt_dst
+        trunc_ref = np.count_nonzero(ref_data[:,:,:1] != self.pad_val, axis=1)/self.particle_cnt_dst 
+        trunc_ref_exp = np.repeat(trunc_ref, 3, axis=-1)
+        trunc_ref_exp = np.expand_dims(trunc_ref_exp, axis=1)
+
+        #src_data.append(np.count_nonzero(src_data[0][:,:,:1] != self.pad_val, axis=1)/self.particle_cnt_dst)
 
         if self.truncate and False:
             self.short_model.fit(x=src_data,y=ref_data, validation_split=val_split, 
                                 epochs=epochs, batch_size=batch_size, verbose=1)
         
-        return self.model.fit(x=src_data,y=[ref_data, trunc_ref] if self.truncate else ref_data, validation_split=val_split, 
+        return self.train_model.fit(x=src_data,y=[np.concatenate([ref_data, trunc_ref_exp], axis=1), trunc_ref] if self.truncate else ref_data, validation_split=val_split, 
                               epochs=epochs, batch_size=batch_size, verbose=1, callbacks=callbacks)
 
     def predict(self, x, batch_size=32):
@@ -174,4 +198,11 @@ class PUNet(Network):
         self.model.save(path)
 
     def load_model(self, path):
-        self.model = load_model(path, custom_objects={'mask_loss': self.get_mask_loss(), 'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup, 'MultConst': MultConst})
+        self.model = load_model(path, custom_objects={'mask_loss': self.mask_loss, 'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup, 'MultConst': MultConst})
+        if self.truncate:
+            out, trunc = self.model.outputs
+            trunc_exp = stack([trunc, trunc, trunc], 2)
+            out = concatenate([out, trunc_exp], 1)
+            self.train_model = Model(inputs=self.model.inputs, outputs=[out, trunc])
+        else:
+            self.train_model = Model(self.model.inputs, self.model.outputs)

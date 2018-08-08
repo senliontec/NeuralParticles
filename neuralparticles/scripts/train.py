@@ -11,7 +11,7 @@ import keras
 
 from neuralparticles.tensorflow.models.PUNet import PUNet
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_point
+from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_idx
 from neuralparticles.tensorflow.tools.eval_helpers import EvalCallback, EvalCompleteCallback
 
 import numpy as np
@@ -124,8 +124,10 @@ eval_src_patches = [[None for i in range(eval_timesteps)] for j in range(len(eva
 eval_ref_patches = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
 
 for i in range(len(eval_dataset)):
-    pos = None
-    vel = None
+    #pos = None
+    idx = None
+    eval_patch_src, _, eval_patch_aux = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i], features=['v'] if len(train_config['features']) == 0 else train_config['features'])[0]
+    
     for j in range(eval_timesteps):
         (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i]+j, eval_var[i]) 
         #eval_par_aux['p'] = np.sign(eval_par_aux['p'])*np.sqrt(np.abs(eval_par_aux['p']))
@@ -134,31 +136,45 @@ for i in range(len(eval_dataset)):
         patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, pre_config['patch_size'], pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/factor_d)
         eval_patch_extractors[i][j] = patch_extractor
         
-        if pos is None:
+        if idx is None:
+            pos = patch_extractor.positions[int(eval_patch_idx[i] * len(patch_extractor.positions))]
+            idx = get_nearest_idx(eval_src_data, pos)
+            eval_ref_patch = extract_particles(eval_ref_data, pos * factor_d, pre_config['par_cnt_ref'], pre_config['patch_size_ref']/2, pre_config['pad_val'])[0]
+        else:
+            pos = eval_patch_src[idx]
+            eval_ref_patch = np.ones((1, pre_config['par_cnt_ref'], 3)) * 100
+        '''if pos is None:
             pos = patch_extractor.positions[int(eval_patch_idx[i] * len(patch_extractor.positions))]
         else:
             pos = pos + vel/data_config['fps']
 
         pos, vel = get_nearest_point(eval_src_data, pos, eval_par_aux)
-        vel = vel['v']
+        vel = vel['v']'''
         
-        eval_src_patch = patch_extractor.get_patch_pos(pos,False)
+        #eval_src_patch = patch_extractor.get_patch_pos(pos,False)
+        eval_src_patch = extract_particles(eval_patch_src, pos, pre_config['par_cnt'], pre_config['patch_size']/2, pre_config['pad_val'], eval_patch_aux)
+        if len(train_config['features']) > 0:
+            eval_src_patch = [np.array([eval_src_patch[0]]), np.array([np.concatenate([eval_src_patch[1][f] for f in train_config['features']],axis=-1)])]
+        else:
+            eval_src_patch = [np.array([eval_src_patch[0]])]
+
         eval_src_patches[i][j] = eval_src_patch
-        eval_ref_patch = extract_particles(eval_ref_data, pos * factor_d, pre_config['par_cnt_ref'], pre_config['patch_size_ref']/2, pre_config['pad_val'])[0]
         eval_ref_patches[i][j] = eval_ref_patch
 
         print("Eval with dataset %d, timestep %d, var %d, patch pos (%f, %f, %f)" % (eval_dataset[i], eval_t[i]+j, eval_var[i], pos[0], pos[1], pos[2]))
         print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patch[0][:,:,:1] != pre_config['pad_val'])))
         print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patch[:,:1] != pre_config['pad_val'])))
 
+        eval_patch_src = eval_patch_src + 0.1 * eval_patch_aux['v'] / data_config['fps']
+
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])
 
 config_dict['src'] = src_data
 config_dict['ref'] = ref_data
 config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches,
-                                          train_config['features'], z=None if data_config['dim'] == 2 else 0, verbose=1)),
+                                          train_config['features'], z=None if data_config['dim'] == 2 else 0, verbose=3 if verbose else 1)),
                             (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,
-                                                  factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=1))]
+                                                  factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=3 if verbose else 1))]
 history = punet.train(**config_dict)
 
 keras.utils.plot_model(punet.model, tmp_model_path + '.pdf') 

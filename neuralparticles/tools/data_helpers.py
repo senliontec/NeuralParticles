@@ -99,6 +99,9 @@ def get_positions(particle_data, sdf, patch_size, surface=1.0, bnd=0):
     positions = particle_data_bound[in_surface(sdf_f(particle_data_bound), surface)]
     return positions
 
+def get_nearest_idx(data, pos):
+    return np.argmin(np.linalg.norm(pos-data, axis=-1), axis=0)
+
 def get_nearest_point(data, pos, aux_data={}):
     idx = np.argmin(np.linalg.norm(pos-data, axis=-1), axis=0)
     aux = {}
@@ -209,7 +212,7 @@ def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0,
 
     return par_patches, par_aux_patches, positions
 
-def get_data_pair(data_path, config_path, dataset, timestep, var):
+def get_data_pair(data_path, config_path, dataset, timestep, var, features=None):
     with open(config_path, 'r') as f:
         config = json.loads(f.read())
 
@@ -229,7 +232,7 @@ def get_data_pair(data_path, config_path, dataset, timestep, var):
     print(path_src)
     print(path_ref)
     
-    features = train_config['features']
+    if features is None: features = train_config['features']
 
     return get_data(path_src%(dataset,var,timestep), par_aux=features), get_data(path_ref%(dataset,timestep))[:2]
 

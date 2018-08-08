@@ -4,8 +4,8 @@
 import numpy as np
 import csv
 
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 def write_csv(path, data):
