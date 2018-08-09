@@ -146,10 +146,10 @@ def RP_read_content(bytestream, header, data_type=None): # data_type = {None: Ba
 	assert(header['bytesPerElement']==16 or header['bytesPerElement']==12 or header['bytesPerElement']==4)
 
 	if(header['elementType']==0): # BasicParticleSystem
-		print('(BasicParticleSystem) ' )
+		#print('(BasicParticleSystem) ' )
 		data = np.frombuffer(bytestream.read(), dtype=np.dtype([('f1',(np.float32,3)),('f2',(np.int32,1))]))['f1']
 	else:                         # header['elementType']==1: ParticleDataImpl<T>, where T = {float32: Real(4) or Vec3(12); int32: Int(4)}
-		print('(ParticleDataImpl<T={}{}>) '.format(data_type, 'x3' if (header['bytesPerElement']==12) else '') )
+		#print('(ParticleDataImpl<T={}{}>) '.format(data_type, 'x3' if (header['bytesPerElement']==12) else '') )
 		data = np.reshape(np.frombuffer(bytestream.read(), dtype=data_type), (-1, 3 if (header['bytesPerElement']==12) else 1))
 
 	return data

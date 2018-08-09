@@ -14,6 +14,7 @@ from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
 from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
 from neuralparticles.tensorflow.losses.repulsion_loss import repulsion_loss
 
+
 def stack(X, axis, **kwargs):
     def tmp(X):
         import tensorflow as tf
@@ -170,26 +171,29 @@ class PUNet(Network):
             self.train_model.compile(loss=self.mask_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
 
     def _train(self, epochs, **kwargs):
-        src_data = kwargs.get("src")
-        ref_data = kwargs.get("ref")
+        if "generator" in kwargs:
+            return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1)
+        else:
+            src_data = kwargs.get("src")
+            ref_data = kwargs.get("ref")
 
-        val_split = kwargs.get("val_split", 0.1)
-        batch_size = kwargs.get("batch_size", 32)
+            val_split = kwargs.get("val_split", 0.1)
+            batch_size = kwargs.get("batch_size", 32)
 
-        callbacks = kwargs.get("callbacks", [])
+            callbacks = kwargs.get("callbacks", [])
 
-        trunc_ref = np.count_nonzero(ref_data[:,:,:1] != self.pad_val, axis=1)/self.particle_cnt_dst 
-        trunc_ref_exp = np.repeat(trunc_ref, 3, axis=-1)
-        trunc_ref_exp = np.expand_dims(trunc_ref_exp, axis=1)
+            trunc_ref = np.count_nonzero(ref_data[:,:,:1] != self.pad_val, axis=1)/self.particle_cnt_dst 
+            trunc_ref_exp = np.repeat(trunc_ref, 3, axis=-1)
+            trunc_ref_exp = np.expand_dims(trunc_ref_exp, axis=1)
 
-        #src_data.append(np.count_nonzero(src_data[0][:,:,:1] != self.pad_val, axis=1)/self.particle_cnt_dst)
+            #src_data.append(np.count_nonzero(src_data[0][:,:,:1] != self.pad_val, axis=1)/self.particle_cnt_dst)
 
-        if self.truncate and False:
-            self.short_model.fit(x=src_data,y=ref_data, validation_split=val_split, 
-                                epochs=epochs, batch_size=batch_size, verbose=1)
-        
-        return self.train_model.fit(x=src_data,y=[np.concatenate([ref_data, trunc_ref_exp], axis=1), trunc_ref] if self.truncate else ref_data, validation_split=val_split, 
-                              epochs=epochs, batch_size=batch_size, verbose=1, callbacks=callbacks)
+            if self.truncate and False:
+                self.short_model.fit(x=src_data,y=ref_data, validation_split=val_split, 
+                                    epochs=epochs, batch_size=batch_size, verbose=1)
+            
+            return self.train_model.fit(x=src_data,y=[np.concatenate([ref_data, trunc_ref_exp], axis=1), trunc_ref] if self.truncate else ref_data, validation_split=val_split, 
+                                epochs=epochs, batch_size=batch_size, verbose=1, callbacks=callbacks)
 
     def predict(self, x, batch_size=32):
         return self.model.predict(x, batch_size=batch_size)

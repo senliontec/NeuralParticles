@@ -13,6 +13,7 @@ from neuralparticles.tensorflow.models.PUNet import PUNet
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_idx
 from neuralparticles.tensorflow.tools.eval_helpers import EvalCallback, EvalCompleteCallback
+from neuralparticles.tensorflow.tools.patch_generator import PatchGenerator
 
 import numpy as np
 
@@ -114,6 +115,8 @@ np.random.shuffle(idx)
 src_data = [s[idx] for s in src_data]
 ref_data = ref_data[idx]
 
+patch_generator = PatchGenerator(data_path, config_path, 8, 1000)
+
 print("Load Eval Data")
 
 factor_d = math.pow(pre_config['factor'], 1/data_config['dim'])
@@ -171,6 +174,7 @@ for i in range(len(eval_dataset)):
 
 config_dict['src'] = src_data
 config_dict['ref'] = ref_data
+config_dict['generator'] = patch_generator
 config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches,
                                           train_config['features'], z=None if data_config['dim'] == 2 else 0, verbose=3 if verbose else 1)),
                             (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,

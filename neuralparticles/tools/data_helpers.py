@@ -229,8 +229,6 @@ def get_data_pair(data_path, config_path, dataset, timestep, var, features=None)
 
     path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
     path_ref = "%sreference/%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d_%03d"
-    print(path_src)
-    print(path_ref)
     
     if features is None: features = train_config['features']
 
