@@ -67,7 +67,7 @@ class PUNet(Network):
         if len(self.features) > 0:
             inputs.append(Input((self.particle_cnt_src, len(self.features) + (2 if 'v' in self.features else 0)), name="aux_input"))
             aux_input = MultConst(1./self.norm_factor)(inputs[1])
-            input_points = concatenate([input_xyz, aux_input], axis=-1)
+            input_points = concatenate([input_xyz, aux_input], axis=-1, name='input_concatenation')
 
         l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.25, self.fac*4, 
                                                [self.fac*4,
@@ -189,7 +189,7 @@ class PUNet(Network):
         if self.truncate:
             out, trunc = self.model.outputs
             trunc_exp = stack([trunc, trunc, trunc], 2)
-            out = concatenate([out, trunc_exp], 1)
+            out = concatenate([out, trunc_exp], 1, name='points')
             self.train_model = Model(inputs=self.model.inputs, outputs=[out, trunc])
         else:
             self.train_model = Model(self.model.inputs, self.model.outputs)

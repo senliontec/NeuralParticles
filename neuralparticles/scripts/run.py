@@ -134,7 +134,7 @@ for t in range(t_start, t_end):
 
     write_out_particles(patch_extractor.positions, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 
-    result = eval_frame(punet, patch_extractor, factor_d, dst_path + "result_%03d"%t, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+    result = eval_frame(punet, patch_extractor, factor_d, dst_path + "result_%s" + "_%03d"%t, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
 
     hdr = OrderedDict([ ('dim',len(result)),
                         ('dimX',hres),
