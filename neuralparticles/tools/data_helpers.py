@@ -212,7 +212,7 @@ def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0,
 
     return par_patches, par_aux_patches, positions
 
-def get_data_pair(data_path, config_path, dataset, timestep, var, features=None):
+def get_norm_factor(data_path, config_path):
     with open(config_path, 'r') as f:
         config = json.loads(f.read())
 
@@ -225,7 +225,36 @@ def get_data_pair(data_path, config_path, dataset, timestep, var, features=None)
     with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
         train_config = json.loads(f.read())
 
-    np.random.seed(data_config['seed'])
+    path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
+    features = train_config['features']
+
+    norm_factor = np.zeros((len(features) + 2 if 'v' in features else 0,))
+    for d in range(int(data_config['data_count'] * train_config['train_split'])):
+        for v in range(pre_config['var']):
+            for t in range(train_config['t_start'], train_config['t_end']):
+                data = get_data(path_src%(d,v,t), features)[2]
+                i = 0
+                for f in features:
+                    if 'v' == f:
+                        norm_factor[i:i+3] = max(norm_factor[i], np.max(np.linalg.norm(data[f], axis=-1)))
+                        i+=3
+                    else:
+                        norm_factor[i] = max(norm_factor[i], np.max(np.abs(data[f])))
+                        i+=1    
+    return norm_factor
+
+def get_data_pair(data_path, config_path, dataset, timestep, var, features=None):
+    with open(config_path, 'r') as f:
+        config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
+        data_config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
+        pre_config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
+        train_config = json.loads(f.read())
 
     path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
     path_ref = "%sreference/%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d_%03d"

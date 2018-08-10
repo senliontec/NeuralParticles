@@ -10,6 +10,8 @@ from keras.models import Model, load_model
 from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module, Interpolate, SampleAndGroup
 from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
 
+from neuralparticles.tools.data_helpers import get_data
+
 from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
 from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
 from neuralparticles.tensorflow.losses.repulsion_loss import repulsion_loss
@@ -52,37 +54,19 @@ class PUNet(Network):
         self.res = kwargs.get("res")
         self.lres = int(self.res/self.factor_d)
 
-        self.max_feature = np.empty((0,))
+        self.norm_factor = kwargs.get("norm_factor")
 
     def _init_optimizer(self, epochs=1):
         self.optimizer = keras.optimizers.adam(lr=self.learning_rate, decay=self.decay)
 
-    def _build_model(self, **kwargs):
-
-        src_data = kwargs.get("src")
-
-        i = 0
-        for f in self.features:
-            if 'v' == f:
-                max_v = np.max(np.linalg.norm(src_data[1][:,:,i:i+3], axis=-1))
-                print(max_v)
-                self.max_feature = np.concatenate((self.max_feature, [max_v, max_v, max_v]))
-                i+=3
-            else:
-                self.max_feature = np.concatenate((self.max_feature, [np.max(np.abs(src_data[1][:,:,i]))]))
-                i+=1
-            
-        #if len(src_data) > 1:
-        #    self.max_feature = np.max(np.abs(src_data[1]),axis=(0,1))
-
-            
+    def _build_model(self):            
         input_xyz = Input((self.particle_cnt_src, 3), name="main_input")
         input_points = input_xyz
         inputs = [input_xyz]
 
         if len(self.features) > 0:
             inputs.append(Input((self.particle_cnt_src, len(self.features) + (2 if 'v' in self.features else 0)), name="aux_input"))
-            aux_input = MultConst(1./self.max_feature)(inputs[1])
+            aux_input = MultConst(1./self.norm_factor)(inputs[1])
             input_points = concatenate([input_xyz, aux_input], axis=-1)
 
         l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.25, self.fac*4, 
@@ -128,7 +112,7 @@ class PUNet(Network):
             x_t = Dropout(self.dropout)(x_t)
             b = np.ones(1, dtype='float32')
             W = np.zeros((self.fac, 1), dtype='float32')
-            trunc = Dense(1, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), weights=[W,b], name="truncation_2")(x_t)
+            trunc = Dense(1, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), weights=[W,b], name="cnt")(x_t)
             #trunc = Input((1,))
             #inputs.append(trunc)
             out_mask = trunc_mask(trunc, self.particle_cnt_dst, name="truncation_mask")
@@ -143,7 +127,7 @@ class PUNet(Network):
             out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)], name="masked_coords")
             self.model = Model(inputs=inputs, outputs=[out,trunc])
             trunc_exp = stack([trunc, trunc, trunc], 2)
-            out = concatenate([out, trunc_exp], 1)
+            out = concatenate([out, trunc_exp], 1, name='points')
             self.train_model = Model(inputs=inputs, outputs=[out, trunc])
         else:
             self.model = Model(inputs=inputs, outputs=out)
@@ -171,16 +155,15 @@ class PUNet(Network):
             self.train_model.compile(loss=self.mask_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
 
     def _train(self, epochs, **kwargs):
+        callbacks = kwargs.get("callbacks", [])
         if "generator" in kwargs:
-            return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1)
+            return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=True, workers=6, verbose=1, callbacks=callbacks, epochs=epochs)
         else:
             src_data = kwargs.get("src")
             ref_data = kwargs.get("ref")
 
             val_split = kwargs.get("val_split", 0.1)
             batch_size = kwargs.get("batch_size", 32)
-
-            callbacks = kwargs.get("callbacks", [])
 
             trunc_ref = np.count_nonzero(ref_data[:,:,:1] != self.pad_val, axis=1)/self.particle_cnt_dst 
             trunc_ref_exp = np.repeat(trunc_ref, 3, axis=-1)

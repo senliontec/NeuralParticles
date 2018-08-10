@@ -41,7 +41,7 @@ class Network(ABC):
         # self._compile_model()
 
 
-    def build_model(self, **kwargs):
+    def build_model(self):
         # Reset all random number generators to given seeds
         #requirements.reset_rng()
         np.random.seed(4213)
@@ -56,7 +56,7 @@ class Network(ABC):
 
         # Recompile (in case of updated hyper parameters)
         self._init_optimizer()
-        self._build_model(**kwargs)
+        self._build_model()
         self.compile_model()
 
     #---------------------------------------------------------------------------------
@@ -64,7 +64,7 @@ class Network(ABC):
         """ Trains and returns the training history """
 
         if build_model: 
-            self.build_model(**kwargs)
+            self.build_model()
 
         # Model Summary
         #self.model.summary()

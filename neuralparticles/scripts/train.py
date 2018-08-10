@@ -11,7 +11,7 @@ import keras
 
 from neuralparticles.tensorflow.models.PUNet import PUNet
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_idx
+from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_idx, get_norm_factor
 from neuralparticles.tensorflow.tools.eval_helpers import EvalCallback, EvalCompleteCallback
 from neuralparticles.tensorflow.tools.patch_generator import PatchGenerator
 
@@ -82,6 +82,7 @@ np.random.seed(data_config['seed'])
 #tf.set_random_seed(data_config['seed'])
 
 config_dict = {**data_config, **pre_config, **train_config}
+config_dict['norm_factor'] = get_norm_factor(data_path, config_path)
 punet = PUNet(**config_dict)
 
 if len(eval_dataset) < eval_cnt:
@@ -101,21 +102,17 @@ if len(eval_patch_idx) < eval_cnt:
 tmp_model_path = '%s%s_%s' % (tmp_model_path, data_config['prefix'], config['id']) 
 fig_path = '%s_loss' % tmp_model_path
 
-src_path = "%s%s_%s-%s" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_pvar%02d_%03d"
-ref_path = "%s%s_%s-%s" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_pvar%02d_%03d"
-print(src_path)
-print(ref_path)
-
 print("Load Training Data")
 
-src_data, ref_data = load_patches_from_file(data_path, config_path)
+'''src_data, ref_data = load_patches_from_file(data_path, config_path)
 
 idx = np.arange(src_data[0].shape[0])
 np.random.shuffle(idx)
 src_data = [s[idx] for s in src_data]
-ref_data = ref_data[idx]
+ref_data = ref_data[idx]'''
 
-patch_generator = PatchGenerator(data_path, config_path, 8, 1000)
+patch_generator = PatchGenerator(data_path, config_path)
+val_generator = PatchGenerator(data_path, config_path, idx=patch_generator.get_val_idx())
 
 print("Load Eval Data")
 
@@ -172,15 +169,15 @@ for i in range(len(eval_dataset)):
 
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])
 
-config_dict['src'] = src_data
-config_dict['ref'] = ref_data
+'''config_dict['src'] = src_data
+config_dict['ref'] = ref_data'''
 config_dict['generator'] = patch_generator
+config_dict['val_generator'] = val_generator
 config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches,
                                           train_config['features'], z=None if data_config['dim'] == 2 else 0, verbose=3 if verbose else 1)),
                             (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,
                                                   factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=3 if verbose else 1))]
 history = punet.train(**config_dict)
-
 keras.utils.plot_model(punet.model, tmp_model_path + '.pdf') 
 
 m_p = "%s_trained.h5" % tmp_model_path
@@ -188,15 +185,21 @@ punet.save_model(m_p)
 
 print("Saved Model: %s" % m_p)
 
+legend = ['train', 'validation']
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
+if train_config['truncate']:
+    plt.plot(history.history['points_loss'])
+    plt.plot(history.history['cnt_loss'])
+    legend.append('points_loss')
+    legend.append('cnt_loss')
 plt.title('model loss')
 plt.ylabel('loss')
 plt.xlabel('epoch')
-plt.legend(['train', 'validation'], loc='upper left')
+plt.legend(legend, loc='upper left')
 
 plt.savefig(fig_path+".png")
-plt.savefig(fig_path+".pdf")
+plt.savefig(fig_path+".svg")
 
 while(True):
     char = input("\nTrained Model only saved temporarily, do you want to save it? [y/n]\n")
