@@ -225,22 +225,39 @@ def get_norm_factor(data_path, config_path):
     with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
         train_config = json.loads(f.read())
 
-    path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
     features = train_config['features']
+    data_cnt = int(data_config['data_count'] * train_config['train_split'])
+    t_start = min(train_config['t_start'], data_config['frame_count']-1)
+    t_end = min(train_config['t_end'], data_config['frame_count'])
 
-    norm_factor = np.zeros((len(features) + 2 if 'v' in features else 0,))
-    for d in range(int(data_config['data_count'] * train_config['train_split'])):
-        for v in range(pre_config['var']):
-            for t in range(train_config['t_start'], train_config['t_end']):
-                data = get_data(path_src%(d,v,t), features)[2]
-                i = 0
-                for f in features:
-                    if 'v' == f:
-                        norm_factor[i:i+3] = max(norm_factor[i], np.max(np.linalg.norm(data[f], axis=-1)))
-                        i+=3
-                    else:
-                        norm_factor[i] = max(norm_factor[i], np.max(np.abs(data[f])))
-                        i+=1    
+    path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
+    tmp_path = data_path + "tmp/cache_%s_d%03d_%03d-%03d_s%s/" % (os.path.splitext(os.path.basename(config_path))[0], data_cnt, t_start, t_end, ''.join(features))
+
+    _path_src = path_src % (0, 0, t_start) + "_ps.uni"
+    if os.path.exists(tmp_path) and (os.path.getmtime(tmp_path) < os.path.getmtime(_path_src)):
+        shutil.rmtree(tmp_path)
+
+    if not os.path.exists(tmp_path):
+        norm_factor = np.zeros((len(features) + 2 if 'v' in features else 0,))
+        for d in range(int(data_cnt * train_config['train_split'])):
+            for v in range(pre_config['var']):
+                for t in range(t_start, t_end):
+                    data = get_data(path_src%(d,v,t), features)[2]
+                    i = 0
+                    for f in features:
+                        if 'v' == f:
+                            norm_factor[i:i+3] = max(norm_factor[i], np.max(np.linalg.norm(data[f], axis=-1)))
+                            i+=3
+                        else:
+                            norm_factor[i] = max(norm_factor[i], np.max(np.abs(data[f])))
+                            i+=1    
+        os.makedirs(tmp_path)
+        print("cached norm factor")
+        writeNumpy(tmp_path + "norm_factor", norm_factor)
+    else:
+        print("found and loaded cached norm factor file")
+        norm_factor = readNumpy(tmp_path + "norm_factor")
+
     return norm_factor
 
 def get_data_pair(data_path, config_path, dataset, timestep, var, features=None):
