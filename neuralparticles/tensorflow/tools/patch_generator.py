@@ -9,6 +9,8 @@ from neuralparticles.tools.uniio import readNumpyRaw
 
 import numpy as np
 
+import time
+
 class PatchGenerator(keras.utils.Sequence):
     def __init__(self, data_path, config_path,
                  d_start=-1, d_end=-1, t_start=-1, t_end=-1, idx=None):
@@ -79,6 +81,7 @@ class PatchGenerator(keras.utils.Sequence):
 
 
     def _data_generation(self, index):
+
         b_idx = self.idx[index*self.batch_size:(index+1)*self.batch_size]
 
         src = [np.empty((self.batch_size, self.par_cnt, 3))]
@@ -90,11 +93,27 @@ class PatchGenerator(keras.utils.Sequence):
             ref.append(np.empty((self.batch_size,1)))
 
         for i in range(self.batch_size):
+            t0 = time.clock()
+
             d,t,p = b_idx[i]
             src[0][i] = readNumpyRaw(self.src_path%('s',d,t))[p]
+
+            t1 = time.clock()
+
             if len(self.features) > 0:
                 src[1][i] = np.concatenate([readNumpyRaw(self.src_path%(f,d,t))[p] for f in self.features], axis=-1)
+
+            t2 = time.clock()
+
             ref[0][i] = readNumpyRaw(self.ref_path%(d,t))[p]
+
+            t3 = time.clock()
+
             if self.trunc:
                 ref[1][i] = np.count_nonzero(ref[0][i,:,:1] != self.pad_val, axis=0)/self.par_cnt_ref 
+
+            t4 = time.clock()
+
+            print("%f %f %f %f" % (t1-t0, t2-t1, t3-t2, t4-t3))
+
         return src, ref
