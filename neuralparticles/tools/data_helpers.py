@@ -234,7 +234,7 @@ def get_norm_factor(data_path, config_path):
     tmp_path = data_path + "tmp/cache_%s_d%03d_%03d-%03d_s%s/" % (os.path.splitext(os.path.basename(config_path))[0], data_cnt, t_start, t_end, ''.join(features))
 
     _path_src = path_src % (0, 0, t_start) + "_ps.uni"
-    if os.path.exists(tmp_path) and (os.path.getmtime(tmp_path) < os.path.getmtime(_path_src)):
+    if os.path.exists(tmp_path) and (os.path.exists(_path_src) and os.path.getmtime(tmp_path) < os.path.getmtime(_path_src)):
         shutil.rmtree(tmp_path)
 
     if not os.path.exists(tmp_path):
