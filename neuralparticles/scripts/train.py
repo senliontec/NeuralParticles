@@ -104,15 +104,15 @@ fig_path = '%s_loss' % tmp_model_path
 
 print("Load Training Data")
 
-src_data, ref_data = load_patches_from_file(data_path, config_path)
+'''src_data, ref_data = load_patches_from_file(data_path, config_path)
 
 idx = np.arange(src_data[0].shape[0])
 np.random.shuffle(idx)
 src_data = [s[idx] for s in src_data]
-ref_data = ref_data[idx]
+ref_data = ref_data[idx]'''
 
-patch_generator = PatchGenerator(data_path, config_path)
-val_generator = PatchGenerator(data_path, config_path, idx=patch_generator.get_val_idx())
+patch_generator = PatchGenerator(data_path, config_path, 10)
+val_generator = PatchGenerator(data_path, config_path, 10, chunked_idx=patch_generator.get_val_idx())
 
 print("Load Eval Data")
 

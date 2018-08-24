@@ -9,11 +9,47 @@ from neuralparticles.tools.uniio import readNumpyRaw
 
 import numpy as np
 
-import time
+import random, copy
+
+class Frame:
+    dataset = None
+    timestep = None
+    patch_idx = None
+
+    def __init__(self, dataset, timestep, patch_idx):
+        self.dataset = dataset
+        self.timestep = timestep
+        self.patch_idx = patch_idx
+
+
+class Chunk:
+    frames = None
+    patch_idx = None
+    size = None
+
+    def __init__(self, size=None, frames=None):
+        if not size is None:
+            self.frames = np.empty((size, 2))
+            self.patch_idx = np.empty((size,), dtype=object)
+            self.size = size
+        elif not frames is None:
+            self.frames = frames[:]
+            self.patch_idx = np.empty((len(frames),), dtype=object)
+            self.size = len(frames)
+
+    #def __copy__(self):
+
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, i):
+        return Frame(self.frames[i][0], self.frames[i][1], self.patch_idx[i])
+
 
 class PatchGenerator(keras.utils.Sequence):
-    def __init__(self, data_path, config_path,
-                 d_start=-1, d_end=-1, t_start=-1, t_end=-1, idx=None):
+    def __init__(self, data_path, config_path, chunk_size,
+                 d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None):
         np.random.seed(45)
         with open(config_path, 'r') as f:
             config = json.loads(f.read())
@@ -32,6 +68,8 @@ class PatchGenerator(keras.utils.Sequence):
         self.t_start = train_config['t_start'] if t_start < 0 else t_start
         self.t_end = train_config['t_end'] if t_end < 0 else t_end
 
+        self.batch_cnt = 0
+
         self.trunc = train_config['truncate']
         self.batch_size = train_config['batch_size']
 
@@ -41,79 +79,91 @@ class PatchGenerator(keras.utils.Sequence):
         self.par_cnt_ref = pre_config['par_cnt_ref']
         self.pad_val = pre_config['pad_val']
 
+        self.chunk_size = chunk_size
+        self.chunk_cnt = int(np.ceil((self.d_end - self.d_start) * (self.t_end - self.t_start)/self.chunk_size))
+        self.chunked_idx = np.empty((self.chunk_cnt,), dtype=object)
+        self.chunked_idx_val = np.empty((self.chunk_cnt,), dtype=object)
+
         self.src_path = "%spatches/source/%s_%s-%s_p" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
         self.ref_path = "%spatches/reference/%s_%s-%s_ps" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
 
-        if idx is None:
-            patch_cnt = np.empty(((self.d_end-self.d_start), (self.t_end-self.t_start)), dtype=object)
-            
-            for d in range(self.d_start, self.d_end):
-                for t in range(self.t_start, self.t_end):
-                    patch_cnt[d-self.d_start,t-self.t_start] = len(readNumpyRaw(self.src_path % ('s',d,t)))
-            
-            self.idx = np.array([[x,y,z] for x in range(self.d_start, self.d_end) for y in range(self.t_start, self.t_end) for z in range(patch_cnt[x-self.d_start,y-self.t_start])])
+        if chunked_idx is None:
+            idx = np.array([[x,y] for x in range(self.d_start, self.d_end) for y in range(self.t_start, self.t_end)])
+            np.random.shuffle(idx)
 
-            np.random.shuffle(self.idx)
+            for i in range(self.chunk_cnt):
+                chunk = Chunk(frames=idx[i*self.chunk_size:(i+1)*self.chunk_size])
+                chunk_val = Chunk(frames=chunk.frames)
 
-            train_data_cnt = int((1 - train_config['val_split']) * len(self.idx))
-            self.idx, self.val_idx = self.idx[:train_data_cnt], self.idx[train_data_cnt:]
+                patch_cnt = 0
+                for j in range(chunk.size):                
+                    patch_idx = np.arange(len(readNumpyRaw(self.src_path % ('s', chunk.frames[j][0], chunk.frames[j][1]))))
+
+                    val_choice = random.sample(range(len(patch_idx)), int(np.ceil(train_config['val_split'] * len(patch_idx))))
+                    chunk_val.patch_idx[j] = patch_idx[val_choice]
+                    chunk.patch_idx[j] = np.delete(patch_idx, val_choice)      
+
+                    patch_cnt += len(chunk.patch_idx[j])
+                self.batch_cnt += int(np.ceil(patch_cnt/self.batch_size))
+                self.chunked_idx[i] = chunk
+                self.chunked_idx_val[i] = chunk_val
         else:
-            self.idx = idx
-            self.val_idx = None
+            self.chunked_idx = chunked_idx
+            self.chunked_idx_val = None
         
         self.on_epoch_end()
 
 
     def get_val_idx(self):
-        return self.val_idx
+        return copy.deepcopy(self.chunked_idx_val)
 
 
     def __len__(self):
-        return int(np.floor(len(self.idx)/self.batch_size))
+        return self.batch_cnt
+
+
+    def _load_chunk(self):
+        frame_chunk = self.chunked_idx[self.chunk_idx]
+        patch_cnt = 0
+        for pi in frame_chunk.patch_idx:
+            patch_cnt += len(pi)
+        self.chunk = np.empty((patch_cnt, 2), dtype=object)
+
+        pi = 0
+        for i in range(frame_chunk.size):
+            frame = frame_chunk[i]
+            pin = pi + len(frame.patch_idx)
+
+            src = [readNumpyRaw(self.src_path%('s',frame.dataset,frame.timestep))[frame.patch_idx]]
+            if len(self.features) > 0:
+                src.append(np.concatenate([readNumpyRaw(self.src_path%(f,frame.dataset,frame.timestep))[frame.patch_idx] for f in self.features], axis=-1))
+
+            ref = [readNumpyRaw(self.ref_path%(frame.dataset,frame.timestep))[frame.patch_idx]]
+            if self.trunc:
+                ref.append(np.count_nonzero(ref[0][:,:,1] != self.pad_val, axis=1)/self.par_cnt_ref)
+            
+            for j in range(pin-pi):
+                self.chunk[pi+j] = [[s[j] for s in src], [r[j] for r in ref]]
+
+            pi = pin
+
+        np.random.shuffle(self.chunk)
+        self.chunk_idx += 1
 
 
     def __getitem__(self, index):
-        return self._data_generation(index)
+        index = index * self.batch_size - self.idx_offset
+        if index >= len(self.chunk):
+            self.idx_offset += index
+            index = 0
+            self._load_chunk()
 
+        src = [np.array([s[i] for s in self.chunk[index:index+self.batch_size,0]]) for i in range(len(self.chunk[0,0]))]
+        ref = [np.array([r[i] for r in self.chunk[index:index+self.batch_size,1]]) for i in range(len(self.chunk[0,1]))]
+        
+        return src, ref
 
     def on_epoch_end(self):
-        np.random.shuffle(self.idx)
-
-
-    def _data_generation(self, index):
-
-        b_idx = self.idx[index*self.batch_size:(index+1)*self.batch_size]
-
-        src = [np.empty((self.batch_size, self.par_cnt, 3))]
-        if len(self.features) > 0:
-            src.append(np.empty((self.batch_size, self.par_cnt, len(self.features) + 2 if 'v' in self.features else 0)))
-
-        ref = [np.empty((self.batch_size,self.par_cnt_ref,3))]
-        if self.trunc:
-            ref.append(np.empty((self.batch_size,1)))
-
-        for i in range(self.batch_size):
-            t0 = time.clock()
-
-            d,t,p = b_idx[i]
-            src[0][i] = readNumpyRaw(self.src_path%('s',d,t))[p]
-
-            t1 = time.clock()
-
-            if len(self.features) > 0:
-                src[1][i] = np.concatenate([readNumpyRaw(self.src_path%(f,d,t))[p] for f in self.features], axis=-1)
-
-            t2 = time.clock()
-
-            ref[0][i] = readNumpyRaw(self.ref_path%(d,t))[p]
-
-            t3 = time.clock()
-
-            if self.trunc:
-                ref[1][i] = np.count_nonzero(ref[0][i,:,:1] != self.pad_val, axis=0)/self.par_cnt_ref 
-
-            t4 = time.clock()
-
-            print("%f %f %f %f" % (t1-t0, t2-t1, t3-t2, t4-t3))
-
-        return src, ref
+        self.chunk_idx = 0
+        self.idx_offset = 0
+        self._load_chunk()

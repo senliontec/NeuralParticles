@@ -157,7 +157,7 @@ class PUNet(Network):
     def _train(self, epochs, **kwargs):
         callbacks = kwargs.get("callbacks", [])
         if "generator" in kwargs:
-            return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=True, workers=6, verbose=1, callbacks=callbacks, epochs=epochs)
+            return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1, verbose=1, callbacks=callbacks, epochs=epochs, shuffle=False)
         else:
             src_data = kwargs.get("src")
             ref_data = kwargs.get("ref")
