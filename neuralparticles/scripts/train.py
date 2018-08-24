@@ -111,8 +111,8 @@ np.random.shuffle(idx)
 src_data = [s[idx] for s in src_data]
 ref_data = ref_data[idx]'''
 
-patch_generator = PatchGenerator(data_path, config_path, 10)
-val_generator = PatchGenerator(data_path, config_path, 10, chunked_idx=patch_generator.get_val_idx())
+patch_generator = PatchGenerator(data_path, config_path, 40)
+val_generator = PatchGenerator(data_path, config_path, 40, chunked_idx=patch_generator.get_val_idx())
 
 print("Load Eval Data")
 
