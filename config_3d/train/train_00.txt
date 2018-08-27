@@ -1,9 +1,9 @@
 {
     "id":                 "t00",
     "train_split":        0.9,
-    "val_split":          0.2,
-    "t_start":            5,
-    "t_end":              15,
+    "val_split":          0.1,
+    "t_start":            1,
+    "t_end":              20,
     "features":           [],
     "batch_size":         16,
     "learning_rate":      5e-4,
@@ -17,5 +17,5 @@
     "par_feature_cnt":    256,
     "dropout":            0.2,
     "mask":               true,
-    "truncate":           true
+    "truncate":           false
 }

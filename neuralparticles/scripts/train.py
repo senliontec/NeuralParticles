@@ -90,7 +90,7 @@ if len(eval_dataset) < eval_cnt:
 
 if len(eval_t) < eval_cnt:
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
-    t_end = min(train_config['t_end'], data_config['frame_count']) - eval_timesteps + 1
+    t_end = min(train_config['t_end'], data_config['frame_count'])
     eval_t.extend(np.random.randint(t_start, t_end, eval_cnt-len(eval_t)))
 
 if len(eval_var) < eval_cnt:
@@ -129,7 +129,7 @@ for i in range(len(eval_dataset)):
     eval_patch_src, _, eval_patch_aux = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i], features=['v'] if len(train_config['features']) == 0 else train_config['features'])[0]
     
     for j in range(eval_timesteps):
-        (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i]+j, eval_var[i]) 
+        (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
         #eval_par_aux['p'] = np.sign(eval_par_aux['p'])*np.sqrt(np.abs(eval_par_aux['p']))
         eval_ref_datas[i][j] = eval_ref_data
 
@@ -165,19 +165,22 @@ for i in range(len(eval_dataset)):
         print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patch[0][:,:,:1] != pre_config['pad_val'])))
         print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patch[:,:1] != pre_config['pad_val'])))
 
-        eval_patch_src = eval_patch_src + 0.1 * eval_patch_aux['v'] / data_config['fps']
+        eval_patch_src = eval_patch_src + 0.01 * eval_patch_aux['v'] / data_config['fps']
 
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])
 
+punet.build_model()
+punet.save_model(tmp_model_path+".h5")
 '''config_dict['src'] = src_data
 config_dict['ref'] = ref_data'''
 config_dict['generator'] = patch_generator
 config_dict['val_generator'] = val_generator
 config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches,
-                                          train_config['features'], z=None if data_config['dim'] == 2 else 0, verbose=3 if verbose else 1)),
+                                          train_config['features'], z=None if data_config['dim'] == 2 else 0, verbose=3 if verbose else 1))]
+''',
                             (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,
-                                                  factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=3 if verbose else 1))]
-history = punet.train(**config_dict)
+                                                  factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=3 if verbose else 1))]'''
+history = punet.train(**config_dict, build_model=False)
 keras.utils.plot_model(punet.model, tmp_model_path + '.pdf') 
 
 m_p = "%s_trained.h5" % tmp_model_path

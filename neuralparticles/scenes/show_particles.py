@@ -85,7 +85,7 @@ for i in range(t_start,t_end):
 		sampleLevelsetWithParticles(phi=sdf, flags=gFlags, parts=pp, discretization=sres, randomness=0)
 	else:'''
 	pp.load(in_path % i)
-	print(pp.size())
+	print(pp.pySize())
 	if sdf_path != "":
 		sdf.load(sdf_path % i)
 	else:
@@ -129,7 +129,7 @@ for i in range(t_start,t_end):
 			placeGrid2d(src_sdf,sdf_show_small,dstz=1) 
 			sdf_show_small.createMesh(src_mesh)
 		else:
-			src_sdf_small.createMesh(src_mesh)
+			src_sdf.createMesh(src_mesh)
 
 	s.step()
 	if screenshot != "":
