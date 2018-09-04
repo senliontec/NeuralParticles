@@ -232,14 +232,14 @@ def get_norm_factor(data_path, config_path):
 
     path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
     tmp_path = data_path + "tmp/cache_%s_d%03d_%03d-%03d_s%s/" % (os.path.splitext(os.path.basename(config_path))[0], data_cnt, t_start, t_end, ''.join(features))
-
+    print(tmp_path)
     _path_src = path_src % (0, 0, t_start) + "_ps.uni"
     if os.path.exists(tmp_path) and (os.path.exists(_path_src) and os.path.getmtime(tmp_path) < os.path.getmtime(_path_src)):
         shutil.rmtree(tmp_path)
 
     if not os.path.exists(tmp_path):
-        norm_factor = np.zeros((len(features) + 2 if 'v' in features else 0,))
-        for d in range(int(data_cnt * train_config['train_split'])):
+        norm_factor = np.zeros((len(features) + (2 if 'v' in features else 0),))
+        for d in range(data_cnt):
             for v in range(pre_config['var']):
                 for t in range(t_start, t_end):
                     data = get_data(path_src%(d,v,t), features)[2]
@@ -379,7 +379,7 @@ class PatchExtractor:
 
         patch, aux = extract_particles(self.src_data, pos, self.cnt, self.radius, self.pad_val, self.aux_data)
         if len(aux) > 0:
-            return [np.array([patch]), np.array([np.concatenate([aux[f] for f in self.features],axis=-1)])]
+            return [np.array([np.concatenate([np.array([patch])] + [aux[f] for f in self.features],axis=-1)])]
         else:
             return [np.array([patch])]
 
@@ -390,19 +390,13 @@ class PatchExtractor:
         self.data = np.concatenate((self.data, self.transform_patch(patch, self.positions[idx])))
 
     def get_patches(self):
-        src = np.empty((len(self.positions),self.cnt,3))
-        aux = None
+        src = np.empty((len(self.positions),self.cnt,3 + len(self.features) + (2 if 'v' in self.features else 0)))
 
         for i in range(len(self.positions)):
             patch = self.get_patch(i)
-            src[i] = patch[0]
-            if len(patch) > 1:
-                aux = np.concatenate([aux, patch[1]]) if aux is not None else patch[1]
+            src[i] = patch
 
-        if aux is None:
-            return [src]
-        else:
-            return [src, aux]
+        return [src]
 
     def set_patches(self, patches):
         self.data = np.concatenate((self.data, np.concatenate(self.transform_patch(patches, np.expand_dims(self.positions,axis=1)))))

@@ -37,9 +37,6 @@ class Chunk:
             self.patch_idx = np.empty((len(frames),), dtype=object)
             self.size = len(frames)
 
-    #def __copy__(self):
-
-
     def __len__(self):
         return self.size
 
@@ -67,6 +64,8 @@ class PatchGenerator(keras.utils.Sequence):
         self.d_end = int(data_config['data_count'] * train_config['train_split']) if d_end < 0 else d_end
         self.t_start = train_config['t_start'] if t_start < 0 else t_start
         self.t_end = train_config['t_end'] if t_end < 0 else t_end
+
+        self.fps = data_config['fps']
 
         self.batch_cnt = 0
 
@@ -134,16 +133,16 @@ class PatchGenerator(keras.utils.Sequence):
             frame = frame_chunk[i]
             pin = pi + len(frame.patch_idx)
 
-            src = [readNumpyRaw(self.src_path%('s',frame.dataset,frame.timestep))[frame.patch_idx]]
+            src = readNumpyRaw(self.src_path%('s',frame.dataset,frame.timestep))[frame.patch_idx]
             if len(self.features) > 0:
-                src.append(np.concatenate([readNumpyRaw(self.src_path%(f,frame.dataset,frame.timestep))[frame.patch_idx] for f in self.features], axis=-1))
+                src = np.concatenate([src] + [readNumpyRaw(self.src_path%(f,frame.dataset,frame.timestep))[frame.patch_idx] for f in self.features], axis=-1)
 
             ref = [readNumpyRaw(self.ref_path%(frame.dataset,frame.timestep))[frame.patch_idx]]
             if self.trunc:
-                ref.append(np.count_nonzero(ref[0][:,:,1] != self.pad_val, axis=1)/self.par_cnt_ref)
+                ref.append(np.count_nonzero(ref[0][...,1] != self.pad_val, axis=1)/self.par_cnt_ref)
             
             for j in range(pin-pi):
-                self.chunk[pi+j] = [[s[j] for s in src], [r[j] for r in ref]]
+                self.chunk[pi+j] = [[src[j]], [r[j] for r in ref]]
 
             pi = pin
 
@@ -161,7 +160,17 @@ class PatchGenerator(keras.utils.Sequence):
         src = [np.array([s[i] for s in self.chunk[index:index+self.batch_size,0]]) for i in range(len(self.chunk[0,0]))]
         ref = [np.array([r[i] for r in self.chunk[index:index+self.batch_size,1]]) for i in range(len(self.chunk[0,1]))]
         
+        if index % 2 == 0 or True:
+            adv_src = src[0][...,:3] + 0.1 * src[0][...,3:6] / self.fps
+            src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
+            ref[0] = np.concatenate((ref[0], np.ones((ref[0].shape[0], 1, 3))*0.1), axis=1)
+        else:
+            src.extend([np.array([s[i] for s in self.chunk[np.random.randint(0, len(self.chunk), self.batch_size),0]]) for i in range(len(self.chunk[0,0]))])
+            ref[0] = np.concatenate((ref[0], np.ones((ref[0].shape[0], 1, 3))*0), axis=1)
+        if index < 16*self.batch_size:
+            print(np.linalg.norm(src[0]-src[1]))
         return src, ref
+
 
     def on_epoch_end(self):
         self.chunk_idx = 0

@@ -154,7 +154,7 @@ for i in range(len(eval_dataset)):
         #eval_src_patch = patch_extractor.get_patch_pos(pos,False)
         eval_src_patch = extract_particles(eval_patch_src, pos, pre_config['par_cnt'], pre_config['patch_size']/2, pre_config['pad_val'], eval_patch_aux)
         if len(train_config['features']) > 0:
-            eval_src_patch = [np.array([eval_src_patch[0]]), np.array([np.concatenate([eval_src_patch[1][f] for f in train_config['features']],axis=-1)])]
+            eval_src_patch = [np.array([np.concatenate([eval_src_patch[0]] + [eval_src_patch[1][f] for f in train_config['features']],axis=-1)])]
         else:
             eval_src_patch = [np.array([eval_src_patch[0]])]
 
@@ -166,36 +166,36 @@ for i in range(len(eval_dataset)):
         print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patch[:,:1] != pre_config['pad_val'])))
 
         eval_patch_src = eval_patch_src + 0.01 * eval_patch_aux['v'] / data_config['fps']
+        #eval_patch_aux['v'] *= 0.9
 
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])
 
 punet.build_model()
+keras.utils.plot_model(punet.model, tmp_model_path + '.pdf') 
 punet.save_model(tmp_model_path+".h5")
+if verbose:
+    punet.model.summary()
 '''config_dict['src'] = src_data
 config_dict['ref'] = ref_data'''
 config_dict['generator'] = patch_generator
 config_dict['val_generator'] = val_generator
-config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches,
+config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches, punet.model,
                                           train_config['features'], z=None if data_config['dim'] == 2 else 0, verbose=3 if verbose else 1))]
 ''',
-                            (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,
+                            (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,punet.model,
                                                   factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=3 if verbose else 1))]'''
 history = punet.train(**config_dict, build_model=False)
-keras.utils.plot_model(punet.model, tmp_model_path + '.pdf') 
+print(history.history)
 
 m_p = "%s_trained.h5" % tmp_model_path
 punet.save_model(m_p)
 
 print("Saved Model: %s" % m_p)
 
-legend = ['train', 'validation']
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-if train_config['truncate']:
-    plt.plot(history.history['points_loss'])
-    plt.plot(history.history['cnt_loss'])
-    legend.append('points_loss')
-    legend.append('cnt_loss')
+legend = []
+for k,v in history.history.items():
+    plt.plot(v)
+    legend.append(k)
 plt.title('model loss')
 plt.ylabel('loss')
 plt.xlabel('epoch')

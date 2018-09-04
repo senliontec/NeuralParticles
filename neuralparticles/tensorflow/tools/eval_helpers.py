@@ -11,7 +11,7 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
     result = model.predict(src)
 
     if type(result) is list:
-        if verbose > 0: print("Truncate points at %d" % int(result[1][0] * (result[0].shape[1]-1)))
+        if verbose > 0: print("Truncate points at %d" % int(result[1][0] * result[0].shape[1]))
         result = result[0][0,:int(result[1][0] * result[0].shape[1])]
     else:
         result = result[0]
@@ -53,17 +53,7 @@ def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, re
             patch_extractor.set_patch(result[0][i,:int(result[1][i] * result[0].shape[1])], i)
     else:
         patch_extractor.set_patches(result)
-
-    '''while(True):
-        s = patch_extractor.get_patch()
-        if s is None:
-            break
-        result = model.predict(x=s)
-        if type(result) is list:
-            result = result[0][0,:int(result[1][0] * result[0].shape[1])]
-        else:
-            result = result[0]
-        patch_extractor.set_patch(result)'''
+        
     result = patch_extractor.data * np.array([factor_d,factor_d, 0 if z is None else factor_d])
     if path != "" and verbose > 0:
         vel_src = None
@@ -131,7 +121,7 @@ class NthLogger(keras.callbacks.Callback):
             print('Saved Checkpoint: %s' % path)
 
 class EvalCallback(keras.callbacks.TensorBoard):
-    def __init__(self, path, src, ref,
+    def __init__(self, path, src, ref, model,
                  features=[], 
                  multiple_runs=False,
                  batch_intervall=0, 
@@ -155,6 +145,7 @@ class EvalCallback(keras.callbacks.TensorBoard):
                          embeddings_layer_names,
                          embeddings_metadata)
         #super().set_model(model)
+        self.eval_model = model
         self.suffix = "%s_e%03d_d%03d_t%03d" # run (opt.) - epoch - dataset - timestep
         self.path = path + "_%s" # type of output
         self.tag = os.path.basename(path) + "%s_d%03d_t%03d"
@@ -166,6 +157,9 @@ class EvalCallback(keras.callbacks.TensorBoard):
         self.verbose = verbose
         self.run_cnt = 0 if multiple_runs else -1
         self.run_suffix = ""
+
+    def set_model(self, model):
+        super().set_model(self.eval_model)
 
     def on_train_begin(self, logs={}):
         if self.run_cnt >= 0:
@@ -195,7 +189,7 @@ class EvalCallback(keras.callbacks.TensorBoard):
                 add_images(self.writer, self.tag%(self.run_suffix, i, j), self.src[i][j][0][0], self.ref[i][j], res, batch//self.batch_intervall, xlim=[-1,1], ylim=[-1,1], s=5, z=self.z)
 
 class EvalCompleteCallback(keras.callbacks.TensorBoard):
-    def __init__(self, path, patch_extractor, ref, factor_d, hdim,
+    def __init__(self, path, patch_extractor, ref, factor_d, hdim, model,
                  multiple_runs=False,
                  batch_intervall=0, 
                  z=None, verbose=0,
@@ -217,6 +211,7 @@ class EvalCompleteCallback(keras.callbacks.TensorBoard):
                          embeddings_freq,
                          embeddings_layer_names,
                          embeddings_metadata)
+        self.eval_model = model
         #super().set_model(model)
         self.suffix = "%s_e%03d_d%03d_t%03d" # run (opt.) - epoch - dataset - timestep
         self.path = path + "_%s" # type of output
@@ -231,6 +226,9 @@ class EvalCompleteCallback(keras.callbacks.TensorBoard):
         self.run_cnt = 0 if multiple_runs else -1
         self.run_suffix = ""
     
+    def set_model(self, model):
+        super().set_model(self.eval_model)
+
     def on_train_begin(self, logs={}):
         if self.run_cnt >= 0:
             self.run_suffix = "_%03d"%(self.run_cnt)       

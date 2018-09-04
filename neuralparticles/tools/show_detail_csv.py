@@ -18,5 +18,5 @@ checkUnusedParams()
 src = read_csv(path)
 res = read_csv(res_path)
 
-plot_particles(src[dtIdx:dtIdx+1], [-1,1], [-1,1], ref=src, path=out + "i%04d_src.svg"%dtIdx)
-plot_particles(res[dtIdx:dtIdx+len(src)*fac:len(src)], [-1,1], [-1,1], ref=res, path=out + "i%04d_res.svg"%dtIdx)
+plot_particles(src[dtIdx:dtIdx+1], [-1,1], [-1,1], ref=src, path=out%(dtIdx,"in"), s=10)
+plot_particles(res[dtIdx:dtIdx+len(src)*fac:len(src)], [-1,1], [-1,1], ref=res, path=out%(dtIdx,"out"), s=10)
