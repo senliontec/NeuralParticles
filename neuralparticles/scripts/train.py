@@ -175,6 +175,9 @@ keras.utils.plot_model(punet.model, tmp_model_path + '.pdf')
 punet.save_model(tmp_model_path+".h5")
 if verbose:
     punet.model.summary()
+else:
+    print("Model parameter count: %d" % punet.model.count_params())
+
 '''config_dict['src'] = src_data
 config_dict['ref'] = ref_data'''
 config_dict['generator'] = patch_generator

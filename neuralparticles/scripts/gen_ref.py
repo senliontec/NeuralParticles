@@ -115,8 +115,8 @@ for i in range(data_cnt):
             else:
                 spheres['s%d'%len(spheres)] = "%f,%f,%f"%(px,py,rad)
 
-    run_gen(cubes, spheres, i)
     param['seed'] = random.randint(0,1000000000)
+    run_gen(cubes, spheres, i)
 
 if "transform" in data_config:
     trans_config = data_config["transform"]
