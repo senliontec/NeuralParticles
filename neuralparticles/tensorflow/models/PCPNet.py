@@ -9,7 +9,7 @@ from keras.layers import Input, multiply, concatenate, Conv1D, Lambda, add, Drop
 from keras.models import Model, load_model
 
 from neuralparticles.tensorflow.tools.spatial_transformer import SpatialTransformer, stn_transform, stn_tranform_inv
-from neuralparticles.tensorflow.tools.zero_mask import zero_mask, trunc_mask
+from neuralparticles.tensorflow.tools.zero_mask import zero_mask, soft_trunc_mask
 
 from neuralparticles.tools.data_helpers import get_data
 
@@ -111,7 +111,7 @@ class PCPNet(Network):
             b = np.ones(1, dtype='float32')
             W = np.zeros((self.fac, 1), dtype='float32')
             trunc = Dense(1, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), weights=[W,b], name="cnt")(x_t)
-            out_mask = trunc_mask(trunc, self.particle_cnt_dst, name="truncation_mask")
+            out_mask = soft_trunc_mask(trunc, self.particle_cnt_dst, name="truncation_mask")
 
         if self.mask:
             x = Lambda(lambda v: v[0]/K.sum(v[1],axis=1))([x, mask])

@@ -90,7 +90,7 @@ for i in range(t_start,t_end):
 		sdf.load(sdf_path % i)
 	else:
 		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
-		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=sdf, radiusFactor=2.0, exclude=FlagObstacle)
+		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=sdf, radiusFactor=1.0, exclude=FlagObstacle)
 		extrapolateLsSimple(phi=sdf, distance=4, inside=True)
 		sdf.setBound(value=5., boundaryWidth=4)
 	if dim == 2:
@@ -106,7 +106,7 @@ for i in range(t_start,t_end):
 			ref_sdf.load(ref_sdf_path % i)
 		else:
 			gridParticleIndex(parts=ref_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
-			unionParticleLevelset(parts=ref_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=ref_sdf, radiusFactor=2.0, exclude=FlagObstacle)
+			unionParticleLevelset(parts=ref_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=ref_sdf, radiusFactor=1.0, exclude=FlagObstacle)
 			extrapolateLsSimple(phi=ref_sdf, distance=4, inside=True)
 			ref_sdf.setBound(value=5., boundaryWidth=4)
 		if dim == 2:
@@ -122,7 +122,7 @@ for i in range(t_start,t_end):
 			src_sdf.load(src_sdf_path % i)
 		else:
 			gridParticleIndex(parts=src_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
-			unionParticleLevelset(parts=src_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=src_sdf, radiusFactor=2.0, exclude=FlagObstacle)
+			unionParticleLevelset(parts=src_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=src_sdf, radiusFactor=1.0, exclude=FlagObstacle)
 			extrapolateLsSimple(phi=src_sdf, distance=4, inside=True)
 			src_sdf.setBound(value=5., boundaryWidth=max(1,4//fac))
 		if dim == 2:

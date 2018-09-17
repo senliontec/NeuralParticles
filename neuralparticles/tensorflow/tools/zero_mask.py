@@ -10,6 +10,13 @@ def zero_mask(inputs, mask_value, **kwargs):
 
 def trunc_mask(trunc, size, **kwargs):
     def tmp(v):
+        r = K.arange(size, dtype=K.floatx())
+        mask = K.less(r, trunc)
+        return K.cast(mask, K.floatx())
+    return Lambda(tmp, **kwargs)(trunc)
+
+def soft_trunc_mask(trunc, size, steepness=10,**kwargs):
+    def tmp(v):
         r = K.arange(size, dtype=K.floatx())+0.5
-        return K.sigmoid((v*size-r)*10)
+        return K.sigmoid((v*size-r)*steepness)
     return Lambda(tmp, **kwargs)(trunc)

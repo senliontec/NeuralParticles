@@ -3,7 +3,7 @@
     "train_split":        0.9,
     "val_split":          0.1,
     "t_start":            1,
-    "t_end":              20,
+    "t_end":              10,
     "features":           ["v","d","p"],
     "batch_size":         16,
     "learning_rate":      5e-4,
@@ -17,5 +17,5 @@
     "par_feature_cnt":    256,
     "dropout":            0.2,
     "mask":               true,
-    "truncate":           false
+    "truncate":           true
 }

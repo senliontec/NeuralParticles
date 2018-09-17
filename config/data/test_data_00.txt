@@ -1,19 +1,19 @@
 {
-    "id":             "dat00",
+    "id":             "real00",
     "prefix":         "sph_2D",
     "dim":            2,
-    "fps":            120,
-    "frame_count":    10,
-    "data_count":     40,
+    "fps":            60,
+    "frame_count":    20,
+    "data_count":     20,
     "sub_res":        2,
-    "res":            150,
-    "seed":           5234244,
-    "bnd":            4,
+    "res":            50,
+    "seed":           523244,
+    "bnd":            1,
 
     "modes": 
     [
         {
-            "prop":             0.5,
+            "prop":             0.2,
             "cnt":              [1,1],
             "cube_prob":        1.0,
             "scale_x":          [1.0,1.0],
@@ -22,19 +22,19 @@
             "pos_y":            [0.1,0.1],
             "rad":              [0.0,0.0],
             "circ_vel":         0,
-            "wlt_vel":          30.0,
+            "wlt_vel":          100.0,
             "grav":             9.8
         },
         {
-            "prop":             0.5,
+            "prop":             0.8,
             "cnt":              [2,5],
             "cube_prob":        0.5,
-            "scale_x":          [0.05,0.12],
-            "scale_y":          [0.05,0.12],
+            "scale_x":          [0.05,0.2],
+            "scale_y":          [0.05,0.2],
             "pos_x":            [0.2,0.8],
             "pos_y":            [0.2,0.8],
-            "rad":              [0.05,0.12],
-            "circ_vel":         300.0,
+            "rad":              [0.05,0.2],
+            "circ_vel":         100.0,
             "wlt_vel":          0.0,
             "grav":             9.8
         }

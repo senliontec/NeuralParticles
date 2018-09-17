@@ -55,6 +55,8 @@ def remove_particles(data, pos, constraint, aux_data={}):
 def extract_particles(data, pos, cnt, constraint, pad_val=0.0, aux_data={}):
     par_idx = particle_radius(data, pos, constraint)
     np.random.shuffle(par_idx)
+    if len(par_idx) > cnt:
+        print("Warning: using subset of particles (%d/%d)" % (cnt,len(par_idx)))
     par_idx = par_idx[:min(cnt,len(par_idx))]
 
     par_pos = np.subtract(data[par_idx],pos)/constraint
@@ -327,7 +329,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
         for v in range(v_start, v_stop):
             for t in range(t_start, t_stop):
                 for r in range(pv_start, pv_stop):
-                    print(path_src%(d,v,t) + " (%d)"%r)
+                    #print(path_src%(d,v,t) + " (%d)"%r)
                     
                     par, aux_par, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, pad_val=pad_val, par_aux=features, bnd=data_config['bnd']/fac_d)
                     main = np.append(main, par, axis=0)
@@ -343,7 +345,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
 
 
 class PatchExtractor:
-    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=0, bnd=0, pad_val=0.0, aux_data={}, features=[]):
+    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=0, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None):
         self.src_data = src_data
         self.radius = patch_size/2
         self.cnt = cnt
@@ -352,14 +354,17 @@ class PatchExtractor:
         self.features = features
         self.pad_val = pad_val
 
-        p = get_positions(src_data, sdf_data, patch_size, surface, bnd)
-        np.random.shuffle(p)
+        if positions is None:
+            p = get_positions(src_data, sdf_data, patch_size, surface, bnd)
+            np.random.shuffle(p)
 
-        self.positions = np.empty((0, p.shape[-1]))
+            self.positions = np.empty((0, p.shape[-1]))
 
-        while len(p) > 0:
-            self.positions = np.append(self.positions, [p[0]], axis=0)
-            p = remove_particles(p, p[0], self.stride)[0]
+            while len(p) > 0:
+                self.positions = np.append(self.positions, [p[0]], axis=0)
+                p = remove_particles(p, p[0], self.stride)[0]
+        else:
+            self.positions = positions.copy()
 
         self.reset()
     
@@ -379,7 +384,7 @@ class PatchExtractor:
 
         patch, aux = extract_particles(self.src_data, pos, self.cnt, self.radius, self.pad_val, self.aux_data)
         if len(aux) > 0:
-            return [np.array([np.concatenate([np.array([patch])] + [aux[f] for f in self.features],axis=-1)])]
+            return [np.array([np.concatenate([patch] + [aux[f] for f in self.features],axis=-1)])]
         else:
             return [np.array([patch])]
 
@@ -394,7 +399,7 @@ class PatchExtractor:
 
         for i in range(len(self.positions)):
             patch = self.get_patch(i)
-            src[i] = patch
+            src[i] = patch[0][0]
 
         return [src]
 

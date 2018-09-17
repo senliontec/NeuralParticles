@@ -35,7 +35,10 @@ verbose = int(getParam("verbose", 0)) != 0
 dataset = int(getParam("dataset", -1))
 var = int(getParam("var", 0))
 gpu = getParam("gpu", "")
+real = int(getParam("real", 0)) != 0
 
+temp_coh_dt = float(getParam("temp_coh_dt", 0))
+ 
 checkpoint = int(getParam("checkpoint", -1))
 
 checkUnusedParams()
@@ -52,7 +55,7 @@ if not gpu is "":
 with open(config_path, 'r') as f:
     config = json.loads(f.read())
 
-with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
+with open(os.path.dirname(config_path) + '/' + (config['real'] if real else config['data']), 'r') as f:
     data_config = json.loads(f.read())
 
 with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
@@ -125,13 +128,22 @@ config_dict = {**data_config, **pre_config, **train_config}
 punet = PUNet(**config_dict)
 punet.load_model(model_path)
 
+src_data = None
+positions = None
+
 for t in range(t_start, t_end):
-    (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
+    if temp_coh_dt == 0 or src_data is None:
+        (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
+    else:
+        src_data = src_data + par_aux['v'] * temp_coh_dt
 
     #src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
 
-    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd)
+    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, positions=positions)
 
+    if temp_coh_dt != 0 and positions is None:
+        positions = patch_extractor.positions
+        
     write_out_particles(patch_extractor.positions, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 
     result = eval_frame(punet, patch_extractor, factor_d, dst_path + "result_%s" + "_%03d"%t, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)

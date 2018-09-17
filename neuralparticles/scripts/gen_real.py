@@ -17,14 +17,14 @@ checkUnusedParams()
 if not os.path.exists(data_path):
 	os.makedirs(data_path)
 
-data_path += "reference/"
+data_path += "refernce/"
 if not os.path.exists(data_path):
 	os.makedirs(data_path)
 
 with open(config_path, 'r') as f:
     config = json.loads(f.read())
 
-with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
+with open(os.path.dirname(config_path) + '/' + config['test'], 'r') as f:
     data_config = json.loads(f.read())
 
 if verbose:
@@ -117,26 +117,3 @@ for i in range(data_cnt):
 
     run_gen(cubes, spheres, i)
     param['seed'] = random.randint(0,1000000000)
-
-if "transform" in data_config:
-    trans_config = data_config["transform"]
-    param = {}
-    param['gui'] = gui
-    param['pause'] = pause
-    param['dim'] = data_config['dim']
-    param['res'] = data_config['res']
-    param['bnd'] = data_config['bnd']
-    param['t'] = data_config['frame_count']
-
-    if "wavelet" == trans_config["mode"]:
-        pass
-    else:
-        param['mode'] = trans_config['mode']
-        param['curv'] = int(trans_config['use_curv'])
-        param['peaks'] = trans_config['peaks']
-        param['fac'] = trans_config['disp_fac']
-
-        for i in range(data_cnt):
-            param['in'] = output_path % i + "_%03d"
-            param['out'] = trans_path % i + "_%03d"
-            run_manta(manta_path, "scenes/transform_particles.py", param)

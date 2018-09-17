@@ -109,6 +109,11 @@ class PatchGenerator(keras.utils.Sequence):
         else:
             self.chunked_idx = chunked_idx
             self.chunked_idx_val = None
+            for c in self.chunked_idx:
+                patch_cnt = 0
+                for f in c.patch_idx:
+                    patch_cnt += len(f)
+                self.batch_cnt += int(np.ceil(patch_cnt/self.batch_size))
         
         self.on_epoch_end()
 
@@ -151,6 +156,10 @@ class PatchGenerator(keras.utils.Sequence):
 
 
     def __getitem__(self, index):
+        if(index * self.batch_size < self.idx_offset):
+            print("error!")
+            self.on_epoch_end()
+
         index = index * self.batch_size - self.idx_offset
         if index >= len(self.chunk):
             self.idx_offset += index
@@ -159,16 +168,15 @@ class PatchGenerator(keras.utils.Sequence):
 
         src = [np.array([s[i] for s in self.chunk[index:index+self.batch_size,0]]) for i in range(len(self.chunk[0,0]))]
         ref = [np.array([r[i] for r in self.chunk[index:index+self.batch_size,1]]) for i in range(len(self.chunk[0,1]))]
-        
+
         if index % 2 == 0 or True:
-            adv_src = src[0][...,:3] + 0.1 * src[0][...,3:6] / self.fps
+            adv_src = src[0][...,:3] + 0.01 * src[0][...,3:6] / self.fps
             src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
-            ref[0] = np.concatenate((ref[0], np.ones((ref[0].shape[0], 1, 3))*0.1), axis=1)
+            ref.append(np.concatenate((ref[0], ref[0]), axis=1))
         else:
-            src.extend([np.array([s[i] for s in self.chunk[np.random.randint(0, len(self.chunk), self.batch_size),0]]) for i in range(len(self.chunk[0,0]))])
-            ref[0] = np.concatenate((ref[0], np.ones((ref[0].shape[0], 1, 3))*0), axis=1)
-        if index < 16*self.batch_size:
-            print(np.linalg.norm(src[0]-src[1]))
+            rnd_idx = np.random.randint(0, len(self.chunk), self.batch_size)
+            src.extend([np.array([s[i] for s in self.chunk[rnd_idx,0]]) for i in range(len(self.chunk[0,0]))])
+            ref.append(np.concatenate((ref[0], [np.array([r[i] for r in self.chunk[rnd_idx,1]]) for i in range(len(self.chunk[0,1]))][0]), axis=1))
         return src, ref
 
 
