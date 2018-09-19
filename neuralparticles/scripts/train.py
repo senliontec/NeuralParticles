@@ -142,7 +142,7 @@ for i in range(len(eval_dataset)):
             eval_ref_patch = extract_particles(eval_ref_data, pos * factor_d, pre_config['par_cnt_ref'], pre_config['patch_size_ref']/2, pre_config['pad_val'])[0]
         else:
             pos = eval_patch_src[idx]
-            eval_ref_patch = np.ones((1, pre_config['par_cnt_ref'], 3)) * 100
+            eval_ref_patch = np.ones((pre_config['par_cnt_ref'], 3)) * 100
         '''if pos is None:
             pos = patch_extractor.positions[int(eval_patch_idx[i] * len(patch_extractor.positions))]
         else:

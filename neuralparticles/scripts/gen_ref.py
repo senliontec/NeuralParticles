@@ -101,7 +101,6 @@ for i in range(data_cnt):
             if param['dim'] == 3:
                 scz = get_scalar(modes[m_idx]['scale_z'])
                 pz = get_scalar(modes[m_idx]['pos_z'],scz/2)
-                print(scx, scy, scz)
                 cubes['c%d'%len(cubes)] = "%f,%f,%f,%f,%f,%f"%(px,py,pz,scx,scy,scz)
             else:
                 cubes['c%d'%len(cubes)] = "%f,%f,%f,%f"%(px,py,scx,scy)

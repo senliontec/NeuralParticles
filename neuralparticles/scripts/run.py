@@ -74,7 +74,7 @@ if verbose:
 if dataset < 0:
     dataset = int(data_config['data_count']*train_config['train_split'])
 
-dst_path += "%s_%s-%s_d%03d_var%02d/" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var)
+dst_path += "%s_%s-%s_%s_d%03d_var%02d/" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
 if not os.path.exists(dst_path):
 	os.makedirs(dst_path)
 
@@ -135,7 +135,7 @@ for t in range(t_start, t_end):
     if temp_coh_dt == 0 or src_data is None:
         (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
     else:
-        src_data = src_data + par_aux['v'] * temp_coh_dt
+        src_data = src_data + par_aux['v'] * temp_coh_dt / data_config['fps']
 
     #src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
 
@@ -143,7 +143,7 @@ for t in range(t_start, t_end):
 
     if temp_coh_dt != 0 and positions is None:
         positions = patch_extractor.positions
-        
+
     write_out_particles(patch_extractor.positions, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 
     result = eval_frame(punet, patch_extractor, factor_d, dst_path + "result_%s" + "_%03d"%t, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)

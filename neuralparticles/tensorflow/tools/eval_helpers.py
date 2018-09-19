@@ -11,8 +11,17 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
     result = model.predict(src)
 
     if type(result) is list:
-        if verbose > 0: print("Truncate points at %d" % int(result[1][0] * result[0].shape[1]))
-        result = result[0][0,:int(result[1][0] * result[0].shape[1])]
+        '''cnt = (np.clip(result[1][0], 0, 1) * src[0].shape[1]).astype(int)
+        if verbose > 0: print("Reduce points to: " + str(cnt))
+        r = np.empty((np.sum(cnt), 3))
+        idx = 0
+        for i in range(result[0].shape[1]//src[0].shape[1]):
+            r[idx:idx+cnt[i]] = result[0][0,src[0].shape[1]*i:src[0].shape[1]*i+cnt[i]]
+            idx = idx + cnt[i]
+        result = r'''
+        cnt = int(result[1][0] * result[0].shape[1])
+        if verbose > 0: print("Reduce points to: " + str(cnt))
+        result = result[0][0,:cnt]
     else:
         result = result[0]
 

@@ -17,7 +17,7 @@ checkUnusedParams()
 if not os.path.exists(data_path):
 	os.makedirs(data_path)
 
-data_path += "refernce/"
+data_path += "reference/"
 if not os.path.exists(data_path):
 	os.makedirs(data_path)
 

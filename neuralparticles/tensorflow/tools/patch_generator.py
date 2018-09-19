@@ -65,6 +65,8 @@ class PatchGenerator(keras.utils.Sequence):
         self.t_start = train_config['t_start'] if t_start < 0 else t_start
         self.t_end = train_config['t_end'] if t_end < 0 else t_end
 
+        self.neg_examples = train_config['neg_examples']
+
         self.fps = data_config['fps']
 
         self.batch_cnt = 0
@@ -157,7 +159,7 @@ class PatchGenerator(keras.utils.Sequence):
 
     def __getitem__(self, index):
         if(index * self.batch_size < self.idx_offset):
-            print("error!")
+            print("error! %d - %d < 0" % (index * self.batch_size, self.idx_offset))
             self.on_epoch_end()
 
         index = index * self.batch_size - self.idx_offset
@@ -169,7 +171,7 @@ class PatchGenerator(keras.utils.Sequence):
         src = [np.array([s[i] for s in self.chunk[index:index+self.batch_size,0]]) for i in range(len(self.chunk[0,0]))]
         ref = [np.array([r[i] for r in self.chunk[index:index+self.batch_size,1]]) for i in range(len(self.chunk[0,1]))]
 
-        if index % 2 == 0 or True:
+        if index % 2 == 0 or not self.neg_examples:
             adv_src = src[0][...,:3] + 0.01 * src[0][...,3:6] / self.fps
             src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
             ref.append(np.concatenate((ref[0], ref[0]), axis=1))

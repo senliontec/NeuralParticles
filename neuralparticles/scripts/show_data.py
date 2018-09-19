@@ -21,6 +21,8 @@ var = int(getParam("var", 0))
 
 show_results = int(getParam("res", 1)) != 0
 
+show_temp_coh = int(getParam("temp_coh", 1)) != 0
+
 scr = getParam("scr", "")
 
 checkUnusedParams()
@@ -45,17 +47,18 @@ if dataset < 0:
 dim = data_config['dim']
 res = data_config['res']
 
-if not show_results:
+if show_results:
+    param['in'] = data_path + "result/%s_%s-%s_%s_d%03d_var%02d/result" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var) + "_%03d.uni"
+    if not show_temp_coh:
+        param['src'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
+        param['src_sdf'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
+        param['ref'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_ps.uni"
+        param['ref_sdf'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_sdf.uni"
+else:
     param['src'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
     param['src_sdf'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
     param['in'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_ps.uni"
     param['sdf'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_sdf.uni"
-else:
-    param['in'] = data_path + "result/%s_%s-%s_d%03d_var%02d/result" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d.uni"
-    param['src'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
-    param['src_sdf'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
-    param['ref'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_ps.uni"
-    param['ref_sdf'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_sdf.uni"
 
 if t_start < 0:
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
