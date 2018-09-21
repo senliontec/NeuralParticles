@@ -174,11 +174,11 @@ class PatchGenerator(keras.utils.Sequence):
         if index % 2 == 0 or not self.neg_examples:
             adv_src = src[0][...,:3] + 0.01 * src[0][...,3:6] / self.fps
             src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
-            ref.append(np.concatenate((ref[0], ref[0]), axis=1))
+            ref.insert(1, np.concatenate((ref[0], ref[0]), axis=1))
         else:
             rnd_idx = np.random.randint(0, len(self.chunk), self.batch_size)
             src.extend([np.array([s[i] for s in self.chunk[rnd_idx,0]]) for i in range(len(self.chunk[0,0]))])
-            ref.append(np.concatenate((ref[0], [np.array([r[i] for r in self.chunk[rnd_idx,1]]) for i in range(len(self.chunk[0,1]))][0]), axis=1))
+            ref.insert(1, np.concatenate((ref[0], [np.array([r[i] for r in self.chunk[rnd_idx,1]]) for i in range(len(self.chunk[0,1]))][0]), axis=1))
         return src, ref
 
 

@@ -58,7 +58,7 @@ class PUNet(Network):
         self.factor = kwargs.get("factor")
         self.factor_d = math.pow(self.factor, 1/self.dim)
 
-        self.loss_weights = kwargs.get("loss_weights", [1.0,1.0,1.0])
+        self.loss_weights = kwargs.get("loss_weights")
 
         self.res = kwargs.get("res")
         self.lres = int(self.res/self.factor_d)
@@ -111,14 +111,15 @@ class PUNet(Network):
         up_l4_points = pointnet_fp_module(input_xyz, l4_xyz, None, l4_points, [self.fac*8], activation=activation)
 
         x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, input_points], axis=-1)
+        x_t = x
         l = []
         for i in range(self.particle_cnt_dst//self.particle_cnt_src):
             tmp = Conv1D(self.fac*32, 1, name="expansion_1_"+str(i+1), kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)(x)
             tmp = Conv1D(self.fac*16, 1, name="expansion_2_"+str(i+1), kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)(tmp)
             l.append(tmp)
-        x_t = concatenate(l, axis=1, name="pixel_conv") if self.particle_cnt_dst//self.particle_cnt_src > 1 else l[0]
+        x = concatenate(l, axis=1, name="pixel_conv") if self.particle_cnt_dst//self.particle_cnt_src > 1 else l[0]
 
-        x = Conv1D(self.fac*8, 1, name="coord_reconstruction_1", activation=activation)(x_t)
+        x = Conv1D(self.fac*8, 1, name="coord_reconstruction_1", activation=activation)(x)
 
         b = np.zeros((3,), dtype='float32')
         W = np.zeros((1, self.fac*8, 3), dtype='float32')
@@ -170,6 +171,9 @@ class PUNet(Network):
             out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)], name="masked_coords")
             self.model = Model(inputs=inputs, outputs=[out,trunc])
         else:
+            if self.mask:
+                out_mask = RepeatVector(self.particle_cnt_dst//self.particle_cnt_src)(Flatten()(mask))
+                out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)])
             self.model = Model(inputs=inputs, outputs=[out])
 
         inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0))),Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0)))]
@@ -179,7 +183,7 @@ class PUNet(Network):
             trunc = Lambda(lambda x: x, name="trunc")(out[1])
             out = Lambda(lambda x: x, name="points")(out[0])
             out1 = concatenate([out, self.model(inputs[1])[0]], axis=1, name='temp')
-            self.train_model = Model(inputs=inputs, outputs=[out, trunc, out1])
+            self.train_model = Model(inputs=inputs, outputs=[out, out1, trunc])
         else:
             out = Lambda(lambda x: x, name="points")(out)
             out1 = concatenate([out, self.model(inputs[1])], axis=1, name='temp')
@@ -190,7 +194,6 @@ class PUNet(Network):
         return loss + (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else emd_loss(y_true, y_pred))
 
     def trunc_loss(self, y_true, y_pred):
-        import tensorflow as tf
         return keras.losses.mse(y_true, y_pred)#tf.reduce_mean(y_pred, axis=1))
 
     def temp_loss(self, y_true, y_pred):
@@ -207,6 +210,11 @@ class PUNet(Network):
                 return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1))
             else:
                 return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt, gt_t),axis=-1))
+
+    def trunc_metric(self, y_true, y_pred):
+        if y_pred.get_shape()[1] == self.particle_cnt_dst:
+            return keras.losses.mse(keras.backend.sum(zero_mask(y_true, self.pad_val),axis=-2)/self.particle_cnt_dst,keras.backend.sum(zero_mask(y_pred, 0.0),axis=-2)/self.particle_cnt_dst)
+        return keras.backend.constant(0)
 
     def particle_metric(self, y_true, y_pred):
         import tensorflow as tf
@@ -241,9 +249,9 @@ class PUNet(Network):
     def compile_model(self):
         if self.truncate:
             self.short_model.compile(loss=self.mask_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
-            self.train_model.compile(loss=[self.mask_loss, self.trunc_loss, self.temp_loss], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric])
+            self.train_model.compile(loss=[self.mask_loss, self.temp_loss, self.trunc_loss], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric])
         else:
-            self.train_model.compile(loss=[self.mask_loss, self.temp_loss], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
+            self.train_model.compile(loss=[self.mask_loss, self.temp_loss], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric])
 
     def _train(self, epochs, **kwargs):
         callbacks = kwargs.get("callbacks", [])

@@ -12,10 +12,10 @@
     "fac":                8,
     "epochs":             3,
     "dropout":            0.2,
-    "loss_weights":       [1.0,1.0,10.0],
+    "loss_weights":       [1.0,100.0,1.0],
     "mask":               true,
     "truncate":           true,
     "residual":           false,
-    "use_emd_loss":       true,
-    "neg_examples":       true
+    "use_temp_emd":       false,
+    "neg_examples":       false
 }
