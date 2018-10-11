@@ -21,7 +21,7 @@ var = int(getParam("var", 0))
 
 show_results = int(getParam("res", 1)) != 0
 
-show_temp_coh = int(getParam("temp_coh", 1)) != 0
+show_temp_coh = int(getParam("temp_coh", 0)) != 0
 
 scr = getParam("scr", "")
 

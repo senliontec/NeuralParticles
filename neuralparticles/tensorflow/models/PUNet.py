@@ -58,7 +58,12 @@ class PUNet(Network):
         self.factor = kwargs.get("factor")
         self.factor_d = math.pow(self.factor, 1/self.dim)
 
+        self.fps = kwargs.get("fps")
+
         self.loss_weights = kwargs.get("loss_weights")
+
+        if not self.truncate:
+            self.loss_weights = self.loss_weights[:2]
 
         self.res = kwargs.get("res")
         self.lres = int(self.res/self.factor_d)
@@ -72,10 +77,9 @@ class PUNet(Network):
         self.optimizer = keras.optimizers.adam(lr=self.learning_rate, decay=self.decay)
 
     def _build_model(self):            
-        activation = keras.activations.tanh
+        activation = keras.activations.tanh#lambda x: keras.activations.relu(x, alpha=0.1)
         inputs = Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0)), name="main_input")
         input_xyz = extract_xyz(inputs, name="extract_pos")
-
         input_points = input_xyz
 
         if len(self.features) > 0:
@@ -140,6 +144,9 @@ class PUNet(Network):
             out = add([x, out])
 
         if self.truncate:
+            x_t = Conv1D(self.fac*4, 1)(input_points)
+            x_t = Conv1D(self.fac*4, 1)(x_t)
+
             '''out_mask = []
             for i in range(self.particle_cnt_dst//self.particle_cnt_src): 
                 tmp = unstack(l[i], 1, name='unstack_%d'%(i+1))
@@ -167,7 +174,7 @@ class PUNet(Network):
 
             out_mask = soft_trunc_mask(trunc, self.particle_cnt_dst, name="truncation_mask")
 
-            self.short_model = Model(inputs=inputs, outputs=out)
+            self.trunc_model = Model(inputs=inputs, outputs=trunc)
             out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)], name="masked_coords")
             self.model = Model(inputs=inputs, outputs=[out,trunc])
         else:
@@ -248,7 +255,7 @@ class PUNet(Network):
 
     def compile_model(self):
         if self.truncate:
-            self.short_model.compile(loss=self.mask_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
+            self.trunc_model.compile(loss=self.trunc_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
             self.train_model.compile(loss=[self.mask_loss, self.temp_loss, self.trunc_loss], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric])
         else:
             self.train_model.compile(loss=[self.mask_loss, self.temp_loss], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric])
@@ -256,19 +263,40 @@ class PUNet(Network):
     def _train(self, epochs, **kwargs):
         callbacks = kwargs.get("callbacks", [])
         if "generator" in kwargs:
+            '''self.train_model.trainable = False
+            self.trunc_model.trainable = True
+            tmp_w = self.loss_weights
+            self.loss_weights[0] = 0.0
+            self.loss_weights[1] = 0.0
+            self.compile_model()
+            self.trunc_model.summary()
+            self.train_model.summary()
+            self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1, verbose=1, callbacks=callbacks, epochs=epochs, shuffle=False)
+
+            self.trunc_model.trainable = False
+            self.train_model.trainable = True
+            self.loss_weights[0] = tmp_w[0]
+            self.loss_weights[1] = tmp_w[1]
+            self.loss_weights[2] = 0.0
+            self.compile_model()'''
             return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1, verbose=1, callbacks=callbacks, epochs=epochs, shuffle=False)
         else:
             src_data = kwargs.get("src")
             ref_data = kwargs.get("ref")
-
+            
             val_split = kwargs.get("val_split", 0.1)
             batch_size = kwargs.get("batch_size", 32)
 
-            trunc_ref = np.count_nonzero(ref_data[...,:1] != self.pad_val, axis=1)/self.particle_cnt_dst 
-            trunc_ref_exp = np.repeat(trunc_ref, 3, axis=-1)
-            trunc_ref_exp = np.expand_dims(trunc_ref_exp, axis=1)
+            adv_src = src_data[...,:3] + 0.01 * src_data[...,3:6] / self.fps
+            src_data = [src_data, np.concatenate((adv_src, src_data[...,3:]), axis=-1)]
+
+            ref_data = [ref_data, np.concatenate((ref_data, ref_data), axis=1)]
+
+            if self.truncate:
+                trunc_ref = np.count_nonzero(ref_data[0][...,:1] != self.pad_val, axis=1)/self.particle_cnt_dst 
+                ref_data.append(trunc_ref)
             
-            return self.train_model.fit(x=src_data,y=[np.concatenate([ref_data, trunc_ref_exp], axis=1), trunc_ref] if self.truncate else np.concatenate([ref_data, trunc_ref_exp], axis=1), validation_split=val_split, 
+            return self.train_model.fit(x=src_data,y=ref_data, validation_split=val_split, 
                                 epochs=epochs, batch_size=batch_size, verbose=1, callbacks=callbacks)
 
     def predict(self, x, batch_size=32):

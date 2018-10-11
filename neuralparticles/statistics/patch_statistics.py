@@ -1,4 +1,5 @@
 import json
+import os
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.data_helpers import *
 import numpy as np
