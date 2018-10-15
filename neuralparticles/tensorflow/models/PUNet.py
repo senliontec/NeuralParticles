@@ -87,19 +87,19 @@ class PUNet(Network):
             aux_input = MultConst(1./self.norm_factor, name="normalization")(aux_input)
             input_points = concatenate([input_xyz, aux_input], axis=-1, name='input_concatenation')
 
-        l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.25, self.fac*4, 
+        l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.05, self.fac*4, 
                                                [self.fac*4,
                                                 self.fac*4,
                                                 self.fac*8], mask_val=self.pad_val if self.mask else None, activation=activation)
-        l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, self.particle_cnt_src//2, 0.5, self.fac*4, 
+        l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, self.particle_cnt_src//2, 0.1, self.fac*4, 
                                                [self.fac*8,
                                                 self.fac*8,
                                                 self.fac*16], activation=activation)
-        l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, self.particle_cnt_src//4, 0.6, self.fac*4, 
+        l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, self.particle_cnt_src//4, 0.2, self.fac*4, 
                                                [self.fac*16,
                                                 self.fac*16,
                                                 self.fac*32], activation=activation)
-        l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, self.particle_cnt_src//8, 0.7, self.fac*4, 
+        l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, self.particle_cnt_src//8, 0.3, self.fac*4, 
                                                [self.fac*32,
                                                 self.fac*32,
                                                 self.fac*64], activation=activation)

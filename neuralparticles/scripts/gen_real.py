@@ -76,11 +76,11 @@ def get_scalar(v, bnd=0.0):
     else:
         return v
 
-data_cnt = data_config['data_count']
+data_cnt = data_config['test_count']
 modes = data_config['modes']
 
-m_idx = 0
-n_idx = int(modes[m_idx]['prop'] * data_cnt)
+m_idx = -1
+n_idx = 0
 for i in range(data_cnt):
     if i >= n_idx:
         m_idx += 1

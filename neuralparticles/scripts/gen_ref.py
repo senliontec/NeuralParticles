@@ -76,46 +76,51 @@ def get_scalar(v, bnd=0.0):
     else:
         return v
 
+def gen_data(count,off=0):
+    modes = data_config['modes']
+    m_idx = -1
+    n_idx = 0
+
+    for i in range(count):
+        if i >= n_idx:
+            m_idx += 1
+            n_idx = i + int(modes[m_idx]['prop'] * count)
+            
+            param['circ'] = modes[m_idx]['circ_vel']
+            param['wlt'] = modes[m_idx]['wlt_vel']
+            param['grav'] = modes[m_idx]['grav']
+        cubes = {}
+        spheres = {}
+        for c in range(random.randint(modes[m_idx]['cnt'][0],modes[m_idx]['cnt'][1])):    
+            if random.random() < modes[m_idx]['cube_prob']:
+                scx = get_scalar(modes[m_idx]['scale_x'])
+                scy = get_scalar(modes[m_idx]['scale_y'])
+                px = get_scalar(modes[m_idx]['pos_x'],scx/2)
+                py = get_scalar(modes[m_idx]['pos_y'],scy/2)
+                if param['dim'] == 3:
+                    scz = get_scalar(modes[m_idx]['scale_z'])
+                    pz = get_scalar(modes[m_idx]['pos_z'],scz/2)
+                    cubes['c%d'%len(cubes)] = "%f,%f,%f,%f,%f,%f"%(px,py,pz,scx,scy,scz)
+                else:
+                    cubes['c%d'%len(cubes)] = "%f,%f,%f,%f"%(px,py,scx,scy)
+            else:
+                rad = get_scalar(modes[m_idx]['rad'])
+                px = get_scalar(modes[m_idx]['pos_x'],rad/2)
+                py = get_scalar(modes[m_idx]['pos_y'],rad/2)
+                if param['dim'] == 3:
+                    pz = get_scalar(modes[m_idx]['pos_z'],rad/2)
+                    spheres['s%d'%len(spheres)] = "%f,%f,%f,%f"%(px,py,pz,rad)
+                else:
+                    spheres['s%d'%len(spheres)] = "%f,%f,%f"%(px,py,rad)
+
+        param['seed'] = random.randint(0,1000000000)
+        run_gen(cubes, spheres, i+off)
+
 data_cnt = data_config['data_count']
-modes = data_config['modes']
+test_cnt = data_config['test_count']
 
-m_idx = 0
-n_idx = int(modes[m_idx]['prop'] * data_cnt)
-for i in range(data_cnt):
-    if i >= n_idx:
-        m_idx += 1
-        n_idx = i + modes[m_idx]['prop'] * data_cnt
-        
-        param['circ'] = modes[m_idx]['circ_vel']
-        param['wlt'] = modes[m_idx]['wlt_vel']
-        param['grav'] = modes[m_idx]['grav']
-
-    cubes = {}
-    spheres = {}
-    for c in range(random.randint(modes[m_idx]['cnt'][0],modes[m_idx]['cnt'][1])):    
-        if random.random() < modes[m_idx]['cube_prob']:
-            scx = get_scalar(modes[m_idx]['scale_x'])
-            scy = get_scalar(modes[m_idx]['scale_y'])
-            px = get_scalar(modes[m_idx]['pos_x'],scx/2)
-            py = get_scalar(modes[m_idx]['pos_y'],scy/2)
-            if param['dim'] == 3:
-                scz = get_scalar(modes[m_idx]['scale_z'])
-                pz = get_scalar(modes[m_idx]['pos_z'],scz/2)
-                cubes['c%d'%len(cubes)] = "%f,%f,%f,%f,%f,%f"%(px,py,pz,scx,scy,scz)
-            else:
-                cubes['c%d'%len(cubes)] = "%f,%f,%f,%f"%(px,py,scx,scy)
-        else:
-            rad = get_scalar(modes[m_idx]['rad'])
-            px = get_scalar(modes[m_idx]['pos_x'],rad/2)
-            py = get_scalar(modes[m_idx]['pos_y'],rad/2)
-            if param['dim'] == 3:
-                pz = get_scalar(modes[m_idx]['pos_z'],rad/2)
-                spheres['s%d'%len(spheres)] = "%f,%f,%f,%f"%(px,py,pz,rad)
-            else:
-                spheres['s%d'%len(spheres)] = "%f,%f,%f"%(px,py,rad)
-
-    param['seed'] = random.randint(0,1000000000)
-    run_gen(cubes, spheres, i)
+gen_data(data_cnt)
+gen_data(test_cnt,data_cnt)
 
 if "transform" in data_config:
     trans_config = data_config["transform"]
@@ -135,7 +140,7 @@ if "transform" in data_config:
         param['peaks'] = trans_config['peaks']
         param['fac'] = trans_config['disp_fac']
 
-        for i in range(data_cnt):
+        for i in range(data_cnt + test_cnt):
             param['in'] = output_path % i + "_%03d"
             param['out'] = trans_path % i + "_%03d"
             run_manta(manta_path, "scenes/transform_particles.py", param)

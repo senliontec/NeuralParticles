@@ -133,6 +133,9 @@ print("Load Eval Data")
 
 factor_d = math.pow(pre_config['factor'], 1/data_config['dim'])
 
+patch_size = pre_config['patch_size'] * data_config['res'] / factor_d
+patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
+
 eval_patch_extractors = []
 eval_ref_datas = []
 eval_src_patches = []
@@ -141,10 +144,10 @@ for i in range(len(eval_dataset)):
     (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
     eval_ref_datas.append(eval_ref_data)
     np.random.seed(100)
-    eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, pre_config['patch_size'], pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/factor_d))
+    eval_patch_extractors.append(PatchExtractor(eval_src_data, eval_sdf_data, patch_size, pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/factor_d))
     p_idx = int(eval_patch_idx[i] * len(eval_patch_extractors[i].positions))
     eval_src_patches.append(eval_patch_extractors[i].get_patch(p_idx,False))
-    eval_ref_patches.append(extract_particles(eval_ref_data, eval_patch_extractors[i].positions[p_idx] * factor_d, pre_config['par_cnt_ref'], pre_config['patch_size_ref']/2, pre_config['pad_val'])[0])
+    eval_ref_patches.append(extract_particles(eval_ref_data, eval_patch_extractors[i].positions[p_idx] * factor_d, pre_config['par_cnt_ref'], patch_size_ref/2, pre_config['pad_val'])[0])
 
     print("Eval with dataset %d, timestep %d, var %d, patch idx %d" % (eval_dataset[i], eval_t[i], eval_var[i], p_idx))
     print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patches[i][0][:,:,:1] != pre_config['pad_val'])))

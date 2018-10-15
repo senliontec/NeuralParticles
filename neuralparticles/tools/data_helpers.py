@@ -134,7 +134,7 @@ def load_patches_from_file(data_path, config_path):
 
     features = train_config['features']
 
-    data_cnt = int(data_config['data_count'] * train_config['train_split'])
+    data_cnt = data_config['data_count']
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
     t_end = min(train_config['t_end'], data_config['frame_count'])
 
@@ -228,7 +228,7 @@ def get_norm_factor(data_path, config_path):
         train_config = json.loads(f.read())
 
     features = train_config['features']
-    data_cnt = int(data_config['data_count'] * train_config['train_split'])
+    data_cnt = data_config['data_count']
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
     t_end = min(train_config['t_end'], data_config['frame_count'])
 
@@ -293,8 +293,8 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
         pre_config = json.loads(f.read())
 
     fac_d = math.pow(pre_config['factor'], 1/data_config['dim'])
-    patch_size = pre_config['patch_size']
-    patch_size_ref = pre_config['patch_size_ref']
+    patch_size = pre_config['patch_size'] * data_config['res'] / fac_d
+    patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
 
     par_cnt = pre_config['par_cnt']
     par_cnt_ref = pre_config['par_cnt_ref']

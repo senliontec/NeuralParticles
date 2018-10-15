@@ -86,7 +86,7 @@ config_dict['norm_factor'] = get_norm_factor(data_path, config_path)
 punet = PUNet(**config_dict)
 
 if len(eval_dataset) < eval_cnt:
-    eval_dataset.extend(np.random.randint(int(data_config['data_count'] * train_config['train_split']), data_config['data_count'], eval_cnt-len(eval_dataset)))
+    eval_dataset.extend(np.random.randint(data_config['data_count'], data_config['data_count'] + data_config['test_count'], eval_cnt-len(eval_dataset)))
 
 if len(eval_t) < eval_cnt:
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
@@ -124,6 +124,8 @@ eval_ref_datas = [[None for i in range(eval_timesteps)] for j in range(len(eval_
 eval_src_patches = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
 eval_ref_patches = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
 
+patch_size = pre_config['patch_size'] * data_config['res'] / factor_d
+patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
 for i in range(len(eval_dataset)):
     #pos = None
     idx = None
@@ -134,13 +136,13 @@ for i in range(len(eval_dataset)):
         #eval_par_aux['p'] = np.sign(eval_par_aux['p'])*np.sqrt(np.abs(eval_par_aux['p']))
         eval_ref_datas[i][j] = eval_ref_data
 
-        patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, pre_config['patch_size'], pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/factor_d)
+        patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/factor_d)
         eval_patch_extractors[i][j] = patch_extractor
         
         if idx is None:
             pos = patch_extractor.positions[int(eval_patch_idx[i] * len(patch_extractor.positions))]
             idx = get_nearest_idx(eval_src_data, pos)
-            eval_ref_patch = extract_particles(eval_ref_data, pos * factor_d, pre_config['par_cnt_ref'], pre_config['patch_size_ref']/2, pre_config['pad_val'])[0]
+            eval_ref_patch = extract_particles(eval_ref_data, pos * factor_d, pre_config['par_cnt_ref'], patch_size_ref/2, pre_config['pad_val'])[0]
         else:
             pos = eval_patch_src[idx]
             eval_ref_patch = np.ones((pre_config['par_cnt_ref'], 3)) * 100
@@ -153,7 +155,7 @@ for i in range(len(eval_dataset)):
         vel = vel['v']'''
         
         #eval_src_patch = patch_extractor.get_patch_pos(pos,False)
-        eval_src_patch = extract_particles(eval_patch_src, pos, pre_config['par_cnt'], pre_config['patch_size']/2, pre_config['pad_val'], eval_patch_aux)
+        eval_src_patch = extract_particles(eval_patch_src, pos, pre_config['par_cnt'], patch_size/2, pre_config['pad_val'], eval_patch_aux)
         if len(train_config['features']) > 0:
             eval_src_patch = [np.array([np.concatenate([eval_src_patch[0]] + [eval_src_patch[1][f] for f in train_config['features']],axis=-1)])]
         else:

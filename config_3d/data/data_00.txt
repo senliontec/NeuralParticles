@@ -4,7 +4,8 @@
     "dim":            3,
     "fps":            120,
     "frame_count":    10,
-    "data_count":     40,
+    "data_count":     10,
+    "test_count":     2,
     "sub_res":        2,
     "res":            120,
     "seed":           5234244,
@@ -13,23 +14,8 @@
     "modes": 
     [
         {
-            "prop":             0.5,
-            "cnt":              [1,1],
-            "cube_prob":        1.0,
-            "scale_x":          [1.0,1.0],
-            "scale_y":          [0.1,0.1],
-            "scale_z":          [1.0,1.0],
-            "pos_x":            [0.5,0.5],
-            "pos_y":            [0.1,0.1],
-            "pos_z":            [0.5,0.5],
-            "rad":              [0.0,0.0],
-            "circ_vel":         0,
-            "wlt_vel":          30.0,
-            "grav":             9.8
-        },
-        {
-            "prop":             0.5,
-            "cnt":              [5,10],
+            "prop":             1.0,
+            "cnt":              [3,5],
             "cube_prob":        0.5,
             "scale_x":          [0.05,0.2],
             "scale_y":          [0.05,0.2],

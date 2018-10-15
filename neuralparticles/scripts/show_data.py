@@ -42,7 +42,7 @@ with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
 param = {}
 
 if dataset < 0:
-    dataset = int(data_config['data_count']*train_config['train_split']) if show_results else 0
+    dataset = data_config['data_count'] if show_results else 0
 
 dim = data_config['dim']
 res = data_config['res']

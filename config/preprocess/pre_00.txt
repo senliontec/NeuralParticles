@@ -1,7 +1,7 @@
 {
     "id":             "p00",
-    "patch_size":     5,
-    "patch_size_ref": 15,
+    "patch_size":     0.1,
+    "patch_size_ref": 0.1,
     "stride":         1.0,
     "surf":           1.0,
     "factor":         9,
@@ -9,8 +9,8 @@
     "blur":           1.5,
     "sdf_off":        0.0,
     "var":            1,
-    "par_cnt":        64,
-    "par_cnt_ref":    576,
+    "par_cnt":        128,
+    "par_cnt_ref":    1152,
     "par_var":        1,
     "pad_val":        -2.0
 }

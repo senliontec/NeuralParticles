@@ -55,7 +55,7 @@ output_path = "%s%s_%s-%s" % (dst_path, data_config['prefix'], data_config['id']
 print(src_path)
 print(output_path)
 
-for i in range(data_config['data_count']):
+for i in range(data_config['data_count']+data_config['test_count']):
     for j in range(pre_config['var']):
         param['seed'] = random.randint(0,45820438204)
         param['in'] = src_path%(i) + "_%03d"

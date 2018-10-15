@@ -26,13 +26,6 @@ if __name__ == "__main__":
     with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
         pre_config = json.loads(f.read())
 
-    data_cnt = data_config['data_count']
-    frame_cnt = data_config['frame_count']
-    features = ['v','d','p']
-
-    src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
-    ref_path = "%s%s_%s-%s_ps" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
-
     pad_cnt_src = read_csv(data_path + "statistics/%s_%s-%s_src_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']))
     pad_cnt_ref = read_csv(data_path + "statistics/%s_%s-%s_ref_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']))
 

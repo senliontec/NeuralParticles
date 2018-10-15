@@ -61,7 +61,7 @@ class PatchGenerator(keras.utils.Sequence):
             train_config = json.loads(f.read())
 
         self.d_start = 0 if d_start < 0 else d_start
-        self.d_end = int(data_config['data_count'] * train_config['train_split']) if d_end < 0 else d_end
+        self.d_end = data_config['data_count'] if d_end < 0 else d_end
         self.t_start = train_config['t_start'] if t_start < 0 else t_start
         self.t_end = train_config['t_end'] if t_end < 0 else t_end
 

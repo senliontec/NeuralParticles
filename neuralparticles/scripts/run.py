@@ -33,7 +33,7 @@ data_path = getParam("data", "data/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 dataset = int(getParam("dataset", -1))
-var = int(getParam("var", 0))
+var = int(getParam("var", -1))
 gpu = getParam("gpu", "")
 real = int(getParam("real", 0)) != 0
 
@@ -72,28 +72,33 @@ if verbose:
     print(train_config)
 
 if dataset < 0:
-    dataset = int(data_config['data_count']*train_config['train_split'])
+    d_start = data_config['data_count']
+    d_end = d_start + data_config['test_count']
+else:
+    d_start = dataset
+    d_end = d_start + 1
 
-dst_path += "%s_%s-%s_%s_d%03d_var%02d/" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
-if not os.path.exists(dst_path):
-	os.makedirs(dst_path)
+if var < 0:
+    var = pre_config['var']
+
+dst_path += "%s_%s-%s_%s" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id']) + "_d%03d_var%02d/"
 
 if t_start < 0:
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
 if t_end < 0:
     t_end = min(train_config['t_end'], data_config['frame_count'])
 
-def write_out_particles(particles, t, suffix, xlim=None, ylim=None, s=1, z=None):
-    writeNumpyRaw((dst_path + suffix + "_%03d")%t, particles)
-    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%t, z=z)
-    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%t, z=z)
-    write_csv((dst_path + suffix + "_%03d.csv")%t, particles)
+def write_out_particles(particles, d, v, t, suffix, xlim=None, ylim=None, s=1, z=None):
+    writeNumpyRaw((dst_path + suffix + "_%03d")%(d,v,t), particles)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%(d,v,t), z=z)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%(d,v,t), z=z)
+    write_csv((dst_path + suffix + "_%03d.csv")%(d,v,t), particles)
 
-def write_out_vel(particles, vel, t, suffix, xlim=None, ylim=None, s=1, z=None):
-    writeNumpyRaw((dst_path + suffix + "_%03d")%t, vel)
-    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%t, src=particles, vel=vel, z=z)
-    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%t, src=particles, vel=vel, z=z)
-    write_csv((dst_path + suffix + "_%03d.csv")%t, vel)
+def write_out_vel(particles, vel, d, v, t, suffix, xlim=None, ylim=None, s=1, z=None):
+    writeNumpyRaw((dst_path + suffix + "_%03d")%(d,v,t), vel)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%(d,v,t), src=particles, vel=vel, z=z)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%(d,v,t), src=particles, vel=vel, z=z)
+    write_csv((dst_path + suffix + "_%03d.csv")%(d,v,t), vel)
 
 if verbose:
     print(dst_path)
@@ -104,8 +109,8 @@ pad_val = pre_config['pad_val']
 
 dim = data_config['dim']
 factor_d = math.pow(pre_config['factor'], 1/dim)
-patch_size = pre_config['patch_size']
-ref_patch_size = pre_config['patch_size_ref']
+patch_size = pre_config['patch_size'] * data_config['res'] / factor_d
+patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
 par_cnt = pre_config['par_cnt']
 par_cnt_dst = pre_config['par_cnt_ref']
 
@@ -114,7 +119,7 @@ res = int(hres/factor_d)
 
 bnd = data_config['bnd']/factor_d
 
-half_ps = ref_patch_size//2
+half_ps = patch_size_ref//2
 #border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
 
 features = train_config['features']
@@ -130,40 +135,43 @@ punet.load_model(model_path)
 
 src_data = None
 positions = None
+for d in range(d_start, d_end):
+    for v in range(var):
+        if not os.path.exists(dst_path%(d,v)):
+            os.makedirs(dst_path%(d,v))
+        for t in range(t_start, t_end):
+            if temp_coh_dt == 0 or src_data is None:
+                (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v) 
+            else:
+                src_data = src_data + par_aux['v'] * temp_coh_dt / data_config['fps']
 
-for t in range(t_start, t_end):
-    if temp_coh_dt == 0 or src_data is None:
-        (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, dataset, t, var) 
-    else:
-        src_data = src_data + par_aux['v'] * temp_coh_dt / data_config['fps']
+            #src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
 
-    #src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
+            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, positions=positions)
 
-    patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], pre_config['stride'], aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, positions=positions)
+            if temp_coh_dt != 0 and positions is None:
+                positions = patch_extractor.positions
 
-    if temp_coh_dt != 0 and positions is None:
-        positions = patch_extractor.positions
+            write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 
-    write_out_particles(patch_extractor.positions, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
+            result = eval_frame(punet, patch_extractor, factor_d, dst_path%(d,v) + "result_%s" + "_%03d"%t, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
 
-    result = eval_frame(punet, patch_extractor, factor_d, dst_path + "result_%s" + "_%03d"%t, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+            hdr = OrderedDict([ ('dim',len(result)),
+                                ('dimX',hres),
+                                ('dimY',hres),
+                                ('dimZ',1 if dim == 2 else hres),
+                                ('elementType',0),
+                                ('bytesPerElement',16),
+                                ('info',b'\0'*256),
+                                ('timestamp',(int)(time.time()*1e6))])
 
-    hdr = OrderedDict([ ('dim',len(result)),
-                        ('dimX',hres),
-                        ('dimY',hres),
-                        ('dimZ',1 if dim == 2 else hres),
-                        ('elementType',0),
-                        ('bytesPerElement',16),
-                        ('info',b'\0'*256),
-                        ('timestamp',(int)(time.time()*1e6))])
+            writeParticlesUni((dst_path + "result_%03d.uni")%(d,v,t), hdr, result)
+            hdr['dim'] = len(ref_data)
+            writeParticlesUni((dst_path + "reference_%03d.uni")%(d,v,t), hdr, ref_data)
+            hdr['dim'] = len(src_data)
+            hdr['dimX'] = res
+            hdr['dimY'] = res
+            if dim == 3: hdr['dimZ'] = res
+            writeParticlesUni((dst_path + "source_%03d.uni")%(d,v,t), hdr, src_data)
 
-    writeParticlesUni(dst_path + "result_%03d.uni"%t, hdr, result)
-    hdr['dim'] = len(ref_data)
-    writeParticlesUni(dst_path + "reference_%03d.uni"%t, hdr, ref_data)
-    hdr['dim'] = len(src_data)
-    hdr['dimX'] = res
-    hdr['dimY'] = res
-    if dim == 3: hdr['dimZ'] = res
-    writeParticlesUni(dst_path + "source_%03d.uni"%t, hdr, src_data)
-
-    print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))
+            print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))

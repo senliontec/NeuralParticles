@@ -42,13 +42,10 @@ class ParticleIdxGrid:
         self.grid = np.empty(shape,dtype=object)
         self.grid[:] = [[[[] for x in range(shape[2])] for y in range(shape[1])] for z in range(shape[0])]
         
-        t = np.zeros(len(particles))
         for i in range(len(particles)):
-            start = time.time()
             x,y,z = particles[i].astype(dtype="int32")
-            #if x in range(self.shape[2]) and y in range(self.shape[1]) and z in range(self.shape[0]):
-            self.grid[z,y,x].append(i)
-            t[i] = time.time() - start
+            if x >= 0 and x < self.shape[2] and y >= 0 and y < self.shape[1] and z >= 0 and z < self.shape[0]:
+                self.grid[z,y,x].append(i)
 
     def get_cell(self, cell_idx):
         x,y,z = cell_idx.astype(dtype="int32")

@@ -27,7 +27,7 @@ class IISPH:
         self.gs = vec3(res, res, res if dim==3 else 1)
         self.grav = grav * self.gs.y
 
-        dx = 1.0/sres
+        dx = 0.8/sres
 
         self.s = Solver(name='IISPH_{}'.format(res), gridSize=self.gs, dim=dim)
         self.s.cfl         = 1
