@@ -35,11 +35,11 @@ def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=Non
 	dx,dy = (data[:,0], data[:,1]) if z is None else extract_stride(data,z)
 	if not ref is None:
 		rx, ry = (ref[:,0], ref[:, 1]) if z is None else extract_stride(ref, z)
-		plt.scatter(rx,ry,s=s,c='r')
-	plt.scatter(dx,dy,s=s,c='b')
+		plt.scatter(rx,ry,s=s,c='#ff6c00')
+	plt.scatter(dx,dy,s=s,c='c')
 	if not src is None:
 		sx,sy = (src[:,0], src[:,1]) if z is None else extract_stride(src, z)
-		plt.scatter(sx,sy,s=s,c='g')
+		plt.scatter(sx,sy,s=s,c='#0a3213')
 		if not vel is None:
 			vx, vy =  (vel[:,0],vel[:,1]) if z is None else extract_stride(vel, z, src)
 			#TODO: make more efficient:

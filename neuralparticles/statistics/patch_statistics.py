@@ -4,6 +4,7 @@ from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.data_helpers import *
 import numpy as np
 from neuralparticles.tools.uniio import readNumpyRaw
+import shutil
 
 from neuralparticles.tools.plot_helpers import write_csv, plot_particles
 
@@ -28,9 +29,14 @@ if __name__ == "__main__":
     with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
         pre_config = json.loads(f.read())
 
+    with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
+        train_config = json.loads(f.read())
+
     sample_path = data_path + "statistics/%s_%s-%s_sample_patches/" % (data_config['prefix'], data_config['id'], pre_config['id'])
-    if not os.path.exists(sample_path):
-        os.makedirs(sample_path)
+    if os.path.exists(sample_path):
+        shutil.rmtree(sample_path)
+        
+    os.makedirs(sample_path)
 
     data_cnt = data_config['data_count']
     frame_cnt = data_config['frame_count']
@@ -42,10 +48,13 @@ if __name__ == "__main__":
     pad_cnt_src = np.empty((0,1))
     pad_cnt_ref = np.empty((0,1))
 
-    out_src = np.ones((pre_config['par_cnt'],pre_config['par_cnt'],3))*pre_config['pad_val']
-    out_ref = np.ones((pre_config['par_cnt'],pre_config['par_cnt_ref'],3))*pre_config['pad_val']
+    t_start = min(train_config['t_start'], data_config['frame_count']-1)
+    t_end = min(train_config['t_end'], data_config['frame_count'])
+
+    out_src = np.ones((pre_config['par_cnt']+1,pre_config['par_cnt'],3))*pre_config['pad_val']
+    out_ref = np.ones((pre_config['par_cnt']+1,pre_config['par_cnt_ref'],3))*pre_config['pad_val']
     for d in range(data_cnt):
-        for t in range(frame_cnt):
+        for t in range(t_start, t_end):
             print("load patch: dataset(s): %03d timestep: %03d" % (d,t), end="\r", flush=True)
             src = readNumpyRaw(src_path % ('s',d,t))
             ref = readNumpyRaw(ref_path%(d,t))

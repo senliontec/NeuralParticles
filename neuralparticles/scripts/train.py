@@ -21,6 +21,7 @@ data_path = getParam("data", "data/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 gpu = getParam("gpu", "")
+train_fac = float(getParam("fac", 1.0))
 
 eval_cnt = int(getParam("eval_cnt", 5))
 eval_dataset = getParam("eval_d", []) #'18,18,18,19,19'
@@ -112,8 +113,8 @@ np.random.shuffle(idx)
 src_data = src_data[idx]
 ref_data = ref_data[idx]'''
 
-patch_generator = PatchGenerator(data_path, config_path, 40)
-val_generator = PatchGenerator(data_path, config_path, 40, chunked_idx=patch_generator.get_val_idx())
+patch_generator = PatchGenerator(data_path, config_path, 10, fac=train_fac)
+val_generator = PatchGenerator(data_path, config_path, 10, chunked_idx=patch_generator.get_val_idx())
 
 print("Load Eval Data")
 

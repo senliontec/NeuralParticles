@@ -46,7 +46,7 @@ class Chunk:
 
 class PatchGenerator(keras.utils.Sequence):
     def __init__(self, data_path, config_path, chunk_size,
-                 d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None):
+                 d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None, fac=1.0):
         np.random.seed(45)
         with open(config_path, 'r') as f:
             config = json.loads(f.read())
@@ -61,9 +61,9 @@ class PatchGenerator(keras.utils.Sequence):
             train_config = json.loads(f.read())
 
         self.d_start = 0 if d_start < 0 else d_start
-        self.d_end = data_config['data_count'] if d_end < 0 else d_end
-        self.t_start = train_config['t_start'] if t_start < 0 else t_start
-        self.t_end = train_config['t_end'] if t_end < 0 else t_end
+        self.d_end = int(data_config['data_count'] * fac) if d_end < 0 else d_end
+        self.t_start = min(train_config['t_start'], data_config['frame_count']-1) if t_start < 0 else t_start
+        self.t_end = min(train_config['t_end'], data_config['frame_count']) if t_end < 0 else t_end
 
         self.neg_examples = train_config['neg_examples']
 
