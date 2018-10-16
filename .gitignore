@@ -16,3 +16,5 @@ sanity_check/
 sanity_check_3D/
 
 \.ipynb_checkpoints/
+
+test_data/
