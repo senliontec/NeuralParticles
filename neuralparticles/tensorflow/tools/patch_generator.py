@@ -61,7 +61,7 @@ class PatchGenerator(keras.utils.Sequence):
             train_config = json.loads(f.read())
 
         self.d_start = 0 if d_start < 0 else d_start
-        self.d_end = int(data_config['data_count'] * fac) if d_end < 0 else d_end
+        self.d_end = int(data_config['data_count']) if d_end < 0 else d_end
         self.t_start = min(train_config['t_start'], data_config['frame_count']-1) if t_start < 0 else t_start
         self.t_end = min(train_config['t_end'], data_config['frame_count']) if t_end < 0 else t_end
 
@@ -91,6 +91,7 @@ class PatchGenerator(keras.utils.Sequence):
         if chunked_idx is None:
             idx = np.array([[x,y] for x in range(self.d_start, self.d_end) for y in range(self.t_start, self.t_end)])
             np.random.shuffle(idx)
+            idx = idx[:int(len(idx))]
 
             for i in range(self.chunk_cnt):
                 chunk = Chunk(frames=idx[i*self.chunk_size:(i+1)*self.chunk_size])
@@ -99,6 +100,9 @@ class PatchGenerator(keras.utils.Sequence):
                 patch_cnt = 0
                 for j in range(chunk.size):                
                     patch_idx = np.arange(len(readNumpyRaw(self.src_path % ('s', chunk.frames[j][0], chunk.frames[j][1]))))
+
+                    if fac < 1.0:
+                        patch_idx = patch_idx[random.sample(range(len(patch_idx)), int(fac * len(patch_idx)))]
 
                     val_choice = random.sample(range(len(patch_idx)), int(np.ceil(train_config['val_split'] * len(patch_idx))))
                     chunk_val.patch_idx[j] = patch_idx[val_choice]
