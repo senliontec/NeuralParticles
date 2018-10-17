@@ -102,7 +102,7 @@ class PatchGenerator(keras.utils.Sequence):
                     patch_idx = np.arange(len(readNumpyRaw(self.src_path % ('s', chunk.frames[j][0], chunk.frames[j][1]))))
 
                     if fac < 1.0:
-                        patch_idx = patch_idx[random.sample(range(len(patch_idx)), int(fac * len(patch_idx)))]
+                        patch_idx = patch_idx[random.sample(range(len(patch_idx)), int(np.ceil(fac * len(patch_idx))))]
 
                     val_choice = random.sample(range(len(patch_idx)), int(np.ceil(train_config['val_split'] * len(patch_idx))))
                     chunk_val.patch_idx[j] = patch_idx[val_choice]

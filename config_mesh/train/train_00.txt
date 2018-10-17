@@ -1,0 +1,20 @@
+{
+    "id":                 "t00",
+    "val_split":          0.1,
+    "t_start":            5,
+    "t_end":              10,
+    "features":           ["v","d","p"],
+    "batch_size":         16,
+    "learning_rate":      4e-4,
+    "l2_reg":             0.0,
+    "decay":              0.0,
+    "fac":                8,
+    "epochs":             3,
+    "dropout":            0.2,
+    "loss_weights":       [1.0,0.0,1.0],
+    "mask":               true,
+    "truncate":           true,
+    "residual":           false,
+    "use_temp_emd":       false,
+    "neg_examples":       false
+}

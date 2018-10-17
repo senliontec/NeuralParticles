@@ -18,3 +18,5 @@ sanity_check_3D/
 \.ipynb_checkpoints/
 
 test_data/
+
+mesh_data/

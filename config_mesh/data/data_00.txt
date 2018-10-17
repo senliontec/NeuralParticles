@@ -1,0 +1,11 @@
+{
+    "id":             "dat00",
+    "prefix":         "mesh",
+    "h5":             "Patches_noHole_and_collected.h5",
+    "dim":            3,
+    "fps":            120,
+    "frame_count":    1,
+    "data_count":     3900,
+    "test_count":     100,
+    "res":            120
+}
