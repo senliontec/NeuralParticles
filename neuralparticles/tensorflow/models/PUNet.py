@@ -46,7 +46,6 @@ class PUNet(Network):
         self.dropout = kwargs.get("dropout", 0.2)
         self.l2_reg = kwargs.get("l2_reg", 0.0)
 
-        self.truncate = kwargs.get("truncate", False)
         self.pad_val = kwargs.get("pad_val", 0.0)
         self.mask = kwargs.get("mask", False)
         
@@ -58,12 +57,21 @@ class PUNet(Network):
         self.factor = kwargs.get("factor")
         self.factor_d = math.pow(self.factor, 1/self.dim)
 
+        self.patch_size = kwargs.get("patch_size") * kwargs.get("res") / self.factor_d
+
         self.fps = kwargs.get("fps")
 
-        self.loss_weights = kwargs.get("loss_weights")
+        tmp_w = kwargs.get("loss_weights")
 
-        if not self.truncate:
-            self.loss_weights = self.loss_weights[:2]
+        self.loss_weights = [tmp_w[0]]
+        self.temp_coh = tmp_w[1] > 0.0
+        self.truncate = tmp_w[2] > 0.0
+
+        if self.temp_coh:
+            self.loss_weights.append(tmp_w[1])
+        
+        if self.truncate:
+            self.loss_weights.append(tmp_w[2])
 
         self.res = kwargs.get("res")
         self.lres = int(self.res/self.factor_d)
@@ -77,8 +85,8 @@ class PUNet(Network):
         self.optimizer = keras.optimizers.adam(lr=self.learning_rate, decay=self.decay)
 
     def _build_model(self):            
-        activation = keras.activations.tanh#lambda x: keras.activations.relu(x, alpha=0.1)
-        inputs = Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0)), name="main_input")
+        activation = keras.activations.relu#lambda x: keras.activations.relu(x, alpha=0.1)
+        inputs = Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0)), name="main_input")
         input_xyz = extract_xyz(inputs, name="extract_pos")
         input_points = input_xyz
 
@@ -127,7 +135,7 @@ class PUNet(Network):
 
         b = np.zeros((3,), dtype='float32')
         W = np.zeros((1, self.fac*8, 3), dtype='float32')
-        x = Conv1D(3, 1, name="coord_reconstruction_2", activation=activation)(x)#, weights=[W,b])(x)
+        x = Conv1D(3, 1, name="coord_reconstruction_2")(x)#, weights=[W,b])(x)
         
         out = x
         
@@ -183,18 +191,21 @@ class PUNet(Network):
                 out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)])
             self.model = Model(inputs=inputs, outputs=[out])
 
-        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0))),Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0)))]
-        out = self.model(inputs[0])
+        if self.temp_coh:
+            inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0))),Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0)))]
+            out = self.model(inputs[0])
 
-        if self.truncate:
-            trunc = Lambda(lambda x: x, name="trunc")(out[1])
-            out = Lambda(lambda x: x, name="points")(out[0])
-            out1 = concatenate([out, self.model(inputs[1])[0]], axis=1, name='temp')
-            self.train_model = Model(inputs=inputs, outputs=[out, out1, trunc])
+            if self.truncate:
+                trunc = Lambda(lambda x: x, name="trunc")(out[1])
+                out = Lambda(lambda x: x, name="points")(out[0])
+                out1 = concatenate([out, self.model(inputs[1])[0]], axis=1, name='temp')
+                self.train_model = Model(inputs=inputs, outputs=[out, out1, trunc])
+            else:
+                out = Lambda(lambda x: x, name="points")(out)
+                out1 = concatenate([out, self.model(inputs[1])], axis=1, name='temp')
+                self.train_model = Model(inputs=inputs, outputs=[out, out1])
         else:
-            out = Lambda(lambda x: x, name="points")(out)
-            out1 = concatenate([out, self.model(inputs[1])], axis=1, name='temp')
-            self.train_model = Model(inputs=inputs, outputs=[out, out1])
+            self.train_model = self.model
         
     def mask_loss(self, y_true, y_pred):
         loss = repulsion_loss(y_pred) * 0.0
@@ -254,11 +265,16 @@ class PUNet(Network):
             return repulsion_loss(y_pred)
 
     def compile_model(self):
+        loss = [self.mask_loss]
+        if self.temp_coh:
+            loss.append(self.temp_loss)
+
         if self.truncate:
+            loss.append(self.trunc_loss)
             self.trunc_model.compile(loss=self.trunc_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
-            self.train_model.compile(loss=[self.mask_loss, self.temp_loss, self.trunc_loss], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric])
+            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric])
         else:
-            self.train_model.compile(loss=[self.mask_loss, self.temp_loss], optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric])
+            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric])
 
     def _train(self, epochs, **kwargs):
         callbacks = kwargs.get("callbacks", [])
@@ -287,10 +303,12 @@ class PUNet(Network):
             val_split = kwargs.get("val_split", 0.1)
             batch_size = kwargs.get("batch_size", 32)
 
-            adv_src = src_data[...,:3] + 0.01 * src_data[...,3:6] / self.fps
-            src_data = [src_data, np.concatenate((adv_src, src_data[...,3:]), axis=-1)]
+            if self.temp_coh:
+                vel = src_data[...,3:6] if src_data.shape[-1] >= 6 else np.random.random() * self.patch_size
+                adv_src = src_data[...,:3] + 0.1 * vel / (self.patch_size * self.fps)
+                src_data = [src_data, np.concatenate((adv_src, src_data[...,3:]), axis=-1)]
 
-            ref_data = [ref_data, np.concatenate((ref_data, ref_data), axis=1)]
+                ref_data = [ref_data, np.concatenate((ref_data, ref_data), axis=1)]
 
             if self.truncate:
                 trunc_ref = np.count_nonzero(ref_data[0][...,:1] != self.pad_val, axis=1)/self.particle_cnt_dst 

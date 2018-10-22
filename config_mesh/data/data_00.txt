@@ -5,7 +5,8 @@
     "dim":            3,
     "fps":            120,
     "frame_count":    1,
-    "data_count":     3900,
-    "test_count":     100,
-    "res":            120
+    "data_count":     4000,
+    "test_count":     0,
+    "res":            120,    
+    "seed":           5234244
 }

@@ -1,12 +1,7 @@
 import json
 from neuralparticles.tools.param_helpers import getParam, checkUnusedParams
-from neuralparticles.tools.uniio import writeNumpyH5, readNumpyRaw
-from glob import glob
-from collections import OrderedDict
-import time
-from neuralparticles.tools.uniio import writeParticlesUni
-
-from neuralparticles.tools.shell_script import *
+from neuralparticles.tools.data_helpers import *
+from neuralparticles.tools.uniio import writeNumpyRaw
 
 import h5py
 
@@ -14,21 +9,33 @@ import numpy as np
 
 import os
 
+
+def nonuniform_sampling(num = 4096, sample_num = 1024):
+    sample = set()
+    loc = np.random.rand()*0.8+0.1
+    while(len(sample)<sample_num):
+        a = int(np.random.normal(loc=loc,scale=0.3)*num)
+        if a<0 or a>=num:
+            continue
+        sample.add(a)
+    return list(sample)
+
 if __name__ == "__main__":
+
     data_path = getParam("data", "data/")
-    manta_path = getParam("manta", "neuralparticles/")
     config_path = getParam("config", "config/version_00.txt")
-    verbose = int(getParam("verbose", 0)) != 0
-    gui = int(getParam("gui", 0))
-    pause = int(getParam("pause", 0))
     checkUnusedParams()
 
-    if not os.path.exists(data_path):
-        os.makedirs(data_path)
+    if not os.path.exists(data_path + "patches/"):
+        os.makedirs(data_path + "patches/")
 
-    ref_path = data_path + "reference/"
-    if not os.path.exists(data_path):
-        os.makedirs(data_path)
+    src_path = data_path + "patches/source/"
+    if not os.path.exists(src_path):
+        os.makedirs(src_path)
+
+    dst_path = data_path + "patches/reference/"
+    if not os.path.exists(dst_path):
+        os.makedirs(dst_path)
 
     with open(config_path, 'r') as f:
         config = json.loads(f.read())
@@ -36,46 +43,29 @@ if __name__ == "__main__":
     with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
         data_config = json.loads(f.read())
 
-    output_path = "%s%s_%s" % (ref_path, data_config['prefix'], data_config['id']) + "_d%03d_%03d"
+    with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
+        pre_config = json.loads(f.read())
 
-    res = data_config['res']
-    dim = data_config['dim']
+    data_cnt = data_config['data_count']
+    test_cnt = data_config['test_count']
+    frame_cnt = data_config['frame_count']
+    fac = pre_config['factor']
+    
+    src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
+    dst_path = "%s%s_%s-%s_ps" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
 
-    print(data_path + data_config["h5"])
     f = h5py.File(data_path + data_config["h5"])
     gt = f['poisson_4096'][:]
-    
-    min_pos = np.amin(gt[...,0:3], axis=1, keepdims=True)
-    gt[...,0:3] = gt[...,0:3] - min_pos
-    max_v = np.amax(gt[...,0:3], axis=(1,2),keepdims=True)
-    gt[...,0:3] = gt[...,0:3] / max_v
+    center = np.mean(gt[...,:3], axis=1, keepdims=True)
+    gt[...,0:3] = gt[...,0:3] - center
+    radius = np.amax(np.sqrt(np.sum(gt[...,:3] ** 2, axis=-1)),axis=1,keepdims=True)
+    gt[...,0:3] = gt[...,0:3] / np.expand_dims(radius,axis=-1)
 
-    gt[...,0:3] = gt[...,0:3] * res
+    np.random.seed(10)
+    for d in range(data_cnt+test_cnt):
+        for t in range(frame_cnt):
+            src = gt[d:d+1,nonuniform_sampling(gt.shape[1], int(gt.shape[1]/fac))]
+            writeNumpyRaw(src_path % ('s',d,t), src[...,:3])
+            writeNumpyRaw(src_path % ('n',d,t), src[...,3:6])
 
-    for d in range(len(gt)):
-        hdr = OrderedDict([ 
-            ('dim',len(gt[d])),
-            ('dimX',res),
-            ('dimY',res),
-            ('dimZ',1 if dim == 2 else res),
-            ('elementType',0),
-            ('bytesPerElement',16),
-            ('info',b'\0'*256),
-            ('timestamp',(int)(time.time()*1e6))])
-        writeParticlesUni(output_path%(d,0) + "_ps.uni", hdr, gt[d,:,:3])
-
-    param = {}
-
-    param['gui'] = gui
-    param['pause'] = pause
-
-    param['in'] = output_path + "_ps.uni"
-    param['out'] = output_path + "_sdf.uni"
-
-    param['cnt'] = len(gt)
-    param['t'] = 1
-
-    param['dim'] = dim
-    param['res'] = res
-
-    run_manta(manta_path, "scenes/gen_levelset.py", dict(param), verbose) 
+            writeNumpyRaw(dst_path % (d,t), gt[d:d+1,:,:3])

@@ -158,7 +158,7 @@ def load_patches_from_file(data_path, config_path):
 
         src = [np.empty((0,par_cnt,3))]
         if len(features) > 0:
-            src.append(np.empty((0,par_cnt,len(features) + 2 if 'v' in features else 0)))
+            src.append(np.empty((0,par_cnt,len(features) + 2 if 'v' in features or 'n' in features else 0)))
         ref = np.empty((0, par_cnt_ref,3))
         
         for d in range(data_cnt):
@@ -228,6 +228,9 @@ def get_norm_factor(data_path, config_path):
         train_config = json.loads(f.read())
 
     features = train_config['features']
+    if len(features) < 1:
+        return None
+
     data_cnt = data_config['data_count']
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
     t_end = min(train_config['t_end'], data_config['frame_count'])
@@ -252,7 +255,7 @@ def get_norm_factor(data_path, config_path):
                             i+=3
                         else:
                             norm_factor[i] = max(norm_factor[i], np.max(np.abs(data[f])))
-                            i+=1    
+                            i+=1
         os.makedirs(tmp_path)
         print("cached norm factor")
         writeNumpy(tmp_path + "norm_factor", norm_factor)

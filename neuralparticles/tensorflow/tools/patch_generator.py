@@ -1,5 +1,6 @@
 import json
 import os
+import math
 import keras
 
 from neuralparticles.tools.data_helpers import extract_particles, get_positions, get_data
@@ -68,10 +69,15 @@ class PatchGenerator(keras.utils.Sequence):
         self.neg_examples = train_config['neg_examples']
 
         self.fps = data_config['fps']
+        
+        fac_d = math.pow(pre_config['factor'], 1/data_config['dim'])
+        self.patch_size = pre_config['patch_size'] * data_config['res'] / fac_d
 
         self.batch_cnt = 0
 
-        self.trunc = train_config['truncate']
+        tmp_w = train_config['loss_weights']
+        self.trunc = tmp_w[1] > 0.0
+        self.temp_coh = tmp_w[2] > 0.0
         self.batch_size = train_config['batch_size']
 
         self.features = train_config['features']
@@ -84,6 +90,8 @@ class PatchGenerator(keras.utils.Sequence):
         self.chunk_cnt = int(np.ceil((self.d_end - self.d_start) * (self.t_end - self.t_start)/self.chunk_size))
         self.chunked_idx = np.empty((self.chunk_cnt,), dtype=object)
         self.chunked_idx_val = np.empty((self.chunk_cnt,), dtype=object)
+
+        self.fac = fac
 
         self.src_path = "%spatches/source/%s_%s-%s_p" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
         self.ref_path = "%spatches/reference/%s_%s-%s_ps" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
@@ -101,14 +109,14 @@ class PatchGenerator(keras.utils.Sequence):
                 for j in range(chunk.size):                
                     patch_idx = np.arange(len(readNumpyRaw(self.src_path % ('s', chunk.frames[j][0], chunk.frames[j][1]))))
 
-                    if fac < 1.0:
-                        patch_idx = patch_idx[random.sample(range(len(patch_idx)), int(np.ceil(fac * len(patch_idx))))]
+                    #if fac < 1.0:
+                    #    patch_idx = patch_idx[random.sample(range(len(patch_idx)), int(np.ceil(fac * len(patch_idx))))]
 
                     val_choice = random.sample(range(len(patch_idx)), int(np.ceil(train_config['val_split'] * len(patch_idx))))
                     chunk_val.patch_idx[j] = patch_idx[val_choice]
                     chunk.patch_idx[j] = np.delete(patch_idx, val_choice)      
 
-                    patch_cnt += len(chunk.patch_idx[j])
+                    patch_cnt += int(np.ceil(self.fac * len(chunk.patch_idx[j])))
                 self.batch_cnt += int(np.ceil(patch_cnt/self.batch_size))
                 self.chunked_idx[i] = chunk
                 self.chunked_idx_val[i] = chunk_val
@@ -118,7 +126,7 @@ class PatchGenerator(keras.utils.Sequence):
             for c in self.chunked_idx:
                 patch_cnt = 0
                 for f in c.patch_idx:
-                    patch_cnt += len(f)
+                    patch_cnt += int(np.ceil(self.fac * len(f)))
                 self.batch_cnt += int(np.ceil(patch_cnt/self.batch_size))
         
         self.on_epoch_end()
@@ -136,19 +144,22 @@ class PatchGenerator(keras.utils.Sequence):
         frame_chunk = self.chunked_idx[self.chunk_idx]
         patch_cnt = 0
         for pi in frame_chunk.patch_idx:
-            patch_cnt += len(pi)
+            patch_cnt += int(np.ceil(self.fac * len(pi)))
         self.chunk = np.empty((patch_cnt, 2), dtype=object)
 
         pi = 0
         for i in range(frame_chunk.size):
             frame = frame_chunk[i]
-            pin = pi + len(frame.patch_idx)
+            idx = frame.patch_idx
+            if self.fac < 1.0:
+                idx = idx[random.sample(range(len(idx)), int(np.ceil(self.fac * len(idx))))]
+            pin = pi + len(idx)
 
-            src = readNumpyRaw(self.src_path%('s',frame.dataset,frame.timestep))[frame.patch_idx]
+            src = readNumpyRaw(self.src_path%('s',frame.dataset,frame.timestep))[idx]
             if len(self.features) > 0:
-                src = np.concatenate([src] + [readNumpyRaw(self.src_path%(f,frame.dataset,frame.timestep))[frame.patch_idx] for f in self.features], axis=-1)
+                src = np.concatenate([src] + [readNumpyRaw(self.src_path%(f,frame.dataset,frame.timestep))[idx] for f in self.features], axis=-1)
 
-            ref = [readNumpyRaw(self.ref_path%(frame.dataset,frame.timestep))[frame.patch_idx]]
+            ref = [readNumpyRaw(self.ref_path%(frame.dataset,frame.timestep))[idx]]
             if self.trunc:
                 ref.append(np.count_nonzero(ref[0][...,1] != self.pad_val, axis=1)/self.par_cnt_ref)
             
@@ -175,14 +186,16 @@ class PatchGenerator(keras.utils.Sequence):
         src = [np.array([s[i] for s in self.chunk[index:index+self.batch_size,0]]) for i in range(len(self.chunk[0,0]))]
         ref = [np.array([r[i] for r in self.chunk[index:index+self.batch_size,1]]) for i in range(len(self.chunk[0,1]))]
 
-        if index % 2 == 0 or not self.neg_examples:
-            adv_src = src[0][...,:3] + 0.01 * src[0][...,3:6] / self.fps
-            src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
-            ref.insert(1, np.concatenate((ref[0], ref[0]), axis=1))
-        else:
-            rnd_idx = np.random.randint(0, len(self.chunk), self.batch_size)
-            src.extend([np.array([s[i] for s in self.chunk[rnd_idx,0]]) for i in range(len(self.chunk[0,0]))])
-            ref.insert(1, np.concatenate((ref[0], [np.array([r[i] for r in self.chunk[rnd_idx,1]]) for i in range(len(self.chunk[0,1]))][0]), axis=1))
+        if self.temp_coh:
+            if index % 2 == 0 or not self.neg_examples:
+                vel = src[0][...,3:6] if src.shape[-1] >= 6 else np.random.random() * self.patch_size
+                adv_src = src[0][...,:3] + 0.1 * vel / (self.patch_size * self.fps)
+                src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
+                ref.insert(1, np.concatenate((ref[0], ref[0]), axis=1))
+            else:
+                rnd_idx = np.random.randint(0, len(self.chunk), self.batch_size)
+                src.extend([np.array([s[i] for s in self.chunk[rnd_idx,0]]) for i in range(len(self.chunk[0,0]))])
+                ref.insert(1, np.concatenate((ref[0], [np.array([r[i] for r in self.chunk[rnd_idx,1]]) for i in range(len(self.chunk[0,1]))][0]), axis=1))
         return src, ref
 
 

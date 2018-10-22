@@ -22,6 +22,7 @@ config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 gpu = getParam("gpu", "")
 train_fac = float(getParam("fac", 1.0))
+chunk_size = int(getParam("chunk", 0))
 
 eval_cnt = int(getParam("eval_cnt", 5))
 eval_dataset = getParam("eval_d", []) #'18,18,18,19,19'
@@ -105,16 +106,18 @@ fig_path = '%s_loss' % tmp_model_path
 
 print("Load Training Data")
 
-'''src_data, ref_data = load_patches_from_file(data_path, config_path)
-src_data = np.concatenate(src_data, axis=-1)
+if chunk_size > 0:
+    patch_generator = PatchGenerator(data_path, config_path, chunk_size, fac=train_fac)
+    val_generator = PatchGenerator(data_path, config_path, chunk_size, fac=train_fac, chunked_idx=patch_generator.get_val_idx())
+else:
+    src_data, ref_data = load_patches_from_file(data_path, config_path)
+    src_data = np.concatenate(src_data, axis=-1)
 
-idx = np.arange(src_data.shape[0])
-np.random.shuffle(idx)
-src_data = src_data[idx]
-ref_data = ref_data[idx]'''
+    idx = np.arange(src_data.shape[0])
+    np.random.shuffle(idx)
+    src_data = src_data[idx]
+    ref_data = ref_data[idx]
 
-patch_generator = PatchGenerator(data_path, config_path, 10, fac=train_fac)
-val_generator = PatchGenerator(data_path, config_path, 10, chunked_idx=patch_generator.get_val_idx())
 
 print("Load Eval Data")
 
@@ -174,6 +177,10 @@ for i in range(len(eval_dataset)):
 
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])
 
+np.random.seed(10)
+import tensorflow as tf
+tf.set_random_seed(10)
+
 punet.build_model()
 keras.utils.plot_model(punet.model, tmp_model_path + '.pdf') 
 punet.save_model(tmp_model_path+".h5")
@@ -182,10 +189,13 @@ if verbose:
 else:
     print("Model parameter count: %d" % punet.model.count_params())
 
-'''config_dict['src'] = src_data
-config_dict['ref'] = ref_data'''
-config_dict['generator'] = patch_generator
-config_dict['val_generator'] = val_generator
+if chunk_size > 0:
+    config_dict['generator'] = patch_generator
+    config_dict['val_generator'] = val_generator
+else:
+    config_dict['src'] = src_data
+    config_dict['ref'] = ref_data
+    
 config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches, punet.model,
                                           train_config['features'], z=None if data_config['dim'] == 2 else 0, verbose=3 if verbose else 1))]
 ''',
