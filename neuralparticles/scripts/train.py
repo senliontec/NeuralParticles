@@ -177,10 +177,6 @@ for i in range(len(eval_dataset)):
 
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])
 
-np.random.seed(10)
-import tensorflow as tf
-tf.set_random_seed(10)
-
 punet.build_model()
 keras.utils.plot_model(punet.model, tmp_model_path + '.pdf') 
 punet.save_model(tmp_model_path+".h5")

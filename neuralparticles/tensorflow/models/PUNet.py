@@ -85,7 +85,7 @@ class PUNet(Network):
         self.optimizer = keras.optimizers.adam(lr=self.learning_rate, decay=self.decay)
 
     def _build_model(self):            
-        activation = keras.activations.relu#lambda x: keras.activations.relu(x, alpha=0.1)
+        activation = keras.activations.tanh#lambda x: keras.activations.relu(x, alpha=0.1)
         inputs = Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0)), name="main_input")
         input_xyz = extract_xyz(inputs, name="extract_pos")
         input_points = input_xyz
