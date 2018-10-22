@@ -304,7 +304,7 @@ class PUNet(Network):
             batch_size = kwargs.get("batch_size", 32)
 
             if self.temp_coh:
-                vel = src_data[...,3:6] if src_data.shape[-1] >= 6 else np.random.random() * self.patch_size
+                vel = (src_data[...,3:6] if src_data.shape[-1] >= 6 else np.random.random((src_data.shape[0],src[0].shape[1],3))) * self.patch_size
                 adv_src = src_data[...,:3] + 0.1 * vel / (self.patch_size * self.fps)
                 src_data = [src_data, np.concatenate((adv_src, src_data[...,3:]), axis=-1)]
 

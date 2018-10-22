@@ -76,8 +76,8 @@ class PatchGenerator(keras.utils.Sequence):
         self.batch_cnt = 0
 
         tmp_w = train_config['loss_weights']
-        self.trunc = tmp_w[1] > 0.0
-        self.temp_coh = tmp_w[2] > 0.0
+        self.temp_coh = tmp_w[1] > 0.0
+        self.trunc = tmp_w[2] > 0.0
         self.batch_size = train_config['batch_size']
 
         self.features = train_config['features']
@@ -188,7 +188,7 @@ class PatchGenerator(keras.utils.Sequence):
 
         if self.temp_coh:
             if index % 2 == 0 or not self.neg_examples:
-                vel = src[0][...,3:6] if src.shape[-1] >= 6 else np.random.random() * self.patch_size
+                vel = (src[0][...,3:6] if src.shape[-1] >= 6 else np.random.random((src[0].shape[0],src[0].shape[1],3))) * self.patch_size
                 adv_src = src[0][...,:3] + 0.1 * vel / (self.patch_size * self.fps)
                 src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
                 ref.insert(1, np.concatenate((ref[0], ref[0]), axis=1))
