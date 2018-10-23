@@ -324,7 +324,9 @@ class PUNet(Network):
         self.model.save(path)
 
     def load_model(self, path):
-        self.model = load_model(path, custom_objects={'mask_loss': self.mask_loss, 'trunc_loss': self.trunc_loss, 'temp_loss': self.temp_loss, 'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup, 'MultConst': MultConst, 'AddConst': AddConst})
+        self.model = load_model(path, custom_objects={'mask_loss': self.mask_loss, 'trunc_loss': self.trunc_loss, 'temp_loss': self.temp_loss, 
+                                                      'particle_metric': self.particle_metric, 'trunc_metric': self.trunc_metric,
+                                                      'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup, 'MultConst': MultConst, 'AddConst': AddConst})
         '''if self.truncate:
             out, trunc = self.model.outputs
             trunc_exp = stack([trunc, trunc, trunc], 2)
