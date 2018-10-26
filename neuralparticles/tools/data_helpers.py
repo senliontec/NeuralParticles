@@ -133,6 +133,7 @@ def load_patches_from_file(data_path, config_path):
         train_config = json.loads(f.read())
 
     features = train_config['features']
+    features_ref = pre_config['features_ref']
 
     data_cnt = data_config['data_count']
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
@@ -151,7 +152,7 @@ def load_patches_from_file(data_path, config_path):
 
     if not os.path.exists(tmp_path):
         src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
-        ref_path = "%s%s_%s-%s_ps" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+        ref_path = "%s%s_%s-%s_p" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
 
         par_cnt = pre_config['par_cnt']
         par_cnt_ref = pre_config['par_cnt_ref']
@@ -159,7 +160,9 @@ def load_patches_from_file(data_path, config_path):
         src = [np.empty((0,par_cnt,3))]
         if len(features) > 0:
             src.append(np.empty((0,par_cnt,len(features) + 2 if 'v' in features or 'n' in features else 0)))
-        ref = np.empty((0, par_cnt_ref,3))
+        ref = [np.empty((0, par_cnt_ref,3))]
+        if len(features_ref) > 0:
+            ref.append(np.empty((0,par_cnt_ref,len(features_ref) + 2 if 'v' in features_ref or 'n' in features_ref else 0)))
         
         for d in range(data_cnt):
             for t in range(t_start, t_end):
@@ -167,7 +170,9 @@ def load_patches_from_file(data_path, config_path):
                 src[0] = np.append(src[0], readNumpyRaw(src_path % ('s',d,t)), axis=0)
                 if len(features) > 0:
                     src[1] = np.append(src[1], np.concatenate([readNumpyRaw(src_path%(f,d,t)) for f in features], axis=-1), axis=0)
-                ref = np.append(ref,readNumpyRaw(ref_path%(d,t)), axis=0)
+                ref[0] = np.append(ref[0],readNumpyRaw(ref_path%('s',d,t)), axis=0)
+                if len(features_ref) > 0:
+                    ref[1] = np.append(ref[1], np.concatenate([readNumpyRaw(ref_path%(f,d,t)) for f in features_ref], axis=-1), axis=0)
 
         print("\r", flush=True)
         print("cache patch buffer")
@@ -175,13 +180,17 @@ def load_patches_from_file(data_path, config_path):
         writeNumpy(tmp_path + "src", src[0])
         if len(features) > 0:
             writeNumpy(tmp_path + "aux", src[1])
-        writeNumpy(tmp_path + "ref", ref)
+        writeNumpy(tmp_path + "ref", ref[0])
+        if len(features_ref) > 0:
+            writeNumpy(tmp_path + "ref_aux", ref[1])
     else:
         print("found and loaded cached buffer file")
         src = [readNumpy(tmp_path + "src")]
         if len(features) > 0:
             src.append(readNumpy(tmp_path + "aux"))
-        ref = readNumpy(tmp_path + "ref")
+        ref = [readNumpy(tmp_path + "ref")]
+        if len(features_ref) > 0:
+            ref.append(readNumpy(tmp_path + "ref_aux"))
 
     return src, ref
 
@@ -285,7 +294,7 @@ def get_data_pair(data_path, config_path, dataset, timestep, var, features=None)
 
     return get_data(path_src%(dataset,var,timestep), par_aux=features), get_data(path_ref%(dataset,timestep))[:2]
 
-def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_stop=None, v_start=0, v_stop=None, pv_start=0, pv_stop=None, features=None):
+def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_stop=None, v_start=0, v_stop=None, pv_start=0, pv_stop=None, features=None, features_ref=None):
     with open(config_path, 'r') as f:
         config = json.loads(f.read())
 
@@ -314,6 +323,8 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
         pv_stop = pre_config['par_var']
     if features is None:
         features = ['v','d','p']
+    if features_ref is None:
+        features_ref = pre_config['features_ref']
 
     # tolerance of surface
     surface = pre_config['surf']
@@ -325,6 +336,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
 
     main = np.empty([0,par_cnt, 3])
     aux = None
+    ref_aux = None
     reference = np.empty([0,par_cnt_ref, 3])
     pos = np.empty([0, 3])
 
@@ -343,8 +355,11 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
 
                     par, aux_par = load_patches(path_ref%(d,t), par_cnt_ref, patch_size_ref, pad_val=pad_val, positions=positions*fac_d)[:2]
                     reference = np.append(reference, par, axis=0)
+                    if len(features_ref) > 0:
+                        tmp = np.concatenate([(aux_par[f]) for f in features_ref], axis=-1)
+                        ref_aux = tmp if ref_aux is None else np.append(ref_aux, tmp, axis=0)
     
-    return [main, aux] if len(features) > 0 else [main], reference, pos
+    return [main, aux] if len(features) > 0 else [main], [reference, ref_aux] if len(features_ref) > 0 else [reference], pos
 
 
 class PatchExtractor:

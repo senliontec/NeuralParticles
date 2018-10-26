@@ -16,5 +16,12 @@
     "truncate":           true,
     "residual":           false,
     "use_temp_emd":       true,
-    "neg_examples":       true
+    "neg_examples":       true,
+    "rot_aug":            false,
+    "rot_mask":           [0.0,0.0,0.0],
+    "shift_aug":          false,
+    "jitter_aug":         false,
+    "jitter_rot_aug":     false,
+    "rnd_sampling":       false,
+    "sub_fac":            1.0
 }

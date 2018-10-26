@@ -116,7 +116,7 @@ else:
     idx = np.arange(src_data.shape[0])
     np.random.shuffle(idx)
     src_data = src_data[idx]
-    ref_data = ref_data[idx]
+    ref_data = ref_data[0][idx]
 
 
 print("Load Eval Data")

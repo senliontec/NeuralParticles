@@ -51,13 +51,15 @@ if show_results:
     param['in'] = data_path + "result/%s_%s-%s_%s_d%03d_var%02d/result" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var) + "_%03d.uni"
     if not show_temp_coh:
         param['src'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
-        param['src_sdf'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
         param['ref'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_ps.uni"
+        
+        param['src_sdf'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
         param['ref_sdf'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_sdf.uni"
 else:
     param['src'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_ps.uni"
-    param['src_sdf'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
     param['in'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_ps.uni"
+    
+    param['src_sdf'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
     param['sdf'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_sdf.uni"
 
 if t_start < 0:

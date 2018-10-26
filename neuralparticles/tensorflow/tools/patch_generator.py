@@ -8,9 +8,22 @@ from neuralparticles.tools.particle_grid import ParticleIdxGrid
 
 from neuralparticles.tools.uniio import readNumpyRaw
 
+from neuralparticles.tools.data_augmentation import *
+
 import numpy as np
 
 import random, copy
+
+from enum import Flag, auto
+
+
+class Augmentation(Flag):
+    ROTATE = auto()
+    SHIFT = auto()
+    JITTER = auto()
+    JITTER_ROT = auto()
+    RND_SAMPLING = auto()
+
 
 class Frame:
     dataset = None
@@ -91,12 +104,26 @@ class PatchGenerator(keras.utils.Sequence):
         self.chunked_idx = np.empty((self.chunk_cnt,), dtype=object)
         self.chunked_idx_val = np.empty((self.chunk_cnt,), dtype=object)
 
-        self.fac = fac
+        self.fac = train_config['sub_fac']
+
+        self.data_aug = Augmentation(0)
+        self.rot_mask = np.array(train_config['rot_mask'])
 
         self.src_path = "%spatches/source/%s_%s-%s_p" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
-        self.ref_path = "%spatches/reference/%s_%s-%s_ps" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+        self.ref_path = "%spatches/reference/%s_%s-%s_p" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
 
         if chunked_idx is None:
+            if train_config['rot_aug']:
+                self.data_aug |= Augmentation.ROTATE
+            if train_config['shift_aug']:
+                self.data_aug |= Augmentation.SHIFT
+            if train_config['jitter_aug']:
+                self.data_aug |= Augmentation.JITTER
+            if train_config['jitter_rot_aug']:
+                self.data_aug |= Augmentation.JITTER_ROT
+            if train_config['rnd_sampling']:
+                self.data_aug |= Augmentation.RND_SAMPLING
+                
             idx = np.array([[x,y] for x in range(self.d_start, self.d_end) for y in range(self.t_start, self.t_end)])
             np.random.shuffle(idx)
             idx = idx[:int(len(idx))]
@@ -155,14 +182,23 @@ class PatchGenerator(keras.utils.Sequence):
                 idx = idx[random.sample(range(len(idx)), int(np.ceil(self.fac * len(idx))))]
             pin = pi + len(idx)
 
-            src = readNumpyRaw(self.src_path%('s',frame.dataset,frame.timestep))[idx]
-            if len(self.features) > 0:
-                src = np.concatenate([src] + [readNumpyRaw(self.src_path%(f,frame.dataset,frame.timestep))[idx] for f in self.features], axis=-1)
-
-            ref = [readNumpyRaw(self.ref_path%(frame.dataset,frame.timestep))[idx]]
+            ref = [readNumpyRaw(self.ref_path%('s',frame.dataset,frame.timestep))[idx]]
             if self.trunc:
                 ref.append(np.count_nonzero(ref[0][...,1] != self.pad_val, axis=1)/self.par_cnt_ref)
-            
+
+            if self.data_aug & Augmentation.RND_SAMPLING:
+                tmp_ref = ref[0]
+                src = np.empty((len(tmp_ref), self.par_cnt, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0)))
+                if len(self.features) > 0:
+                    tmp_ref = np.concatenate([tmp_ref] + [readNumpyRaw(self.ref_path%(f,frame.dataset,frame.timestep))[idx] for f in self.features], axis=-1)
+                for j in range(len(tmp_ref)):
+                    sample_idx = nonuniform_sampling(self.par_cnt_ref, self.par_cnt)
+                    src[j] = tmp_ref[j][sample_idx]
+            else:
+                src = readNumpyRaw(self.src_path%('s',frame.dataset,frame.timestep))[idx]
+                if len(self.features) > 0:
+                    src = np.concatenate([src] + [readNumpyRaw(self.src_path%(f,frame.dataset,frame.timestep))[idx] for f in self.features], axis=-1)
+                
             for j in range(pin-pi):
                 self.chunk[pi+j] = [[src[j]], [r[j] for r in ref]]
 
@@ -186,9 +222,18 @@ class PatchGenerator(keras.utils.Sequence):
         src = [np.array([s[i] for s in self.chunk[index:index+self.batch_size,0]]) for i in range(len(self.chunk[0,0]))]
         ref = [np.array([r[i] for r in self.chunk[index:index+self.batch_size,1]]) for i in range(len(self.chunk[0,1]))]
 
+        if self.data_aug & Augmentation.ROTATE:
+            src[0], ref[0] = rotate_point_cloud_and_gt(src[0], ref[0], self.rot_mask)
+        if self.data_aug & Augmentation.SHIFT:
+            src[0], ref[0] = shift_point_cloud_and_gt(src[0], ref[0], shift_range=0.1)
+        if (self.data_aug & Augmentation.JITTER) and np.random.rand() > 0.5:
+            src[0] = jitter_perturbation_point_cloud(src[0], sigma=0.025,clip=0.05)
+        if (self.data_aug & Augmentation.JITTER_ROT) and np.random.rand() > 0.5:
+            src[0] = rotate_perturbation_point_cloud(src[0], angle_sigma=0.03, angle_clip=0.09)
+
         if self.temp_coh:
             if index % 2 == 0 or not self.neg_examples:
-                vel = (src[0][...,3:6] if src.shape[-1] >= 6 else np.random.random((src[0].shape[0],src[0].shape[1],3))) * self.patch_size
+                vel = (src[0][...,3:6] if src[0].shape[-1] >= 6 else np.random.random((src[0].shape[0],src[0].shape[1],3))) * self.patch_size
                 adv_src = src[0][...,:3] + 0.1 * vel / (self.patch_size * self.fps)
                 src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
                 ref.insert(1, np.concatenate((ref[0], ref[0]), axis=1))

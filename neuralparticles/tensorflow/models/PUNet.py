@@ -13,9 +13,10 @@ from neuralparticles.tensorflow.tools.zero_mask import zero_mask, soft_trunc_mas
 from neuralparticles.tools.data_helpers import get_data
 
 from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
+from neuralparticles.tensorflow.losses.tf_auctionmatch import emd_loss as pu_emd_loss
 from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
 from neuralparticles.tensorflow.layers.add_const_layer import AddConst
-from neuralparticles.tensorflow.losses.repulsion_loss import repulsion_loss
+from neuralparticles.tensorflow.losses.repulsion_loss import repulsion_loss, get_repulsion_loss4
 
 
 def stack(X, axis, **kwargs):
@@ -85,32 +86,32 @@ class PUNet(Network):
         self.optimizer = keras.optimizers.adam(lr=self.learning_rate, decay=self.decay)
 
     def _build_model(self):            
-        activation = keras.activations.tanh#lambda x: keras.activations.relu(x, alpha=0.1)
+        activation = keras.activations.relu#lambda x: keras.activations.relu(x, alpha=0.1)
         inputs = Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0)), name="main_input")
         input_xyz = extract_xyz(inputs, name="extract_pos")
         input_points = input_xyz
 
         if len(self.features) > 0:
-            aux_input = extract_aux(inputs)
-            aux_input = MultConst(1./self.norm_factor, name="normalization")(aux_input)
-            input_points = concatenate([input_xyz, aux_input], axis=-1, name='input_concatenation')
+            input_points = extract_aux(inputs, name="extract_aux")
+            input_points = MultConst(1./self.norm_factor, name="normalization")(input_points)
+            input_points = concatenate([input_xyz, input_points], axis=-1, name='input_concatenation')
 
         l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.05, self.fac*4, 
                                                [self.fac*4,
                                                 self.fac*4,
-                                                self.fac*8], mask_val=self.pad_val if self.mask else None, activation=activation)
+                                                self.fac*8], mask_val=self.pad_val if self.mask else None, kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
         l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, self.particle_cnt_src//2, 0.1, self.fac*4, 
                                                [self.fac*8,
                                                 self.fac*8,
-                                                self.fac*16], activation=activation)
+                                                self.fac*16], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
         l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, self.particle_cnt_src//4, 0.2, self.fac*4, 
                                                [self.fac*16,
                                                 self.fac*16,
-                                                self.fac*32], activation=activation)
+                                                self.fac*32], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
         l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, self.particle_cnt_src//8, 0.3, self.fac*4, 
                                                [self.fac*32,
                                                 self.fac*32,
-                                                self.fac*64], activation=activation)
+                                                self.fac*64], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
 
         if self.mask:
             mask = zero_mask(input_points, self.pad_val, name="mask_2")
@@ -118,11 +119,11 @@ class PUNet(Network):
             input_xyz = multiply([input_xyz, mask])
 
         # interpoliere die features in l2_points auf die Punkte in x
-        up_l2_points = pointnet_fp_module(input_xyz, l2_xyz, None, l2_points, [self.fac*8], activation=activation)
-        up_l3_points = pointnet_fp_module(input_xyz, l3_xyz, None, l3_points, [self.fac*8], activation=activation)
-        up_l4_points = pointnet_fp_module(input_xyz, l4_xyz, None, l4_points, [self.fac*8], activation=activation)
+        up_l2_points = pointnet_fp_module(input_xyz, l2_xyz, None, l2_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
+        up_l3_points = pointnet_fp_module(input_xyz, l3_xyz, None, l3_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
+        up_l4_points = pointnet_fp_module(input_xyz, l4_xyz, None, l4_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
 
-        x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, input_points], axis=-1)
+        x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, input_xyz], axis=-1)
         x_t = x
         l = []
         for i in range(self.particle_cnt_dst//self.particle_cnt_src):
@@ -131,7 +132,7 @@ class PUNet(Network):
             l.append(tmp)
         x = concatenate(l, axis=1, name="pixel_conv") if self.particle_cnt_dst//self.particle_cnt_src > 1 else l[0]
 
-        x = Conv1D(self.fac*8, 1, name="coord_reconstruction_1", activation=activation)(x)
+        x = Conv1D(self.fac*8, 1, name="coord_reconstruction_1", kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)(x)
 
         b = np.zeros((3,), dtype='float32')
         W = np.zeros((1, self.fac*8, 3), dtype='float32')
@@ -208,8 +209,8 @@ class PUNet(Network):
             self.train_model = self.model
         
     def mask_loss(self, y_true, y_pred):
-        loss = repulsion_loss(y_pred) * 0.0
-        return loss + (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else emd_loss(y_true, y_pred))
+        loss = get_repulsion_loss4(y_pred)
+        return loss + (pu_emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else pu_emd_loss(y_true, y_pred)) * 100
 
     def trunc_loss(self, y_true, y_pred):
         return keras.losses.mse(y_true, y_pred)#tf.reduce_mean(y_pred, axis=1))
@@ -274,7 +275,7 @@ class PUNet(Network):
             self.trunc_model.compile(loss=self.trunc_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
             self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric])
         else:
-            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric])
+            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric, pu_emd_loss])
 
     def _train(self, epochs, **kwargs):
         callbacks = kwargs.get("callbacks", [])
@@ -304,7 +305,7 @@ class PUNet(Network):
             batch_size = kwargs.get("batch_size", 32)
 
             if self.temp_coh:
-                vel = (src_data[...,3:6] if src_data.shape[-1] >= 6 else np.random.random((src_data.shape[0],src[0].shape[1],3))) * self.patch_size
+                vel = (src_data[...,3:6] if src_data.shape[-1] >= 6 else np.random.random((src_data.shape[0],src_data.shape[1],3))) * self.patch_size
                 adv_src = src_data[...,:3] + 0.1 * vel / (self.patch_size * self.fps)
                 src_data = [src_data, np.concatenate((adv_src, src_data[...,3:]), axis=-1)]
 

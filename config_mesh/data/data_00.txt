@@ -1,7 +1,8 @@
 {
     "id":             "dat00",
     "prefix":         "mesh",
-    "h5":             "Patches_noHole_and_collected.h5",
+    "train":          "Patches_noHole_and_collected.h5",
+    "test":           "test/",
     "dim":            3,
     "fps":            120,
     "frame_count":    1,

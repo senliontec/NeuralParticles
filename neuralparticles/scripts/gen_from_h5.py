@@ -52,9 +52,9 @@ if __name__ == "__main__":
     fac = pre_config['factor']
     
     src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
-    dst_path = "%s%s_%s-%s_ps" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+    dst_path = "%s%s_%s-%s_p" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
 
-    f = h5py.File(data_path + data_config["h5"])
+    f = h5py.File(data_path + data_config["train"])
     gt = f['poisson_4096'][:]
     center = np.mean(gt[...,:3], axis=1, keepdims=True)
     gt[...,0:3] = gt[...,0:3] - center
@@ -68,4 +68,5 @@ if __name__ == "__main__":
             writeNumpyRaw(src_path % ('s',d,t), src[...,:3])
             writeNumpyRaw(src_path % ('n',d,t), src[...,3:6])
 
-            writeNumpyRaw(dst_path % (d,t), gt[d:d+1,:,:3])
+            writeNumpyRaw(dst_path % ('s',d,t), gt[d:d+1,:,:3])
+            writeNumpyRaw(dst_path % ('n',d,t), gt[d:d+1,:,3:6])

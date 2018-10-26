@@ -12,5 +12,6 @@
     "par_cnt":        1280,
     "par_cnt_ref":    10240,
     "par_var":        1,
-    "pad_val":        -2.0
+    "pad_val":        -2.0,
+    "features_ref":   []
 }

@@ -214,6 +214,8 @@ void BasicParticleSystem::save(const string name) const {
 		this->writeParticlesRawPositionsGz(name);
 	else if (ext == ".velgz") 
 		this->writeParticlesRawVelocityGz(name);
+	else if (ext == ".obj")
+		writeParticlesObj(name, this);
 	else
 		errMsg("particle '" + name +"' filetype not supported for saving");
 }

@@ -39,9 +39,10 @@ if __name__ == "__main__":
     test_cnt = data_config['test_count']
     frame_cnt = data_config['frame_count']
     features = ['v','d','p']
+    features_ref = pre_config['features_ref']
 
     src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
-    dst_path = "%s%s_%s-%s_ps" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+    dst_path = "%s%s_%s-%s_p" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
 
     for d in range(data_cnt+test_cnt):
         print("extract patches of dataset %d" % d)
@@ -50,10 +51,18 @@ if __name__ == "__main__":
             writeNumpyRaw(src_path % ('s',d,t), src[0])
             i = 0
             for f in features:
-                if f == 'v':
+                if f == 'v' or f == 'n':
                     writeNumpyRaw(src_path % (f,d,t), src[1][:,:,i:i+3])
                     i+=3
                 else:
                     writeNumpyRaw(src_path % (f,d,t), src[1][:,:,i:i+1])
                     i+=1
-            writeNumpyRaw(dst_path % (d,t), dst)
+            writeNumpyRaw(dst_path % ('s',d,t), dst[0])
+            i = 0
+            for f in features_ref:
+                if f == 'v' or f == 'n':
+                    writeNumpyRaw(dst_path % (f,d,t), dst[1][:,:,i:i+3])
+                    i+=3
+                else:
+                    writeNumpyRaw(dst_path % (f,d,t), dst[1][:,:,i:i+1])
+                    i+=1

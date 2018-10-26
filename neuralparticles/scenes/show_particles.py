@@ -67,9 +67,14 @@ if src_path != "":
 	s_small = Solver(name='small', gridSize=gs_small, dim=dim)
 	s_show_small = Solver(name='show_small', gridSize=gs_show_small, dim=3)
 	src_pp = s_small.create(BasicParticleSystem)
+	src_gIdxSys  = s_small.create(ParticleIndexSystem)
+	src_gIdx     = s_small.create(IntGrid)
+	src_gCnt     = s_small.create(IntGrid)
 	src_sdf = s_small.create(LevelsetGrid)
+	src_sdf_high = s.create(LevelsetGrid)
 	sdf_show_small = s_show_small.create(LevelsetGrid)
 	sdf_show_small.setBound(value=0., boundaryWidth=1)
+	src_mesh_high = s_show.create(Mesh)
 	src_mesh = s_show_small.create(Mesh)
 	
 if guion:
@@ -85,7 +90,7 @@ for i in range(t_start,t_end):
 		sampleLevelsetWithParticles(phi=sdf, flags=gFlags, parts=pp, discretization=sres, randomness=0)
 	else:'''
 	pp.load(in_path % i)
-	print(pp.pySize())
+	
 	if sdf_path != "":
 		sdf.load(sdf_path % i)
 	else:
@@ -121,15 +126,21 @@ for i in range(t_start,t_end):
 		if src_sdf_path != "":
 			src_sdf.load(src_sdf_path % i)
 		else:
-			gridParticleIndex(parts=src_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
-			unionParticleLevelset(parts=src_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=src_sdf, radiusFactor=1.0, exclude=FlagObstacle)
+			gridParticleIndex(parts=src_pp, indexSys=src_gIdxSys, flags=gFlags, index=src_gIdx, counter=src_gCnt)
+			unionParticleLevelset(parts=src_pp, indexSys=src_gIdxSys, flags=gFlags, index=src_gIdx, phi=src_sdf, radiusFactor=1.0, exclude=FlagObstacle)
 			extrapolateLsSimple(phi=src_sdf, distance=4, inside=True)
 			src_sdf.setBound(value=5., boundaryWidth=max(1,4//fac))
+		interpolateGrid(src_sdf_high, src_sdf)
+		src_sdf_high.multConst(fac)
+		src_sdf_high.setBound(value=5., boundaryWidth=max(1,4))
 		if dim == 2:
 			placeGrid2d(src_sdf,sdf_show_small,dstz=1) 
 			sdf_show_small.createMesh(src_mesh)
+			placeGrid2d(src_sdf_high,sdf_show,dstz=1) 
+			sdf_show.createMesh(src_mesh_high)
 		else:
 			src_sdf.createMesh(src_mesh)
+			src_sdf_high.createMesh(src_mesh_high)
 
 	s.step()
 	if screenshot != "":
