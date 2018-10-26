@@ -86,7 +86,7 @@ class PUNet(Network):
         self.optimizer = keras.optimizers.adam(lr=self.learning_rate, decay=self.decay)
 
     def _build_model(self):            
-        activation = keras.activations.relu#lambda x: keras.activations.relu(x, alpha=0.1)
+        activation = keras.activations.tanh#lambda x: keras.activations.relu(x, alpha=0.1)
         inputs = Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0)), name="main_input")
         input_xyz = extract_xyz(inputs, name="extract_pos")
         input_points = input_xyz
@@ -209,8 +209,8 @@ class PUNet(Network):
             self.train_model = self.model
         
     def mask_loss(self, y_true, y_pred):
-        loss = get_repulsion_loss4(y_pred)
-        return loss + (pu_emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else pu_emd_loss(y_true, y_pred)) * 100
+        loss = get_repulsion_loss4(y_pred) * 0
+        return loss + (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else emd_loss(y_true, y_pred)) * 1#30
 
     def trunc_loss(self, y_true, y_pred):
         return keras.losses.mse(y_true, y_pred)#tf.reduce_mean(y_pred, axis=1))
@@ -275,7 +275,7 @@ class PUNet(Network):
             self.trunc_model.compile(loss=self.trunc_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
             self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric])
         else:
-            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric, pu_emd_loss])
+            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric])
 
     def _train(self, epochs, **kwargs):
         callbacks = kwargs.get("callbacks", [])

@@ -60,7 +60,7 @@ class Chunk:
 
 class PatchGenerator(keras.utils.Sequence):
     def __init__(self, data_path, config_path, chunk_size,
-                 d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None, fac=1.0):
+                 d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None):
         np.random.seed(45)
         with open(config_path, 'r') as f:
             config = json.loads(f.read())
@@ -123,7 +123,7 @@ class PatchGenerator(keras.utils.Sequence):
                 self.data_aug |= Augmentation.JITTER_ROT
             if train_config['rnd_sampling']:
                 self.data_aug |= Augmentation.RND_SAMPLING
-                
+            
             idx = np.array([[x,y] for x in range(self.d_start, self.d_end) for y in range(self.t_start, self.t_end)])
             np.random.shuffle(idx)
             idx = idx[:int(len(idx))]
@@ -155,7 +155,7 @@ class PatchGenerator(keras.utils.Sequence):
                 for f in c.patch_idx:
                     patch_cnt += int(np.ceil(self.fac * len(f)))
                 self.batch_cnt += int(np.ceil(patch_cnt/self.batch_size))
-        
+        print(self.data_aug)
         self.on_epoch_end()
 
 
