@@ -1,4 +1,6 @@
 import numpy as np
+import scipy
+from scipy import interpolate
 
 def rotate_point_cloud_and_gt(batch_data,batch_gt=None,mask=1.0):
     """ Randomly rotate the point clouds to augument the dataset
@@ -125,3 +127,24 @@ def nonuniform_sampling(num = 4096, sample_num = 1024):
             continue
         sample.add(a)
     return list(sample)
+
+def random_deformation(data, magnitude=0.1, resolution=5, gt=None):
+    vel = np.random.random((resolution, resolution, resolution, 3)) * magnitude
+    axis = np.arange(-1+1/resolution, 1+1/resolution, 2/resolution)
+    vel_f = interpolate.RegularGridInterpolator((axis, axis, axis), vel, bounds_error=False, fill_value=0.0)
+    if not gt is None:
+        return vel_f(data[...,:3]), vel_f(gt[...,:3])
+    else:
+        return vel_f(data[...,:3])
+    
+def deform_random(data, magnitude=0.1, resolution=5, gt=None):
+    if not gt is None:
+        vel, vel_gt = random_deformation(data, magnitude, resolution, gt)
+        gt[...,:3] = gt[...,:3] + vel_gt
+        data[...,:3] = data[...,:3] + vel
+        return data, vel, gt, vel_gt
+    else:
+        data[...,:3] = data[...,:3] + vel
+        return data, vel
+    
+

@@ -36,6 +36,24 @@ with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
 with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
     train_config = json.loads(f.read())
 
+data_path += "result/%s_%s-%s_%s_d%03d_var%02d/" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
+if not os.path.exists(data_path + "surface/"):
+    os.makedirs(data_path + "surface/")
+if not os.path.exists(data_path + "foam/"):
+    os.makedirs(data_path + "foam/")
+if not os.path.exists(data_path + "surface/source/"):
+    os.makedirs(data_path + "surface/source/")
+if not os.path.exists(data_path + "surface/reference/"):
+    os.makedirs(data_path + "surface/reference/")
+if not os.path.exists(data_path + "surface/result/"):
+    os.makedirs(data_path + "surface/result/")
+if not os.path.exists(data_path + "foam/source/"):
+    os.makedirs(data_path + "foam/source/")
+if not os.path.exists(data_path + "foam/reference/"):
+    os.makedirs(data_path + "foam/reference/")
+if not os.path.exists(data_path + "foam/result/"):
+    os.makedirs(data_path + "foam/result/")
+
 param = {}
 
 if dataset < 0:
@@ -55,15 +73,18 @@ param['dim'] = dim
 param['gui'] = gui
 param['pause'] = pause
 
-param['in'] = data_path + "result/%s_%s-%s_%s_d%03d_var%02d/result" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var) + "_%03d.uni"
-param['out'] = data_path + "result/%s_%s-%s_%s_d%03d_var%02d/result" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
+param['in'] = data_path + "result_%03d.uni"
+param['out_surface'] = data_path + "surface/result/fluidsurface_final_%04d.bobj.gz"
+param['out_foam'] = data_path + "foam/result/fluidsurface_final_%04d.bobj.gz"
 run_manta(manta_path, "scenes/blender.py", param, verbose)
 
-param['in'] = data_path + "result/%s_%s-%s_%s_d%03d_var%02d/reference" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var) + "_%03d.uni"
-param['out'] = data_path + "result/%s_%s-%s_%s_d%03d_var%02d/reference" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
+param['in'] = data_path + "reference_%03d.uni"
+param['out_surface'] = data_path + "surface/reference/fluidsurface_final_%04d.bobj.gz"
+param['out_foam'] = data_path + "foam/reference//fluidsurface_final_%04d.bobj.gz"
 run_manta(manta_path, "scenes/blender.py", param, verbose)
 
 param['res'] = int(res / math.pow(pre_config['factor'],1/dim))
-param['in'] = data_path + "result/%s_%s-%s_%s_d%03d_var%02d/source" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var) + "_%03d.uni"
-param['out'] = data_path + "result/%s_%s-%s_%s_d%03d_var%02d/source" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
+param['in'] = data_path + "source_%03d.uni"
+param['out_surface'] = data_path + "surface/source/fluidsurface_final_%04d.bobj.gz"
+param['out_foam'] = data_path + "foam/source/fluidsurface_final_%04d.bobj.gz"
 run_manta(manta_path, "scenes/blender.py", param, verbose)

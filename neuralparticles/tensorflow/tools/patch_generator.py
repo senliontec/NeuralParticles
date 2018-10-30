@@ -105,6 +105,7 @@ class PatchGenerator(keras.utils.Sequence):
         self.chunked_idx_val = np.empty((self.chunk_cnt,), dtype=object)
 
         self.fac = train_config['sub_fac']
+        self.gen_vel = train_config['gen_vel']
 
         self.data_aug = Augmentation(0)
         self.rot_mask = np.array(train_config['rot_mask'])
@@ -232,9 +233,13 @@ class PatchGenerator(keras.utils.Sequence):
             src[0] = rotate_perturbation_point_cloud(src[0], angle_sigma=0.03, angle_clip=0.09)
 
         if self.temp_coh:
+            if self.gen_vel:
+                vel = random_deformation(src[0])
+                src[0] = np.concatenate((src[0], vel), axis=-1)
             if index % 2 == 0 or not self.neg_examples:
-                vel = (src[0][...,3:6] if src[0].shape[-1] >= 6 else np.random.random((src[0].shape[0],src[0].shape[1],3))) * self.patch_size
-                adv_src = src[0][...,:3] + 0.1 * vel / (self.patch_size * self.fps)
+                if not self.gen_vel:
+                    vel = src[0][...,3:6]
+                adv_src = src[0][...,:3] + 0.1 * vel / self.fps
                 src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
                 ref.insert(1, np.concatenate((ref[0], ref[0]), axis=1))
             else:

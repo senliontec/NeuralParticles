@@ -16,6 +16,7 @@
     "truncate":           true,
     "residual":           false,
     "use_temp_emd":       false,
+    "gen_vel":            false,
     "neg_examples":       false,
     "rot_aug":            false,
     "rot_mask":           [0.0,1.0,0.0],

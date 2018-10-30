@@ -312,6 +312,52 @@ void writeParticlesObj(const string& name,const BasicParticleSystem* parts) {
 	ofs.close();
 }
 
+void writeParticlesBobj(const string& name, const BasicParticleSystem* pp, const ParticleDataImpl<int> *pT, const int exclude) { 
+  	debMsg( "writing particle mesh file " << name ,1); 
+#  if NO_ZLIB!=1 
+	const Real dx = pp->getParent()->getDx(); 
+	const Vec3i gs = pp->getParent()->getGridSize();
+ 
+	gzFile gzf = gzopen(name.c_str(), "wb1"); // do some compression 
+	if (!gzf) 
+		errMsg("writeBobj: unable to open file"); 
+	
+	// write vertices 
+	int num = pp->size(); 
+	if(pT) for(int i=0; i<pp->size(); ++i) if((*pT)[i]&exclude) --num; 
+
+	gzwrite(gzf, &num, sizeof(int)); 
+	for(int i=0; i<pp->size(); ++i) { 
+		if(pT && ((*pT)[i]&exclude)) continue; 
+		Vector3D<float> pos = toVec3f((*pp)[i].pos);
+		// normalize to unit cube around 0
+		pos -= toVec3f(gs)*0.5;
+		pos *= dx;
+		gzwrite(gzf, &pos.value[0], sizeof(float)*3); 
+	} 
+	
+	// NOTE: these are fake normals 
+	gzwrite(gzf, &num, sizeof(int)); 
+	const Vector3D<float> pos(1, 0, 0); 
+	for(int i=0; i<num; ++i) { 
+		gzwrite(gzf, &pos.value[0], sizeof(float)*3); 
+	} 
+	
+	// NOTE: this is just a fake face. Blender does not import mesh if it has no face. 
+	if(pp->size()>0) { 
+		num = 1; 
+		gzwrite(gzf, &num, sizeof(int)); 
+		for(int t=0; t<num; ++t) { 
+		const int fidx=0; 
+		for(int j=0; j<3; j++) gzwrite(gzf, &fidx, sizeof(int)); 
+		} 
+	} 
+	
+	gzclose( gzf ); 
+#  else 
+  debMsg( "file format not supported without zlib" ,1); 
+#  endif 
+} 
 
 // explicit instantiation
 template void writePdataUni<int> (const std::string& name, ParticleDataImpl<int>* pdata );

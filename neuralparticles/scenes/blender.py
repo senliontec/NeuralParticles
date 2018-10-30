@@ -19,7 +19,8 @@ t = t_end - t_start
 
 dim = int(getParam("dim", 2))
 
-output_path = getParam("out", "")
+surface_path = getParam("out_surface", "")
+foam_path = getParam("out_foam", "")
 
 checkUnusedParams()
 
@@ -69,14 +70,14 @@ for i in range(t_start,t_end):
 
     blurRealGrid(sdf, sdf_inter, 1.5)
     sdf.copyFrom(sdf_inter)
-    sdf.addConst(0.5)
+    sdf.addConst(0.7)
     sdf.multConst(-1)
     maskParticles(pp, sdf)
     sdf.multConst(-1)
 
     sdf.createMesh(mesh)
     
-    mesh.save(output_path + "_surface_%04d.obj"%i)
-    pp.save(output_path + "_foam_%04d.obj"%i)
+    mesh.save(surface_path%i)
+    pp.save(foam_path%i)
 
     s.step()

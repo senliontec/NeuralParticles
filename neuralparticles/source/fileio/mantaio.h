@@ -54,6 +54,7 @@ void writeParticlesUni(const std::string& name, const BasicParticleSystem* parts
 void readParticlesUni (const std::string& name, BasicParticleSystem* parts );
 
 void writeParticlesObj(const std::string& name, const BasicParticleSystem* parts );
+void writeParticlesBobj(const std::string& name, const BasicParticleSystem* pp, const ParticleDataImpl<int> *pT=NULL, const int exclude=0); 
 
 template <class T> void writePdataUni(const std::string& name, ParticleDataImpl<T>* pdata );
 template <class T> void readPdataUni (const std::string& name, ParticleDataImpl<T>* pdata );

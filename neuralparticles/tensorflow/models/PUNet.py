@@ -54,6 +54,8 @@ class PUNet(Network):
         self.particle_cnt_dst = kwargs.get("par_cnt_ref")
 
         self.features = kwargs.get("features")
+        if kwargs.get("gen_vel"):
+            self.features.append('v')
         self.dim = kwargs.get("dim", 2)
         self.factor = kwargs.get("factor")
         self.factor_d = math.pow(self.factor, 1/self.dim)
@@ -78,6 +80,8 @@ class PUNet(Network):
         self.lres = int(self.res/self.factor_d)
 
         self.norm_factor = kwargs.get("norm_factor")
+        if kwargs.get("gen_vel"):
+            self.norm_factor = np.append(self.norm_factor, [0.1,0.1,0.1])
 
         self.use_temp_emd = kwargs.get("use_temp_emd")
         self.residual = kwargs.get("residual")
@@ -87,7 +91,7 @@ class PUNet(Network):
 
     def _build_model(self):            
         activation = keras.activations.tanh#lambda x: keras.activations.relu(x, alpha=0.1)
-        inputs = Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0)), name="main_input")
+        inputs = Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)), name="main_input")
         input_xyz = extract_xyz(inputs, name="extract_pos")
         input_points = input_xyz
 
@@ -174,12 +178,12 @@ class PUNet(Network):
             x_t = unstack(x_t, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
             #x_t = Dropout(self.dropout)(x_t)
-            x_t = Dense(self.fac, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), name="truncation")(x_t)
+            x_t = Dense(self.fac, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02))(x_t)
             #x_t = Dropout(self.dropout)(x_t)
             b = np.zeros(1, dtype='float32')
             W = np.zeros((self.fac, 1), dtype='float32')
             trunc = Dense(1, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), weights=[W,b], name="cnt")(x_t)
-            trunc = AddConst((self.particle_cnt_dst+1)/self.particle_cnt_dst)(trunc)
+            trunc = AddConst((self.particle_cnt_dst+1)/self.particle_cnt_dst, name="truncation")(trunc)
 
             out_mask = soft_trunc_mask(trunc, self.particle_cnt_dst, name="truncation_mask")
 
@@ -193,7 +197,7 @@ class PUNet(Network):
             self.model = Model(inputs=inputs, outputs=[out])
 
         if self.temp_coh:
-            inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0))),Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0)))]
+            inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))]
             out = self.model(inputs[0])
 
             if self.truncate:
