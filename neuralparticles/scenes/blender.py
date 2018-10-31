@@ -11,6 +11,8 @@ sdf_path = getParam("sdf", "")
 
 res  = int(getParam("res", 150))
 
+surface_fac = float(getParam("surface", 0))
+
 t = int(getParam("t", 50))
 t_start = int(getParam("t_start", 0))
 t_end = int(getParam("t_end", t))
@@ -68,12 +70,13 @@ for i in range(t_start,t_end):
         extrapolateLsSimple(phi=sdf, distance=4, inside=True)
         sdf.setBound(value=5., boundaryWidth=4)
 
-    blurRealGrid(sdf, sdf_inter, 1.5)
-    sdf.copyFrom(sdf_inter)
-    sdf.addConst(0.7)
-    sdf.multConst(-1)
-    maskParticles(pp, sdf)
-    sdf.multConst(-1)
+    if surface_fac > 0:
+        blurRealGrid(sdf, sdf_inter, 1.5)
+        sdf.copyFrom(sdf_inter)
+        sdf.addConst(surface_fac)
+        sdf.multConst(-1)
+        maskParticles(pp, sdf)
+        sdf.multConst(-1)
 
     sdf.createMesh(mesh)
     

@@ -3,7 +3,7 @@
     "prefix":         "sph_3D",
     "dim":            3,
     "fps":            480,
-    "frame_count":    15,
+    "frame_count":    60,
     "data_count":     10,
     "test_count":     2,
     "sub_res":        2,
