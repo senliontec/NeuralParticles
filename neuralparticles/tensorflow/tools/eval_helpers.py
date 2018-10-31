@@ -59,6 +59,17 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
 
 def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, ref=None, hdim=0, z=None, verbose=0):
     result = model.predict(patch_extractor.get_patches())
+    if z is None:
+        tmp = np.repeat(patch_extractor.data, factor_d**2, axis=0)
+        displace = np.transpose(np.reshape(np.mgrid[:factor_d,:factor_d,:1] + 0.5,(3,-1))) / factor_d - 0.5
+        displace = np.concatenate(np.repeat(np.expand_dims(displace, axis=0), patch_extractor.data.shape[0], axis=0))
+        patch_extractor.data = tmp + (displace + np.random.normal(scale=1/(3*factor_d), size=displace.shape)) * np.array([1.,1.,0.])
+    else:
+        tmp = np.repeat(patch_extractor.data, factor_d**3, axis=0)
+        displace = np.transpose(np.reshape(np.mgrid[:factor_d,:factor_d,:factor_d] + 0.5,(3,-1))) / factor_d - 0.5
+        displace = np.concatenate(np.repeat(np.expand_dims(displace, axis=0), patch_extractor.data.shape[0], axis=0))
+        patch_extractor.data = tmp + displace + np.random.normal(scale=1/(3*factor_d), size=displace.shape)
+
     if type(result) is list:
         for i in range(len(patch_extractor.positions)):
             patch_extractor.set_patch(result[0][i,:int(result[1][i] * result[0].shape[1])], i)
