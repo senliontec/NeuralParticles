@@ -1,12 +1,12 @@
 cudalib = /usr/local/cuda/lib64
 cudainc = /usr/local/cuda/include
 
-$(eval TF_CFLAGS := $(shell python -c 'import tensorflow as tf; print("-I" + tf.sysconfig.get_include() + " -D_GLIBCXX_USE_CXX11_ABI=0")')
-$(eval TF_LFLAGS := $(shell python -c 'import tensorflow as tf; print("-L" + tf.sysconfig.get_lib() + " -ltensorflow-framework")'))
+$(eval TF_CFLAGS := $(shell python -c 'import tensorflow as tf; print("-I" + tf.sysconfig.get_include() + " -D_GLIBCXX_USE_CXX11_ABI=0")'))
+$(eval TF_LFLAGS := $(shell python -c 'import tensorflow as tf; print("-L" + tf.sysconfig.get_lib())'))
 
 
 all: losses tools
-losses: losses/tf_approxmatch_so.so losses/tf_auctionmatch_so.so losses/tf_nndistance_so.so
+losses: losses/tf_approxmatch_so.so losses/tf_nndistance_so.so
 tools: tools/tf_grouping_so.so tools/tf_interpolate_so.so tools/tf_sampling_so.so
 
 
