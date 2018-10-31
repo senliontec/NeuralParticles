@@ -194,11 +194,20 @@ def load_patches_from_file(data_path, config_path):
 
     return src, ref
 
-def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0, pad_val=0.0, positions=None):
+def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0, pad_val=0.0, positions=None, stride=0.0):
     particle_data, sdf, par_aux_data = get_data(prefix, par_aux)
 
     if positions is None:
-        positions = get_positions(particle_data, sdf, patch_size, surface, bnd)
+        p = get_positions(particle_data, sdf, patch_size, surface, bnd)
+
+        if stride > 0.0:
+            np.random.shuffle(p)
+            positions = np.empty((0, p.shape[-1]))
+            while len(p) > 0:
+                positions = np.append(positions, [p[0]], axis=0)
+                p = remove_particles(p, p[0], stride)[0]
+        else:
+            positions = p
 
     par_patches = np.empty((len(positions), par_cnt, 3))
     par_aux_patches = {}
@@ -328,6 +337,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
 
     # tolerance of surface
     surface = pre_config['surf']
+    stride = pre_config['stride']
 
     np.random.seed(data_config['seed'])
 
@@ -346,7 +356,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
                 for r in range(pv_start, pv_stop):
                     #print(path_src%(d,v,t) + " (%d)"%r)
                     
-                    par, aux_par, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, pad_val=pad_val, par_aux=features, bnd=data_config['bnd']/fac_d)
+                    par, aux_par, positions = load_patches(path_src%(d,v,t), par_cnt, patch_size, surface, pad_val=pad_val, par_aux=features, bnd=data_config['bnd']/fac_d, stride=stride)
                     main = np.append(main, par, axis=0)
                     pos = np.append(pos, positions, axis=0)
                     if len(features) > 0:

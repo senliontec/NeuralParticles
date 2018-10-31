@@ -2,7 +2,7 @@
     "id":             "p02",
     "patch_size":     0.1,
     "patch_size_ref": 0.1,
-    "stride":         5.0,
+    "stride":         2.0,
     "surf":           1.0,
     "factor":         8,
     "min_n":          5,
