@@ -13,7 +13,7 @@ from neuralparticles.tensorflow.tools.zero_mask import zero_mask, soft_trunc_mas
 from neuralparticles.tools.data_helpers import get_data
 
 from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
-from neuralparticles.tensorflow.losses.tf_auctionmatch import emd_loss as pu_emd_loss
+#from neuralparticles.tensorflow.losses.tf_auctionmatch import emd_loss as pu_emd_loss
 from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
 from neuralparticles.tensorflow.layers.add_const_layer import AddConst
 from neuralparticles.tensorflow.losses.repulsion_loss import repulsion_loss, get_repulsion_loss4
@@ -213,7 +213,7 @@ class PUNet(Network):
             self.train_model = self.model
         
     def mask_loss(self, y_true, y_pred):
-        loss = get_repulsion_loss4(y_pred) * 0
+        loss = 0#get_repulsion_loss4(y_pred)
         return loss + (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else emd_loss(y_true, y_pred)) * 1#30
 
     def trunc_loss(self, y_true, y_pred):
