@@ -13,6 +13,7 @@ import math
 if __name__ == "__main__":
     data_path = getParam("data", "data/")
     config_path = getParam("config", "config/version_00.txt")
+    dataset = int(getParam("dataset", -1))
     checkUnusedParams()
 
     if not os.path.exists(data_path + "patches/"):
@@ -44,7 +45,9 @@ if __name__ == "__main__":
     src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
     dst_path = "%s%s_%s-%s_p" % (dst_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
 
-    for d in range(data_cnt+test_cnt):
+    d_start = 0 if dataset == -1 else dataset
+    d_end = data_cnt + test_cnt if dataset == -1 else dataset+1
+    for d in range(d_start, d_end):
         print("extract patches of dataset %d" % d)
         for t in range(frame_cnt):
             print("extract patches of timestep %d" % t)
