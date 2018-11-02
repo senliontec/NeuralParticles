@@ -140,6 +140,8 @@ __global__ void farthestpointsamplingKernel(int b,int n,int m,const float * __re
           z2=dataset[i*n*3+k*3+2];
         }
         float d=(x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1);
+        if (abs(x1) > 1 || abs(x2) > 1 || abs(y1) > 1 || abs(y2) > 1 || abs(z1) > 1 || abs(z2) > 1) 
+          d = 0;
         float d2=min(d,td);
         if (d2!=td)
           temp[blockIdx.x*n+k]=d2;

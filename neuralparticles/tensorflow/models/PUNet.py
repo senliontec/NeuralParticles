@@ -98,7 +98,12 @@ class PUNet(Network):
         if len(self.features) > 0:
             input_points = extract_aux(inputs, name="extract_aux")
             input_points = MultConst(1./self.norm_factor, name="normalization")(input_points)
-            input_points = concatenate([input_xyz, input_points], axis=-1, name='input_concatenation')
+            #input_points = concatenate([input_xyz, input_points], axis=-1, name='input_concatenation')
+        
+        if not self.mask:
+            mask = zero_mask(input_xyz, self.pad_val, name="mask_1")
+            input_points = multiply([input_points, mask])
+            input_xyz = multiply([input_xyz, mask])
 
         l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.05, self.fac*4, 
                                                [self.fac*4,
@@ -118,7 +123,7 @@ class PUNet(Network):
                                                 self.fac*64], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
 
         if self.mask:
-            mask = zero_mask(input_points, self.pad_val, name="mask_2")
+            mask = zero_mask(input_xyz, self.pad_val, name="mask_2")
             input_points = multiply([input_points, mask])
             input_xyz = multiply([input_xyz, mask])
 
@@ -127,7 +132,7 @@ class PUNet(Network):
         up_l3_points = pointnet_fp_module(input_xyz, l3_xyz, None, l3_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
         up_l4_points = pointnet_fp_module(input_xyz, l4_xyz, None, l4_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
 
-        x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, input_xyz], axis=-1)
+        x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, input_points, input_xyz], axis=-1)
         x_t = x
         l = []
         for i in range(self.particle_cnt_dst//self.particle_cnt_src):
@@ -214,7 +219,7 @@ class PUNet(Network):
         
     def mask_loss(self, y_true, y_pred):
         loss = 0#get_repulsion_loss4(y_pred)
-        return loss + (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else emd_loss(y_true, y_pred)) * 1#30
+        return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
 
     def trunc_loss(self, y_true, y_pred):
         return keras.losses.mse(y_true, y_pred)#tf.reduce_mean(y_pred, axis=1))
@@ -224,15 +229,9 @@ class PUNet(Network):
         pred, pred_t = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst], 1)
         gt, gt_t = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst], 1)
         if self.use_temp_emd: 
-            if self.mask:
-                return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
-            else:
-                return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt, gt_t))
+            return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
         else:
-            if self.mask:
-                return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1))
-            else:
-                return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt, gt_t),axis=-1))
+            return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1))
 
     def trunc_metric(self, y_true, y_pred):
         if y_pred.get_shape()[1] == self.particle_cnt_dst:
@@ -243,20 +242,14 @@ class PUNet(Network):
         import tensorflow as tf
         if y_pred.get_shape()[1] == self.particle_cnt_dst:    
             loss = 0#repulsion_loss(y_pred) * 0.0
-            return loss + (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else emd_loss(y_true, y_pred))
+            return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
         elif y_pred.get_shape()[1] == self.particle_cnt_dst*2:
             pred, pred_t = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst], 1)
             gt, gt_t = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst], 1)
             if self.use_temp_emd: 
-                if self.mask:
-                    return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
-                else:
-                    return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt, gt_t))
+                return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
             else:
-                if self.mask:
-                    return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1))
-                else:
-                    return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt, gt_t),axis=-1))
+                return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1))
         else:           
             return keras.losses.mse(y_true, y_pred)
 
