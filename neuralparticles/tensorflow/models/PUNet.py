@@ -108,7 +108,7 @@ class PUNet(Network):
         l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.05, self.fac*4, 
                                                [self.fac*4,
                                                 self.fac*4,
-                                                self.fac*8], mask_val=self.pad_val if self.mask else None, kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
+                                                self.fac*8], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
         l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, self.particle_cnt_src//2, 0.1, self.fac*4, 
                                                [self.fac*8,
                                                 self.fac*8,
