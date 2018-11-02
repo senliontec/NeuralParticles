@@ -242,7 +242,7 @@ class PUNet(Network):
     def particle_metric(self, y_true, y_pred):
         import tensorflow as tf
         if y_pred.get_shape()[1] == self.particle_cnt_dst:    
-            loss = repulsion_loss(y_pred) * 0.0
+            loss = 0#repulsion_loss(y_pred) * 0.0
             return loss + (emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred) if self.mask else emd_loss(y_true, y_pred))
         elif y_pred.get_shape()[1] == self.particle_cnt_dst*2:
             pred, pred_t = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst], 1)
