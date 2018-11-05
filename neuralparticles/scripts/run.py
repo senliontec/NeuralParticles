@@ -125,7 +125,7 @@ half_ps = patch_size_ref//2
 features = train_config['features']
 
 if checkpoint > 0:
-    model_path = data_path + "models/checkpoints/%s_%s_%04d.h5" % (data_config['prefix'], config['id'], checkpoint)
+    model_path = data_path + "models/checkpoints/%s_%s_%02d.h5" % (data_config['prefix'], config['id'], checkpoint)
 else:
     model_path = data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id'])
 

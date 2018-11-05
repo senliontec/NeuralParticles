@@ -1,6 +1,7 @@
 {
-    "id":           "v02",
+    "id":           "v03",
     "data":         "data/data_00.txt",
     "preprocess":   "preprocess/pre_00.txt",
-    "train":        "train/train_01.txt"
+    "train":        "train/train_02.txt"
 }
+

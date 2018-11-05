@@ -22,6 +22,7 @@ config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 gpu = getParam("gpu", "")
 chunk_size = int(getParam("chunk", 0))
+checkpoint = getParam("checkpoint", "")
 
 eval_cnt = int(getParam("eval_cnt", 5))
 eval_dataset = getParam("eval_d", []) #'18,18,18,19,19'
@@ -39,7 +40,6 @@ if len(eval_var) > 0:
 if len(eval_patch_idx) > 0:
     eval_patch_idx = list(map(float, eval_patch_idx.split(',')))
 
-
 checkUnusedParams()
 
 src_path = data_path + "patches/source/"
@@ -52,6 +52,8 @@ if not os.path.exists(model_path):
 tmp_folder = backupSources(data_path)
 tmp_model_path = tmp_folder + "models/"
 os.mkdir(tmp_model_path)
+tmp_checkpoint_path = tmp_model_path + "checkpoints/"
+os.mkdir(tmp_checkpoint_path)
 tmp_eval_path = tmp_folder + "eval/"
 os.mkdir(tmp_eval_path)
 
@@ -101,6 +103,7 @@ if len(eval_patch_idx) < eval_cnt:
     eval_patch_idx.extend(np.random.random(eval_cnt-len(eval_patch_idx)))
     
 tmp_model_path = '%s%s_%s' % (tmp_model_path, data_config['prefix'], config['id']) 
+tmp_checkpoint_path = '%s%s_%s' % (tmp_checkpoint_path, data_config['prefix'], config['id']) + "_{epoch:02d}.h5"
 fig_path = '%s_loss' % tmp_model_path
 
 print("Load Training Data")
@@ -184,6 +187,10 @@ if verbose:
 else:
     print("Model parameter count: %d" % punet.model.count_params())
 
+if checkpoint != "":
+    print("Load checkpoint: " + checkpoint)
+    punet.load_model(checkpoint)
+
 if chunk_size > 0:
     config_dict['generator'] = patch_generator
     config_dict['val_generator'] = val_generator
@@ -192,7 +199,8 @@ else:
     config_dict['ref'] = ref_data
     
 config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches, punet.model,
-                                          train_config['features'], z=None if data_config['dim'] == 2 else 0, verbose=3 if verbose else 1))]
+                                          train_config['features'], z=None if data_config['dim'] == 2 else 0, verbose=3 if verbose else 1)),
+                            keras.callbacks.ModelCheckpoint(tmp_checkpoint_path)]
 ''',
                             (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,punet.model,
                                                   factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=3 if verbose else 1))]'''
