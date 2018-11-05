@@ -15,7 +15,7 @@ verbose = int(getParam("verbose", 0)) != 0
 
 surface_fac = float(getParam("surface", 0))
 
-t_start = int(getParam("t_start", -1))
+t_start = int(getParam("t_start", 0))
 t_end = int(getParam("t_end", -1))
 
 dataset = int(getParam("dataset", -1))
@@ -65,10 +65,8 @@ param = {}
 if dataset < 0:
     dataset = data_config['data_count']
 
-if t_start < 0:
-    t_start = min(train_config['t_start'], data_config['frame_count']-1)
 if t_end < 0:
-    t_end = min(train_config['t_end'], data_config['frame_count'])
+    t_end = data_config['frame_count']
 
 dim = data_config['dim']
 res = data_config['res']

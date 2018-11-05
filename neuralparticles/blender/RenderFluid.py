@@ -3,6 +3,7 @@ import argparse
 import glob
 import time
 import bpy
+import os
 
 # How to call
 # blender FluidTransparentRender.blend --background --python RenderFluid.py -- -i "//../path/to/obj/" -o "//../path/to/Render_" -sf 0 -ef -1 -x 1024 -y 720 --gpu --type reference
@@ -35,7 +36,7 @@ parser.add_argument("-fs", "--frame_step", type=int, default=1, help="Overwrite 
 parser.add_argument("-x", "--x_resolution", type=int, default=400, help="Resolution in x direction.")
 parser.add_argument("-y", "--y_resolution", type=int, default=400, help="Resolution in y direction.")
 parser.add_argument("-s", "--scale", type=float, default=0.02, help="Particle scale.")
-parser.add_argument("-g", "--gpu", action="store_true", help="select GPU devices automatically if available")
+parser.add_argument("-g", "--gpu", type=int, default=-1, help="select GPU devices automatically if available")
 parser.add_argument("-t", "--type", choices=["reference", "network", "source"], required=True)
 parser.add_argument("-ot", "--output_type", choices=["PNG", "AVI_JPEG", "AVI_RAW"], default="PNG")
 parser.add_argument("--cinematic", action="store_true", help="Cinematic camera settings.") # optimized for 1024x576
@@ -60,12 +61,15 @@ def main():
     # Scene
     scene = bpy.data.scenes["Scene"]
 
+    if args.gpu >= 0:
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+
     # Hardware
     if bpy.app.version < (2, 78, 0):
         sysp = bpy.context.user_preferences.system
         # Search for device type
         # If possible select GPU
-        if args.gpu:
+        if args.gpu >= 0:
             for devt_entry in sysp.bl_rna.properties['compute_device_type'].enum_items.keys():
                 if devt_entry == "CUDA" or devt_entry == "OPENCL":
                     sysp.compute_device_type = devt_entry
@@ -76,7 +80,7 @@ def main():
         dev = sysp.compute_device
     else:
         sysp = bpy.context.user_preferences.addons['cycles'].preferences
-        if args.gpu:
+        if args.gpu >= 0:
             for devt_entry in sysp.get_device_types(0):
                 if devt_entry[0] == "CUDA" or devt_entry[0] == "OPENCL":
                     sysp.compute_device_type = devt_entry[0]

@@ -13,7 +13,7 @@ manta_path = getParam("manta", "neuralparticles/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 
-t_start = int(getParam("t_start", -1))
+t_start = int(getParam("t_start", 0))
 t_end = int(getParam("t_end", -1))
 
 dataset = int(getParam("dataset", -1))
@@ -62,10 +62,8 @@ else:
     param['src_sdf'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
     param['sdf'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_sdf.uni"
 
-if t_start < 0:
-    t_start = min(train_config['t_start'], data_config['frame_count']-1)
 if t_end < 0:
-    t_end = min(train_config['t_end'], data_config['frame_count'])
+    t_end = data_config['frame_count']
 
 param['t_start'] = t_start
 param['t_end'] = t_end
