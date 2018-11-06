@@ -28,6 +28,7 @@ usage_text = (
 parser = argparse.ArgumentParser(description=usage_text)
 
 parser.add_argument("-if", "--foam", dest="foam_path", type=str, default=None, metavar='DIR', help="This is the path to the folder that contains the '.obj' files. Prefix relative paths with '//'.")
+parser.add_argument("-ic", "--foam_coarse", dest="foam_coarse_path", type=str, default=None, metavar='DIR', help="This is the path to the folder that contains the '.obj' files. Prefix relative paths with '//'.")
 parser.add_argument("-is", "--surface", dest="surface_path", type=str, default=None, metavar='DIR', help="This is the path to the folder that contains the '.obj' files. Prefix relative paths with '//'.")
 parser.add_argument("-o", "--output", dest="output_path", type=str, required=True, metavar='FILE', help="This is the path to the file where the rendered video will be saved. Prefix relative paths with '//'.")
 parser.add_argument("-sf", "--start_frame", type=int, default=0, help="Overwrite start frame of rendering.")
@@ -35,7 +36,6 @@ parser.add_argument("-ef", "--end_frame", type=int, default=-1, help="Overwrite 
 parser.add_argument("-fs", "--frame_step", type=int, default=1, help="Overwrite frame step of rendering.")
 parser.add_argument("-x", "--x_resolution", type=int, default=400, help="Resolution in x direction.")
 parser.add_argument("-y", "--y_resolution", type=int, default=400, help="Resolution in y direction.")
-parser.add_argument("-s", "--scale", type=float, default=0.02, help="Particle scale.")
 parser.add_argument("-g", "--gpu", type=int, default=-1, help="select GPU devices automatically if available")
 parser.add_argument("-t", "--type", choices=["reference", "network", "source"], required=True)
 parser.add_argument("-ot", "--output_type", choices=["PNG", "AVI_JPEG", "AVI_RAW"], default="PNG")
@@ -62,7 +62,8 @@ def main():
     scene = bpy.data.scenes["Scene"]
 
     if args.gpu >= 0:
-        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
+
 
     # Hardware
     if bpy.app.version < (2, 78, 0):
@@ -81,10 +82,11 @@ def main():
     else:
         sysp = bpy.context.user_preferences.addons['cycles'].preferences
         if args.gpu >= 0:
-            for devt_entry in sysp.get_device_types(0):
-                if devt_entry[0] == "CUDA" or devt_entry[0] == "OPENCL":
-                    sysp.compute_device_type = devt_entry[0]
-                    sysp.devices[0].use = True
+            for i in range(len(sysp.get_device_types(0))):
+                devt_entry = sysp.get_device_types(0)[i][0]
+                if devt_entry == "CUDA" or devt_entry == "OPENCL":
+                    sysp.compute_device_type = devt_entry
+                    sysp.devices[i].use = True
                     break
         devt = sysp.compute_device_type
         dev = scene.cycles.device
@@ -135,7 +137,10 @@ def main():
         bpy.data.objects["Foam"].modifiers["Fluidsim"].settings.filepath = args.foam_path
         print("Fluid Input Path: {}".format(bpy.data.objects["Foam"].modifiers["Fluidsim"].settings.filepath))
 
-        bpy.data.objects["Particle"].scale = [args.scale,args.scale,args.scale]
+    if args.foam_coarse_path:
+        bpy.data.objects["FoamCoarse"].hide_render = False
+        bpy.data.objects["FoamCoarse"].modifiers["Fluidsim"].settings.filepath = args.foam_coarse_path
+        print("Fluid Input Path: {}".format(bpy.data.objects["FoamCoarse"].modifiers["Fluidsim"].settings.filepath))
 
     # Background Material
     if args.type == "network":
