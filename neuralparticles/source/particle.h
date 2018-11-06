@@ -429,8 +429,10 @@ inline void ParticleSystem<S>::kill(IndexInt idx)     {
 
 template<class S>
 void ParticleSystem<S>::killRegion(const FlagGrid& flags, const int target) {
-	for(int i=0; i<this->size(); ++i)
-		if(flags.getAt(this->getPos(i))&target) this->kill(i);
+	for(int i=0; i<this->size(); ++i){
+		Vec3 pos = clamp( this->getPos(i), Vec3(0.), toVec3(flags.getSize())-Vec3(1.) );
+		if(flags.getAt(pos)&target) this->kill(i);
+	}
 	this->doCompress();
 }
 
