@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import keras
 from neuralparticles.tensorflow.models.PUNet import PUNet
 
-from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles, in_bound
+from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles, in_bound, get_data
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw
 
@@ -55,7 +55,7 @@ if not gpu is "":
 with open(config_path, 'r') as f:
     config = json.loads(f.read())
 
-with open(os.path.dirname(config_path) + '/' + (config['real'] if real else config['data']), 'r') as f:
+with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
     data_config = json.loads(f.read())
 
 with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
@@ -72,7 +72,7 @@ if verbose:
     print(train_config)
 
 if dataset < 0:
-    d_start = data_config['data_count']
+    d_start = 0 if real else data_config['data_count']
     d_end = d_start + data_config['test_count']
 else:
     d_start = dataset
@@ -81,8 +81,7 @@ else:
 if var < 0:
     var = pre_config['var']
 
-dst_path += "%s_%s-%s_%s" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id']) + "_d%03d_var%02d/"
-
+dst_path += "%s_%s-%s_%s" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id']) + "_d%03d_var%02d" + ("_real/" if real else "/")
 if t_end < 0:
     t_end = data_config['frame_count']
 
@@ -139,7 +138,11 @@ for d in range(d_start, d_end):
             os.makedirs(dst_path%(d,v))
         for t in range(t_start, t_end):
             if temp_coh_dt == 0 or src_data is None:
-                (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v) 
+                if real:
+                    path_src = "%sreal/%s_%s_d%03d_%03d" % (data_path, data_config['prefix'], data_config['id'], d, t)
+                    src_data, sdf_data, par_aux = get_data(path_src, par_aux=train_config['features'])
+                else:
+                    (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v) 
             else:
                 src_data = src_data + par_aux['v'] * temp_coh_dt / data_config['fps']
 
@@ -152,7 +155,7 @@ for d in range(d_start, d_end):
 
             write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 
-            result = eval_frame(punet, patch_extractor, factor_d, dst_path%(d,v) + "result_%s" + "_%03d"%t, src_data, par_aux, ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+            result = eval_frame(punet, patch_extractor, factor_d, dst_path%(d,v) + "result_%s" + "_%03d"%t, src_data, par_aux, None if real else ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
 
             hdr = OrderedDict([ ('dim',len(result)),
                                 ('dimX',hres),
@@ -164,8 +167,11 @@ for d in range(d_start, d_end):
                                 ('timestamp',(int)(time.time()*1e6))])
 
             writeParticlesUni((dst_path + "result_%03d.uni")%(d,v,t), hdr, result)
-            hdr['dim'] = len(ref_data)
-            writeParticlesUni((dst_path + "reference_%03d.uni")%(d,v,t), hdr, ref_data)
+
+            if not real:
+                hdr['dim'] = len(ref_data)
+                writeParticlesUni((dst_path + "reference_%03d.uni")%(d,v,t), hdr, ref_data)
+
             hdr['dim'] = len(src_data)
             hdr['dimX'] = res
             hdr['dimY'] = res

@@ -31,6 +31,8 @@ if __name__ == "__main__":
 
     grouped_data = np.zeros((pre_config['par_cnt']+1, pre_config['par_cnt_ref']+1))
 
+    print(np.mean(pad_cnt_ref/pad_cnt_src))
+
     for i in range(len(pad_cnt_src)):
         grouped_data[int(min(pad_cnt_src[i,0],pre_config['par_cnt']+1)), int(min(pad_cnt_ref[i,0],pre_config['par_cnt_ref']+1))] += 1
 

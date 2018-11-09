@@ -27,7 +27,7 @@ class IISPH:
         self.gs = vec3(res, res, res if dim==3 else 1)
         self.grav = grav * self.gs.y
 
-        dx = 0.8/sres
+        dx = 1.0/sres
 
         self.s = Solver(name='IISPH_{}'.format(res), gridSize=self.gs, dim=dim)
         self.s.cfl         = 1
@@ -90,7 +90,7 @@ class IISPH:
 
         self.gFlags.updateFromLevelset(init_phi)
         begin = self.pp.pySize()
-        sampleLevelsetWithParticles(phi=init_phi, flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0.3)
+        sampleLevelsetWithParticles(phi=init_phi, flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0)
         end = self.pp.pySize()
         self.pT.setConstRange(s=1, begin=begin, end=end, notiming=True)
 

@@ -296,7 +296,7 @@ class PUNet(Network):
             return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1, verbose=1, callbacks=callbacks, epochs=epochs, shuffle=False)
         else:
             src_data = kwargs.get("src")
-            ref_data = kwargs.get("ref")
+            ref_data = [kwargs.get("ref")]
             
             val_split = kwargs.get("val_split", 0.1)
             batch_size = kwargs.get("batch_size", 32)
@@ -306,7 +306,7 @@ class PUNet(Network):
                 adv_src = src_data[...,:3] + 0.1 * vel / (self.patch_size * self.fps)
                 src_data = [src_data, np.concatenate((adv_src, src_data[...,3:]), axis=-1)]
 
-                ref_data = [ref_data, np.concatenate((ref_data, ref_data), axis=1)]
+                ref_data.append(np.concatenate((ref_data[0], ref_data[0]), axis=1))
 
             if self.truncate:
                 trunc_ref = np.count_nonzero(ref_data[0][...,:1] != self.pad_val, axis=1)/self.particle_cnt_dst 

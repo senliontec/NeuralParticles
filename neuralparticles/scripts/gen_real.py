@@ -17,15 +17,18 @@ checkUnusedParams()
 if not os.path.exists(data_path):
 	os.makedirs(data_path)
 
-data_path += "reference/"
+data_path += "real/"
 if not os.path.exists(data_path):
 	os.makedirs(data_path)
 
 with open(config_path, 'r') as f:
     config = json.loads(f.read())
 
-with open(os.path.dirname(config_path) + '/' + config['test'], 'r') as f:
+with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
     data_config = json.loads(f.read())
+    
+with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
+    pre_config = json.loads(f.read())
 
 if verbose:
     print("Config Loaded:")
@@ -40,7 +43,8 @@ param['pause'] = pause
 
 param['sres'] = data_config['sub_res']
 
-param['bnd'] = data_config['bnd']
+factor_d = math.pow(pre_config['factor'], 1/data_config['dim'])
+param['bnd'] = max(int(data_config['bnd'] / factor_d),1)
 
 # write only every 30th frame -> 30 frames are one timestep
 param['fps'] = data_config['fps']
@@ -48,7 +52,7 @@ param['fps'] = data_config['fps']
 # simulation time (how many frames)
 param['t'] = data_config['frame_count']
 
-param['res'] = data_config['res']
+param['res'] = int(data_config['res'] / factor_d)
 
 param['dim'] = int(data_config['dim'])
 
@@ -86,12 +90,20 @@ for i in range(data_cnt):
         m_idx += 1
         n_idx = i + modes[m_idx]['prop'] * data_cnt
         
-        param['circ'] = modes[m_idx]['circ_vel']
-        param['wlt'] = modes[m_idx]['wlt_vel']
+        param['circ'] = modes[m_idx]['circ_vel']/factor_d
+        param['wlt'] = modes[m_idx]['wlt_vel']/factor_d
         param['grav'] = modes[m_idx]['grav']
 
     cubes = {}
     spheres = {}
+
+    basin_h = modes[m_idx]['basin']
+    if basin_h > 0.0:
+        if param['dim'] == 2:
+            cubes['c0'] = "0.5,%f,1.0,%f" % (basin_h/2, basin_h)
+        else:
+            cubes['c0'] = "0.5,%f,0.5,1.0,%f,1.0" % (basin_h/2, basin_h)
+
     for c in range(random.randint(modes[m_idx]['cnt'][0],modes[m_idx]['cnt'][1])):    
         if random.random() < modes[m_idx]['cube_prob']:
             scx = get_scalar(modes[m_idx]['scale_x'])
