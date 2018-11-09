@@ -303,7 +303,7 @@ class PUNet(Network):
 
             if self.temp_coh:
                 vel = (src_data[...,3:6] if src_data.shape[-1] >= 6 else np.random.random((src_data.shape[0],src_data.shape[1],3))) * self.patch_size
-                adv_src = src_data[...,:3] + 0.1 * vel / (self.patch_size * self.fps)
+                adv_src = src_data[...,:3] + vel / (self.patch_size * self.fps)
                 src_data = [src_data, np.concatenate((adv_src, src_data[...,3:]), axis=-1)]
 
                 ref_data = [ref_data, np.concatenate((ref_data, ref_data), axis=1)]

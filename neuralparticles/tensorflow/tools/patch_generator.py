@@ -239,7 +239,7 @@ class PatchGenerator(keras.utils.Sequence):
             if index % 2 == 0 or not self.neg_examples:
                 if not self.gen_vel:
                     vel = src[0][...,3:6]
-                adv_src = src[0][...,:3] + 0.1 * vel / self.fps
+                adv_src = src[0][...,:3] + vel / (self.fps * self.patch_size)
                 src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
                 ref.insert(1, np.concatenate((ref[0], ref[0]), axis=1))
             else:
