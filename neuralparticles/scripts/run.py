@@ -148,10 +148,10 @@ for d in range(d_start, d_end):
 
             #src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
 
-            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, positions=positions)
+            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions)
 
-            if temp_coh_dt != 0 and positions is None:
-                positions = patch_extractor.positions
+            if positions is None:
+                positions = patch_extractor.positions + par_aux['v'][patch_extractor.pos_idx] / data_config['fps']
 
             write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 

@@ -11,10 +11,10 @@ import math, time
 
 
 def particle_range(arr, pos, r):
-    return np.where(np.all(np.abs(np.subtract(arr,pos)) < r, axis=-1))[0]
+    return np.where(np.all(np.abs(np.subtract(arr,pos)) <= r, axis=-1))[0]
 
 def particle_radius(arr, pos, radius):
-    return np.where(np.linalg.norm(np.subtract(arr,pos), axis=1) < radius)[0]
+    return np.where(np.linalg.norm(np.subtract(arr,pos), axis=1) <= radius)[0]
 
 def insert_patch(data, patch, pos, func):
     patch_size = patch.shape[0]//2
@@ -85,21 +85,18 @@ def extract_patch(data, pos, patch_size):
     return data[0,y0:y1,x0:x1]
 
 def in_bound(pos, bnd_min, bnd_max):
-    return np.where(np.all([np.all(bnd_min<=pos,axis=-1),np.all(pos<=bnd_max,axis=-1)],axis=0))
+    return np.where(np.all([np.all(bnd_min<=pos,axis=-1),np.all(pos<=bnd_max,axis=-1)],axis=0))[0]
 
 def in_surface(sdf_v, surface):
     return np.where(abs(sdf_v) < surface)[0]
 
 def get_positions_idx(particle_data, sdf, patch_size, surface=1.0, bnd=0):
     sdf_f = interpol_grid(sdf)
-    particle_data_bound = particle_data[in_bound(particle_data[:,:2] if sdf.shape[0] == 1 else particle_data, bnd+patch_size/2,sdf.shape[1]-(bnd+patch_size/2))]
-    return in_surface(sdf_f(particle_data_bound), surface)
+    idx = in_bound(particle_data[:,:2] if sdf.shape[0] == 1 else particle_data, bnd+patch_size/2,sdf.shape[1]-(bnd+patch_size/2))
+    return idx[in_surface(sdf_f(particle_data[idx]), surface)]
 
 def get_positions(particle_data, sdf, patch_size, surface=1.0, bnd=0):
-    sdf_f = interpol_grid(sdf)
-    particle_data_bound = particle_data[in_bound(particle_data[:,:2] if sdf.shape[0] == 1 else particle_data, bnd+patch_size/2,sdf.shape[1]-(bnd+patch_size/2))]
-    positions = particle_data_bound[in_surface(sdf_f(particle_data_bound), surface)]
-    return positions
+    return particle_data[get_positions_idx(particle_data, sdf, patch_size, surface, bnd)]
 
 def get_nearest_idx(data, pos):
     return np.argmin(np.linalg.norm(pos-data, axis=-1), axis=0)
@@ -373,27 +370,53 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
 
 
 class PatchExtractor:
-    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=0, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None):
+    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=-1, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None, last_pos=None):
         self.src_data = src_data
         self.radius = patch_size/2
         self.cnt = cnt
-        self.stride = stride if stride > 0 else self.radius
+        self.stride = stride if stride >= 0 else self.radius
         self.aux_data = aux_data
         self.features = features
         self.pad_val = pad_val
 
-        if positions is None:
-            p = get_positions(src_data, sdf_data, patch_size, surface, bnd)
-            np.random.shuffle(p)
-
-            self.positions = np.empty((0, p.shape[-1]))
-
-            while len(p) > 0:
-                self.positions = np.append(self.positions, [p[0]], axis=0)
-                p = remove_particles(p, p[0], self.stride)[0]
-        else:
+        if positions is not None:
             self.positions = positions.copy()
+        else:
+            idx = get_positions_idx(src_data, sdf_data, patch_size, surface, bnd)
+            p = src_data[idx]
+            if last_pos is not None:
+                self.pos_idx = np.empty((len(last_pos),),dtype=int)
+                for j in range(len(last_pos)):
+                    n_idx = get_nearest_idx(p, last_pos[j])
+                    self.pos_idx[j] = idx[n_idx]
+                    r_idx = particle_radius(p, p[n_idx], self.stride)
+                    p = np.delete(p, r_idx, axis=0)
+                    idx = np.delete(idx, r_idx, axis=0)
+                    if len(p) == 0:
+                        self.pos_idx = np.resize(self.pos_idx, (j+1,))
+                        break
+            else:
+                rnd = np.arange(len(idx),dtype=int)
+                np.random.shuffle(rnd)
+                idx = idx[rnd]
+                p = p[rnd]
+                self.pos_idx = np.empty((0,),dtype=int)
+                while len(p) > 0:
+                    self.pos_idx = np.append(self.pos_idx, [idx[0]])
+                    r_idx = particle_radius(p, p[0], self.stride)
+                    p = np.delete(p, r_idx, axis=0)
+                    idx = np.delete(idx, r_idx, axis=0)
 
+            self.positions = src_data[self.pos_idx]
+        '''p = get_positions(src_data, sdf_data, patch_size, surface, bnd)
+        np.random.shuffle(p)
+
+        self.positions = np.empty((0, p.shape[-1]))
+
+        while len(p) > 0:
+            self.positions = np.append(self.positions, [p[0]], axis=0)
+            p = remove_particles(p, p[0], self.stride)[0]'''
+        
         self.reset()
     
     def reset(self):
