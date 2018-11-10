@@ -46,16 +46,16 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
         if verbose > 0:
             plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".png", ref=ref, src=src[0][0], vel=vel_src, z = z)
             plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("src") + ".png", src=src[0][0], vel=vel_src, z = z)
-            if ref: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".png",  z = z)
+            if ref is not None: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".png",  z = z)
             plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("res") + ".png", z = z)
             if verbose > 1:
                 plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".svg", ref=ref, src=src[0][0], vel=vel_src, z = z)
                 plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("src") + ".svg", src=src[0][0], vel=vel_src, z = z)
-                if ref: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".svg",  z = z)
+                if ref is not None: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".svg",  z = z)
                 plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("res") + ".svg", z = z)
                 if verbose > 2:
                     write_csv(path%("res") + ".csv", result)
-                    if ref: write_csv(path%("ref") + ".csv", ref)
+                    if ref is not None: write_csv(path%("ref") + ".csv", ref)
                     write_csv(path%("src") + ".csv", src[0][0])
 
     return result
@@ -91,16 +91,16 @@ def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, re
         if verbose > 0: 
             plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("comp") + ".png", ref=ref, src=src*factor_d, vel=vel_src, z = z)
             plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path%("src") + ".png", src=src, vel=vel_src, z = z)
-            if ref: plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("ref") + ".png", z = z)
+            if ref is not None: plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("ref") + ".png", z = z)
             plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("res") + ".png", z = z)
             if verbose > 1: 
                 plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("comp") + ".svg", ref=ref, src=src*factor_d, vel=vel_src, z = z)
                 plot_particles(src, xlim=[0,hdim//factor_d], ylim=[0,hdim//factor_d], s=0.1, path=path%("src") + ".svg", src=src, vel=vel_src, z = z)
-                if ref: plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("ref") + ".svg", z = z)
+                if ref is not None: plot_particles(ref, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("ref") + ".svg", z = z)
                 plot_particles(result, xlim=[0,hdim], ylim=[0,hdim], s=0.1, path=path%("res") + "svg", z = z)
                 if verbose > 2: 
                     write_csv(path%("res") + ".csv", result)
-                    if ref: write_csv(path%("ref") + ".csv", ref)
+                    if ref is not None: write_csv(path%("ref") + ".csv", ref)
                     write_csv(path%("src") + ".csv", src)
     patch_extractor.reset()
     return result
