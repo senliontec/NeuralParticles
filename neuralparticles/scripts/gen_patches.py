@@ -48,9 +48,8 @@ if __name__ == "__main__":
     d_start = 0 if dataset == -1 else dataset
     d_end = data_cnt + test_cnt if dataset == -1 else dataset+1
     for d in range(d_start, d_end):
-        print("extract patches of dataset %d" % d)
         for t in range(frame_cnt):
-            print("extract patches of timestep %d" % t)
+            print("gen patch: dataset(s): %03d timestep: %03d" % (d,t), end="\r", flush=True)
             src, dst, positions = gen_patches(data_path, config_path, d_start=d, d_stop=d+1, t_start=t, t_stop=t+1)
             writeNumpyRaw(src_path % ('s',d,t), src[0])
             i = 0

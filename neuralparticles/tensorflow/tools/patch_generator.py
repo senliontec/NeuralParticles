@@ -3,7 +3,7 @@ import os
 import math
 import keras
 
-from neuralparticles.tools.data_helpers import extract_particles, get_positions, get_data
+from neuralparticles.tools.data_helpers import extract_particles, get_positions, get_data, get_nearest_idx
 from neuralparticles.tools.particle_grid import ParticleIdxGrid
 
 from neuralparticles.tools.uniio import readNumpyRaw
@@ -239,6 +239,9 @@ class PatchGenerator(keras.utils.Sequence):
             if index % 2 == 0 or not self.neg_examples:
                 if not self.gen_vel:
                     vel = src[0][...,3:6]
+                idx = np.argmin(np.linalg.norm(src[0][...,:3], axis=-1), axis=1)
+                vel = vel - np.expand_dims(vel[np.arange(len(idx)), idx],axis=1)
+                
                 adv_src = src[0][...,:3] + vel / (self.fps * self.patch_size)
                 src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
                 ref.insert(1, np.concatenate((ref[0], ref[0]), axis=1))
@@ -246,6 +249,7 @@ class PatchGenerator(keras.utils.Sequence):
                 rnd_idx = np.random.randint(0, len(self.chunk), self.batch_size)
                 src.extend([np.array([s[i] for s in self.chunk[rnd_idx,0]]) for i in range(len(self.chunk[0,0]))])
                 ref.insert(1, np.concatenate((ref[0], [np.array([r[i] for r in self.chunk[rnd_idx,1]]) for i in range(len(self.chunk[0,1]))][0]), axis=1))
+        
         return src, ref
 
 

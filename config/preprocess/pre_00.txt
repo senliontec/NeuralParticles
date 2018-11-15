@@ -9,8 +9,8 @@
     "blur":           1.5,
     "sdf_off":        0.0,
     "var":            1,
-    "par_cnt":        128,
-    "par_cnt_ref":    1152,
+    "par_cnt":        64,
+    "par_cnt_ref":    576,
     "par_var":        1,
     "pad_val":        -2.0,
     "features_ref":   []

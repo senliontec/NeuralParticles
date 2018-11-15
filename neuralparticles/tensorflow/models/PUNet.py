@@ -9,6 +9,7 @@ from keras.models import Model, load_model
 
 from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module, Interpolate, SampleAndGroup
 from neuralparticles.tensorflow.tools.zero_mask import zero_mask, soft_trunc_mask
+from neuralparticles.tools.data_augmentation import *
 
 from neuralparticles.tools.data_helpers import get_data
 
@@ -122,17 +123,24 @@ class PUNet(Network):
                                                 self.fac*32,
                                                 self.fac*64], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
 
+
         if self.mask:
             mask = zero_mask(input_xyz, self.pad_val, name="mask_2")
-            input_points = multiply([input_points, mask])
-            input_xyz = multiply([input_xyz, mask])
+            input_xyz_m = multiply([input_xyz, mask])
+            input_points_m = multiply([input_points, mask])
+            #x = multiply([x, mask])
 
         # interpoliere die features in l2_points auf die Punkte in x
-        up_l2_points = pointnet_fp_module(input_xyz, l2_xyz, None, l2_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
-        up_l3_points = pointnet_fp_module(input_xyz, l3_xyz, None, l3_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
-        up_l4_points = pointnet_fp_module(input_xyz, l4_xyz, None, l4_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
+        up_l2_points = pointnet_fp_module(input_xyz_m, l2_xyz, None, l2_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
+        up_l3_points = pointnet_fp_module(input_xyz_m, l3_xyz, None, l3_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
+        up_l4_points = pointnet_fp_module(input_xyz_m, l4_xyz, None, l4_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
 
-        x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, input_points, input_xyz], axis=-1)
+        x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, input_points_m, input_xyz_m], axis=-1)
+
+        #if self.mask:
+        #    mask = zero_mask(input_xyz, self.pad_val, name="mask_2")
+            #x = multiply([x, mask])
+
         x_t = x
         l = []
         for i in range(self.particle_cnt_dst//self.particle_cnt_src):
@@ -155,14 +163,15 @@ class PUNet(Network):
             out = Reshape((self.particle_cnt_dst, 3))(out)
 
         if self.residual:
-            x = Flatten()(input_xyz)
+            x = Flatten()(input_xyz_m)
             x = RepeatVector(self.particle_cnt_dst//self.particle_cnt_src)(x)
             x = Reshape((self.particle_cnt_dst, 3))(x)
 
             out = add([x, out])
 
         if self.truncate:
-            x_t = Conv1D(self.fac*4, 1)(input_points)
+            x_t = concatenate([input_xyz, input_points])
+            x_t = Conv1D(self.fac*4, 1)(x_t)
             x_t = Conv1D(self.fac*4, 1)(x_t)
 
             '''out_mask = []
@@ -179,6 +188,9 @@ class PUNet(Network):
                 out_mask.append(soft_trunc_mask(l[i], self.particle_cnt_src, name="truncation_mask_%d"%(i+1)))
             trunc = concatenate(l, 1, name="cnt")
             out_mask = concatenate(out_mask, axis=1, name="truncation_mask")'''
+
+            if self.mask:
+                x_t = multiply([x_t, mask])
 
             x_t = unstack(x_t, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
@@ -222,7 +234,7 @@ class PUNet(Network):
         return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
 
     def trunc_loss(self, y_true, y_pred):
-        return keras.losses.mse(y_true, y_pred)#tf.reduce_mean(y_pred, axis=1))
+        return keras.losses.mse(y_true/y_true, y_pred/y_true)#tf.reduce_mean(y_pred, axis=1))
 
     def temp_loss(self, y_true, y_pred):
         import tensorflow as tf
@@ -302,7 +314,15 @@ class PUNet(Network):
             batch_size = kwargs.get("batch_size", 32)
 
             if self.temp_coh:
-                vel = (src_data[...,3:6] if src_data.shape[-1] >= 6 else np.random.random((src_data.shape[0],src_data.shape[1],3))) * self.patch_size
+                if kwargs.get("gen_vel"):
+                    vel = random_deformation(src_data)
+                    src_data = np.concatenate((src_data, vel), axis=-1)
+                else:
+                    vel = src_data[...,3:6]
+
+                idx = np.argmin(np.linalg.norm(src_data[...,:3], axis=-1), axis=1)
+                vel = vel - np.expand_dims(vel[np.arange(len(idx)), idx],axis=1)
+
                 adv_src = src_data[...,:3] + vel / (self.patch_size * self.fps)
                 src_data = [src_data, np.concatenate((adv_src, src_data[...,3:]), axis=-1)]
 

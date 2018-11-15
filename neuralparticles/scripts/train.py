@@ -3,8 +3,8 @@ import os
 import json
 import math
 
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import keras
@@ -13,7 +13,8 @@ from neuralparticles.tensorflow.models.PUNet import PUNet
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_idx, get_norm_factor
 from neuralparticles.tensorflow.tools.eval_helpers import EvalCallback, EvalCompleteCallback
-from neuralparticles.tensorflow.tools.patch_generator import PatchGenerator
+#from neuralparticles.tensorflow.tools.patch_generator import PatchGenerator
+from neuralparticles.tensorflow.tools.patch_extract_generator import PatchGenerator
 
 import numpy as np
 
@@ -174,7 +175,7 @@ for i in range(len(eval_dataset)):
         print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patch[0][:,:,:1] != pre_config['pad_val'])))
         print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patch[:,:1] != pre_config['pad_val'])))
 
-        eval_patch_src = eval_patch_src + 0.01 * eval_patch_aux['v'] / data_config['fps']
+        eval_patch_src = eval_patch_src + 0.1 * eval_patch_aux['v'] / (data_config['fps'] * pre_config['patch_size'])
         #eval_patch_aux['v'] *= 0.9
 
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])

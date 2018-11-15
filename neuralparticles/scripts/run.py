@@ -3,8 +3,8 @@ import os
 import time
 from collections import OrderedDict
 
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import keras
@@ -130,6 +130,19 @@ config_dict = {**data_config, **pre_config, **train_config}
 punet = PUNet(**config_dict)
 punet.load_model(model_path)
 
+print(model_path)
+test_src = np.ones((1,par_cnt,8)) * (-2)
+test_src[0,:1] = np.random.random((1,8))*0.1 + [0.5,0.5,0.5,0,0,0,0,0]
+test = punet.predict([test_src])
+if type(test) is list:
+    print(test[0][0])
+    print(test[1][0][0]*par_cnt_dst)
+    print(test_src[0][:1])
+    plot_particles(test[0][0][:int(test[1][0][0]*par_cnt_dst)], [-1,1], [-1,1], 5, src=test_src[0])
+else:
+    print(test)
+    plot_particles(test[0], [-1,1], [-1,1], 5, src=test_src[0])
+
 src_data = None
 positions = None
 for d in range(d_start, d_end):
@@ -151,8 +164,7 @@ for d in range(d_start, d_end):
                 positions = src_data[positions]
             patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions)
 
-            if positions is None:
-                positions = patch_extractor.pos_idx if real else (patch_extractor.positions + par_aux['v'][patch_extractor.pos_idx] / data_config['fps'])
+            positions = patch_extractor.pos_idx if real else (patch_extractor.positions + par_aux['v'][patch_extractor.pos_idx] / data_config['fps'])
 
             write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
 

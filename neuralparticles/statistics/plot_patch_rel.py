@@ -9,13 +9,11 @@ from neuralparticles.tools.param_helpers import *
 if __name__ == "__main__":
     data_path = getParam("data", "data/")
     config_path = getParam("config", "config/version_00.txt")
+    net = int(getParam("net", 0)) != 0
     checkUnusedParams()
 
     if not os.path.exists(data_path + "statistics/"):
         os.makedirs(data_path + "statistics/")
-
-    src_path = data_path + "patches/source/"
-    ref_path = data_path + "patches/reference/"
 
     with open(config_path, 'r') as f:
         config = json.loads(f.read())
@@ -27,14 +25,14 @@ if __name__ == "__main__":
         pre_config = json.loads(f.read())
 
     pad_cnt_src = read_csv(data_path + "statistics/%s_%s-%s_src_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']))
-    pad_cnt_ref = read_csv(data_path + "statistics/%s_%s-%s_ref_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']))
+    pad_cnt_ref = read_csv(data_path + "statistics/%s_%s-%s_%s_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id'], "res" if net else "res"))
 
     grouped_data = np.zeros((pre_config['par_cnt']+1, pre_config['par_cnt_ref']+1))
 
     print(np.mean(pad_cnt_ref/pad_cnt_src))
 
     for i in range(len(pad_cnt_src)):
-        grouped_data[int(min(pad_cnt_src[i,0],pre_config['par_cnt']+1)), int(min(pad_cnt_ref[i,0],pre_config['par_cnt_ref']+1))] += 1
+        grouped_data[int(min(pad_cnt_src[i,0],pre_config['par_cnt'])), int(min(pad_cnt_ref[i,0],pre_config['par_cnt_ref']))] += 1
 
     #grouped_data/=np.max(grouped_data, axis=0, keepdims=True)+1e-10
 
