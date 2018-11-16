@@ -105,6 +105,9 @@ class PUNet(Network):
             mask = zero_mask(input_xyz, self.pad_val, name="mask_1")
             input_points = multiply([input_points, mask])
             input_xyz = multiply([input_xyz, mask])
+            input_xyz_m = input_xyz
+            input_points_m = input_points
+
 
         l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.05, self.fac*4, 
                                                [self.fac*4,
