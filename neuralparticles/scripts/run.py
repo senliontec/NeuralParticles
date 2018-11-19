@@ -183,10 +183,10 @@ for d in range(d_start, d_end):
                 plot_particles(patch_extractor.positions, [0,res], [0,res], 1, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
                 patch_pos = patch_extractor.positions[idx]
                 if real:
-                    result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+                    result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, z=None if dim == 2 else 0, verbose=3 if verbose else 1)
                 else:
                     ref_patch = extract_particles(ref_data, patch_pos * factor_d, par_cnt_dst, half_ps, pad_val)[0]
-                    result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, ref_patch, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+                    result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, ref_patch, z=None if dim == 2 else 0, verbose=3 if verbose else 1)
 
                     hdr = OrderedDict([ ('dim',len(result)),
                                         ('dimX',1),
