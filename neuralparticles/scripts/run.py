@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import keras
 from neuralparticles.tensorflow.models.PUNet import PUNet
 
-from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles, in_bound, get_data
+from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles, in_bound, get_data, get_nearest_idx
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw
 
@@ -18,7 +18,7 @@ from neuralparticles.tools.plot_helpers import plot_particles, write_csv
 
 from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
 
-from neuralparticles.tensorflow.tools.eval_helpers import eval_frame
+from neuralparticles.tensorflow.tools.eval_helpers import eval_frame, eval_patch
 
 import json
 
@@ -36,6 +36,11 @@ dataset = int(getParam("dataset", -1))
 var = int(getParam("var", -1))
 gpu = getParam("gpu", "")
 real = int(getParam("real", 0)) != 0
+
+patch_pos = np.fromstring(getParam("patch", ""),sep=",")
+
+if len(patch_pos) == 2:
+    patch_pos = np.append(patch_pos, [0.5])
 
 temp_coh_dt = float(getParam("temp_coh_dt", 0))
  
@@ -85,13 +90,13 @@ dst_path += "%s_%s-%s_%s" % (data_config['prefix'], data_config['id'], pre_confi
 if t_end < 0:
     t_end = data_config['frame_count']
 
-def write_out_particles(particles, d, v, t, suffix, xlim=None, ylim=None, s=1, z=None):
+def write_out_particles(particles, d, v, t, suffix, xlim=None, ylim=None, s=5, z=None):
     writeNumpyRaw((dst_path + suffix + "_%03d")%(d,v,t), particles)
     plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%(d,v,t), z=z)
     plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%(d,v,t), z=z)
     write_csv((dst_path + suffix + "_%03d.csv")%(d,v,t), particles)
 
-def write_out_vel(particles, vel, d, v, t, suffix, xlim=None, ylim=None, s=1, z=None):
+def write_out_vel(particles, vel, d, v, t, suffix, xlim=None, ylim=None, s=5, z=None):
     writeNumpyRaw((dst_path + suffix + "_%03d")%(d,v,t), vel)
     plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%(d,v,t), src=particles, vel=vel, z=z)
     plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%(d,v,t), src=particles, vel=vel, z=z)
@@ -147,8 +152,14 @@ src_data = None
 positions = None
 for d in range(d_start, d_end):
     for v in range(var):
-        if not os.path.exists(dst_path%(d,v)):
-            os.makedirs(dst_path%(d,v))
+        tmp_path = dst_path%(d,v)
+        if not os.path.exists(tmp_path):
+            os.makedirs(tmp_path)
+        if len(patch_pos) == 3:
+            tmp_path += "patch_%d-%d-%d/" % (patch_pos[0],patch_pos[1],patch_pos[2])
+            if not os.path.exists(tmp_path):
+                os.makedirs(tmp_path)
+
         for t in range(t_start, t_end):
             if temp_coh_dt == 0 or src_data is None:
                 if real:
@@ -162,33 +173,65 @@ for d in range(d_start, d_end):
             #src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
             if real and positions is not None:
                 positions = src_data[positions]
-            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions)
+            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 0 if len(patch_pos) == 3 else 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions)
 
             positions = patch_extractor.pos_idx if real else (patch_extractor.positions + par_aux['v'][patch_extractor.pos_idx] / data_config['fps'])
 
-            write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 0.1, res//2 if dim == 3 else None)
+            if len(patch_pos) == 3:
+                idx = get_nearest_idx(patch_extractor.positions, patch_pos)
+                patch = patch_extractor.get_patch(idx, False)
+                plot_particles(patch_extractor.positions, [0,res], [0,res], 1, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
+                patch_pos = patch_extractor.positions[idx]
+                if real:
+                    result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+                else:
+                    ref_patch = extract_particles(ref_data, patch_pos * factor_d, par_cnt_dst, half_ps, pad_val)[0]
+                    result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, ref_patch, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
 
-            result = eval_frame(punet, patch_extractor, factor_d, dst_path%(d,v) + "result_%s" + "_%03d"%t, src_data, par_aux, None if real else ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+                    hdr = OrderedDict([ ('dim',len(result)),
+                                        ('dimX',1),
+                                        ('dimY',1),
+                                        ('dimZ',1),
+                                        ('elementType',0),
+                                        ('bytesPerElement',16),
+                                        ('info',b'\0'*256),
+                                        ('timestamp',(int)(time.time()*1e6))])
 
-            hdr = OrderedDict([ ('dim',len(result)),
-                                ('dimX',hres),
-                                ('dimY',hres),
-                                ('dimZ',1 if dim == 2 else hres),
-                                ('elementType',0),
-                                ('bytesPerElement',16),
-                                ('info',b'\0'*256),
-                                ('timestamp',(int)(time.time()*1e6))])
+                    writeParticlesUni(tmp_path + "result_%03d.uni"%t, hdr, (result+1)*0.5)
 
-            writeParticlesUni((dst_path + "result_%03d.uni")%(d,v,t), hdr, result)
+                    if not real:
+                        hdr['dim'] = len(ref_patch)
+                        writeParticlesUni(tmp_path + "reference_%03d.uni"%t, hdr, (ref_patch+1)*0.5)
 
-            if not real:
-                hdr['dim'] = len(ref_data)
-                writeParticlesUni((dst_path + "reference_%03d.uni")%(d,v,t), hdr, ref_data)
+                    hdr['dim'] = len(patch)
+                    writeParticlesUni(tmp_path + "source_%03d.uni"%t, hdr, (patch[...,:3]+1)*0.5)
 
-            hdr['dim'] = len(src_data)
-            hdr['dimX'] = res
-            hdr['dimY'] = res
-            if dim == 3: hdr['dimZ'] = res
-            writeParticlesUni((dst_path + "source_%03d.uni")%(d,v,t), hdr, src_data)
+                    print("particles: %d -> %d (fac: %.2f)" % (len(patch), len(result), (len(result)/len(patch))))
+            else:
+                write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 1, res//2 if dim == 3 else None)
 
-            print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))
+                result = eval_frame(punet, patch_extractor, factor_d, tmp_path + "result_%s" + "_%03d"%t, src_data, par_aux, None if real else ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+
+                hdr = OrderedDict([ ('dim',len(result)),
+                                    ('dimX',hres),
+                                    ('dimY',hres),
+                                    ('dimZ',1 if dim == 2 else hres),
+                                    ('elementType',0),
+                                    ('bytesPerElement',16),
+                                    ('info',b'\0'*256),
+                                    ('timestamp',(int)(time.time()*1e6))])
+
+                writeParticlesUni(tmp_path + "result_%03d.uni"%t, hdr, result)
+
+                if not real:
+                    hdr['dim'] = len(ref_data)
+                    writeParticlesUni(tmp_path + "reference_%03d.uni"%t, hdr, ref_data)
+
+                hdr['dim'] = len(src_data)
+                hdr['dimX'] = res
+                hdr['dimY'] = res
+                if dim == 3: hdr['dimZ'] = res
+                writeParticlesUni(tmp_path + "source_%03d.uni"%t, hdr, src_data)
+
+                print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))
+
