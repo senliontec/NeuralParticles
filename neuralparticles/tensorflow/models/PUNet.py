@@ -237,7 +237,7 @@ class PUNet(Network):
         return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
 
     def trunc_loss(self, y_true, y_pred):
-        return keras.losses.mse(y_true/y_true, y_pred/y_true)#tf.reduce_mean(y_pred, axis=1))
+        return keras.losses.mse(y_true, y_pred)#tf.reduce_mean(y_pred, axis=1))
 
     def temp_loss(self, y_true, y_pred):
         import tensorflow as tf
