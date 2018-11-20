@@ -181,7 +181,7 @@ for d in range(d_start, d_end):
             if len(patch_pos) == 3:
                 idx = get_nearest_idx(patch_extractor.positions, patch_pos)
                 patch = patch_extractor.get_patch(idx, False)
-                plot_particles(patch_extractor.positions, [0,res], [0,res], 1, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
+                plot_particles(patch_extractor.positions, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
                 patch_pos = patch_extractor.positions[idx]
                 if real:
                     result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, z=None if dim == 2 else 0, verbose=3 if verbose else 1)
@@ -222,7 +222,7 @@ for d in range(d_start, d_end):
 
                 print("particles: %d -> %d (fac: %.2f)" % (len(patch), len(result), (len(result)/len(patch))))
             else:
-                write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 1, res//2 if dim == 3 else None)
+                write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 5, res//2 if dim == 3 else None)
 
                 result = eval_frame(punet, patch_extractor, factor_d[0], tmp_path + "result_%s" + "_%03d"%t, src_data, par_aux, None if real else ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
 
