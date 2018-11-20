@@ -111,15 +111,16 @@ pad_val = pre_config['pad_val']
 
 dim = data_config['dim']
 factor_d = math.pow(pre_config['factor'], 1/dim)
-patch_size = pre_config['patch_size'] * data_config['res'] / factor_d
+factor_d = np.array([factor_d, factor_d, 1 if dim == 2 else factor_d])
+patch_size = pre_config['patch_size'] * data_config['res'] / factor_d[0]
 patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
 par_cnt = pre_config['par_cnt']
 par_cnt_dst = pre_config['par_cnt_ref']
 
 hres = data_config['res']
-res = int(hres/factor_d)
+res = int(hres/factor_d[0])
 
-bnd = data_config['bnd']/factor_d
+bnd = data_config['bnd']/factor_d[0]
 
 half_ps = patch_size_ref//2
 #border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
@@ -188,29 +189,42 @@ for d in range(d_start, d_end):
                     ref_patch = extract_particles(ref_data, patch_pos * factor_d, par_cnt_dst, half_ps, pad_val)[0]
                     result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, ref_patch, z=None if dim == 2 else 0, verbose=3 if verbose else 1)
 
-                    hdr = OrderedDict([ ('dim',len(result)),
-                                        ('dimX',1),
-                                        ('dimY',1),
-                                        ('dimZ',1),
-                                        ('elementType',0),
-                                        ('bytesPerElement',16),
-                                        ('info',b'\0'*256),
-                                        ('timestamp',(int)(time.time()*1e6))])
+                hdr = OrderedDict([ ('dim',len(result)),
+                                    ('dimX',int(patch_size_ref)),
+                                    ('dimY',int(patch_size_ref)),
+                                    ('dimZ',1 if dim == 2 else int(patch_size_ref)),
+                                    ('elementType',0),
+                                    ('bytesPerElement',16),
+                                    ('info',b'\0'*256),
+                                    ('timestamp',(int)(time.time()*1e6))])
 
-                    writeParticlesUni(tmp_path + "result_%03d.uni"%t, hdr, (result+1)*0.5)
+                result = (result + 1) * 0.5 * patch_size_ref
+                if dim == 2:
+                    result[..., 2] = 0.5
+                writeParticlesUni(tmp_path + "result_%03d.uni"%t, hdr, result)
 
-                    if not real:
-                        hdr['dim'] = len(ref_patch)
-                        writeParticlesUni(tmp_path + "reference_%03d.uni"%t, hdr, (ref_patch+1)*0.5)
+                if not real:
+                    hdr['dim'] = len(ref_patch)
+                    ref_patch = (ref_patch + 1) * 0.5 * patch_size_ref
+                    if dim == 2:
+                        ref_patch[..., 2] = 0.5
+                    writeParticlesUni(tmp_path + "reference_%03d.uni"%t, hdr, ref_patch)
 
-                    hdr['dim'] = len(patch)
-                    writeParticlesUni(tmp_path + "source_%03d.uni"%t, hdr, (patch[...,:3]+1)*0.5)
+                patch = (patch[...,:3] + 1) * 0.5 * patch_size
+                if dim == 2:
+                    patch[..., 2] = 0.5
 
-                    print("particles: %d -> %d (fac: %.2f)" % (len(patch), len(result), (len(result)/len(patch))))
+                hdr['dim'] = len(patch)
+                hdr['dimX'] = int(patch_size)
+                hdr['dimY'] = int(patch_size)
+                
+                writeParticlesUni(tmp_path + "source_%03d.uni"%t, hdr, patch)
+
+                print("particles: %d -> %d (fac: %.2f)" % (len(patch), len(result), (len(result)/len(patch))))
             else:
                 write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 1, res//2 if dim == 3 else None)
 
-                result = eval_frame(punet, patch_extractor, factor_d, tmp_path + "result_%s" + "_%03d"%t, src_data, par_aux, None if real else ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+                result = eval_frame(punet, patch_extractor, factor_d[0], tmp_path + "result_%s" + "_%03d"%t, src_data, par_aux, None if real else ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
 
                 hdr = OrderedDict([ ('dim',len(result)),
                                     ('dimX',hres),

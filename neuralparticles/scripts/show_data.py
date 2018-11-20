@@ -7,6 +7,7 @@ from neuralparticles.tools.param_helpers import *
 
 import random
 import math
+import numpy as np
 
 data_path = getParam("data", "data/")
 manta_path = getParam("manta", "neuralparticles/")
@@ -21,6 +22,11 @@ var = int(getParam("var", 0))
 
 show_results = int(getParam("res", 1)) != 0
 real = int(getParam("real", 0)) != 0
+
+patch_pos = np.fromstring(getParam("patch", ""),sep=",")
+
+if len(patch_pos) == 2:
+    patch_pos = np.append(patch_pos, [0.5])
 
 show_temp_coh = int(getParam("temp_coh", 0)) != 0
 
@@ -49,10 +55,16 @@ dim = data_config['dim']
 res = data_config['res']
 
 if show_results:
-    param['in'] = data_path + ("result/%s_%s-%s_%s_d%03d_var%02d" + ("_real" if real else "") + "/result") % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var) + "_%03d.uni"
+    data_path += ("result/%s_%s-%s_%s_d%03d_var%02d" + ("_real/" if real else "/")) % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
+    if len(patch_pos) == 3:
+        data_path += "patch_%d-%d-%d/" % (patch_pos[0],patch_pos[1],patch_pos[2])
+        res = int(res * pre_config['patch_size'])
+        param['bnd'] = 0
+
+    param['in'] = data_path + "result_%03d.uni"
     if not show_temp_coh:
-        param['src'] = data_path + ("result/%s_%s-%s_%s_d%03d_var%02d" + ("_real" if real else "") + "/source") % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, 0) + "_%03d.uni"
-        if not real: param['ref'] = data_path + ("result/%s_%s-%s_%s_d%03d_var%02d/reference") % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, 0) + "_%03d.uni"
+        param['src'] = data_path + "source_%03d.uni"
+        if not real: param['ref'] = data_path + "reference_%03d.uni"
         
         #param['src_sdf'] = data_path + "source/%s_%s-%s_d%03d_var%02d" % (data_config['prefix'], data_config['id'], pre_config['id'], dataset, var) + "_%03d_sdf.uni"
         #param['ref_sdf'] = data_path + "reference/%s_%s_d%03d" % (data_config['prefix'], data_config['id'], dataset) + "_%03d_sdf.uni"
