@@ -225,7 +225,7 @@ def load_patches(prefix, par_cnt, patch_size, surface = 1.0, par_aux=[] , bnd=0,
 
     for i in range(len(positions)):
         pos = positions[i]
-        idx = idx_grid.get_range(pos, patch_size/2)
+        idx = idx_grid.get_range(pos, patch_size)
         tmp_aux = {}
         for v in par_aux_data:
             tmp_aux[v] = par_aux_data[v][idx]

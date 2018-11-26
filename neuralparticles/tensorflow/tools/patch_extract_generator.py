@@ -51,6 +51,7 @@ class PatchGenerator(keras.utils.Sequence):
     def __init__(self, data_path, config_path, chunk_size,
                  d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None):
         np.random.seed(45)
+        random.seed(45)
         with open(config_path, 'r') as f:
             config = json.loads(f.read())
 
@@ -205,6 +206,15 @@ class PatchGenerator(keras.utils.Sequence):
                 if index % 2 == 0 or not self.neg_examples or (self.chunk[c_idx][1].positions is None and len(self.chunk) == 1):
                     src[1][i] = self.chunk[c_idx][2].pop_patch(remove_data=False)
                     ref[1][i] = np.concatenate((ref[0][i],self.chunk[c_idx][3].pop_patch(remove_data=False)))
+
+                    '''if not self.gen_vel:
+                        vel = src[0][i][...,3:6]
+                    idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
+                    vel = vel - np.expand_dims(vel[idx],axis=0)
+                    
+                    adv_src = src[0][i][...,:3] + vel * 0.1 / self.fps
+                    src[1][i] = np.concatenate((adv_src, src[0][i][...,3:]), axis=-1)
+                    ref[1][i] = np.concatenate((ref[0][i],ref[0][i]))'''
                 else:
                     neg_idx = np.random.randint(len(self.chunk))
                     neg_patch = np.random.randint(len(self.chunk[neg_idx][3].positions))

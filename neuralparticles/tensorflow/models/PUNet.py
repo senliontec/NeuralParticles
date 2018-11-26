@@ -161,6 +161,7 @@ class PUNet(Network):
             out = Reshape((self.particle_cnt_dst//self.particle_cnt_src, self.particle_cnt_src, 3))(out)
             out = Permute((2,1,3))(out)
             out = Reshape((self.particle_cnt_dst, 3))(out)
+            #out = Permute((2,1,3))(out)
 
         if self.residual:
             x = Flatten()(input_xyz_m)
@@ -188,9 +189,6 @@ class PUNet(Network):
                 out_mask.append(soft_trunc_mask(l[i], self.particle_cnt_src, name="truncation_mask_%d"%(i+1)))
             trunc = concatenate(l, 1, name="cnt")
             out_mask = concatenate(out_mask, axis=1, name="truncation_mask")'''
-
-            if self.mask:
-                x_t = multiply([x_t, mask])
 
             x_t = unstack(x_t, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
@@ -243,8 +241,9 @@ class PUNet(Network):
         if self.use_temp_emd: 
             return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
         else:
-            return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1))
-
+            #return keras.losses.mse(emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val)), -emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)))
+            return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1)) 
+ 
     def trunc_metric(self, y_true, y_pred):
         if y_pred.get_shape()[1] == self.particle_cnt_dst:
             return keras.losses.mse(keras.backend.sum(zero_mask(y_true, self.pad_val),axis=-2)/self.particle_cnt_dst,keras.backend.sum(zero_mask(y_pred, 0.0),axis=-2)/self.particle_cnt_dst)
@@ -261,7 +260,8 @@ class PUNet(Network):
             if self.use_temp_emd: 
                 return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
             else:
-                return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1))
+                #return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1)) 
+                return keras.losses.mse(keras.losses.mse(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
         else:           
             return keras.losses.mse(y_true, y_pred)
 
