@@ -77,11 +77,12 @@ class PatchGenerator(keras.utils.Sequence):
         self.fps = data_config['fps']
         
         self.fac_d = math.pow(pre_config['factor'], 1/data_config['dim'])
-        self.patch_size = pre_config['patch_size'] * data_config['res'] / self.fac_d
+        self.fac_d = np.array([self.fac_d, self.fac_d, 1 if data_config['dim'] == 2 else self.fac_d])
+        self.patch_size = pre_config['patch_size'] * data_config['res'] / self.fac_d[0]
         self.patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
         self.par_cnt = pre_config['par_cnt']
         self.par_cnt_ref = pre_config['par_cnt_ref']
-        self.bnd = data_config['bnd']/self.fac_d
+        self.bnd = data_config['bnd']/self.fac_d[0]
 
         self.pad_val = pre_config['pad_val']
         self.surface = pre_config['surf']

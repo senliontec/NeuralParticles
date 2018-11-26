@@ -27,6 +27,8 @@ screenshot = getParam("scr", "")
 
 dim = int(getParam("dim", 2))
 
+bnd = int(getParam("bnd", 4))
+
 checkUnusedParams()
 
 pause = True
@@ -40,7 +42,7 @@ s_show = Solver(name="show", gridSize=gs_show, dim=3)
 pp = s.create(BasicParticleSystem)
 
 sdf_show = s_show.create(LevelsetGrid)
-sdf_show.setBound(value=0., boundaryWidth=1)
+sdf_show.setBound(value=0., boundaryWidth=max(1,bnd//fac))
 mesh = s_show.create(Mesh)
 
 flags_show = s.create(FlagGrid)
@@ -50,7 +52,7 @@ flags_show.fillGrid(TypeEmpty)
 sdf = s.create(LevelsetGrid)
 
 gFlags   = s.create(FlagGrid)
-gFlags.initDomain(4)
+gFlags.initDomain(bnd)
 
 gIdxSys  = s.create(ParticleIndexSystem)
 gIdx     = s.create(IntGrid)
@@ -73,7 +75,7 @@ if src_path != "":
 	src_sdf = s_small.create(LevelsetGrid)
 	src_sdf_high = s.create(LevelsetGrid)
 	sdf_show_small = s_show_small.create(LevelsetGrid)
-	sdf_show_small.setBound(value=0., boundaryWidth=1)
+	sdf_show_small.setBound(value=0., boundaryWidth=max(1,bnd//fac))
 	src_mesh_high = s_show.create(Mesh)
 	src_mesh = s_show_small.create(Mesh)
 	
@@ -97,7 +99,7 @@ for i in range(t_start,t_end):
 		gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
 		unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=sdf, radiusFactor=1.0, exclude=FlagObstacle)
 		extrapolateLsSimple(phi=sdf, distance=4, inside=True)
-		sdf.setBound(value=5., boundaryWidth=4)
+		sdf.setBound(value=0.5, boundaryWidth=bnd)
 	if dim == 2:
 		placeGrid2d(sdf,sdf_show,dstz=1) 
 		sdf_show.createMesh(mesh)
@@ -113,7 +115,7 @@ for i in range(t_start,t_end):
 			gridParticleIndex(parts=ref_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
 			unionParticleLevelset(parts=ref_pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=ref_sdf, radiusFactor=1.0, exclude=FlagObstacle)
 			extrapolateLsSimple(phi=ref_sdf, distance=4, inside=True)
-			ref_sdf.setBound(value=5., boundaryWidth=4)
+			ref_sdf.setBound(value=0.5, boundaryWidth=bnd)
 		if dim == 2:
 			placeGrid2d(ref_sdf,sdf_show,dstz=1) 
 			sdf_show.createMesh(ref_mesh)
@@ -129,10 +131,10 @@ for i in range(t_start,t_end):
 			gridParticleIndex(parts=src_pp, indexSys=src_gIdxSys, flags=gFlags, index=src_gIdx, counter=src_gCnt)
 			unionParticleLevelset(parts=src_pp, indexSys=src_gIdxSys, flags=gFlags, index=src_gIdx, phi=src_sdf, radiusFactor=1.0, exclude=FlagObstacle)
 			extrapolateLsSimple(phi=src_sdf, distance=4, inside=True)
-			src_sdf.setBound(value=5., boundaryWidth=max(1,4//fac))
+			src_sdf.setBound(value=0.5, boundaryWidth=bnd//fac)
 		interpolateGrid(src_sdf_high, src_sdf)
 		src_sdf_high.multConst(fac)
-		src_sdf_high.setBound(value=5., boundaryWidth=max(1,4))
+		src_sdf_high.setBound(value=0.5, boundaryWidth=bnd)
 		if dim == 2:
 			placeGrid2d(src_sdf,sdf_show_small,dstz=1) 
 			sdf_show_small.createMesh(src_mesh)

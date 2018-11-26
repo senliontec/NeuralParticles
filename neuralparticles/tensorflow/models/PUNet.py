@@ -105,6 +105,9 @@ class PUNet(Network):
             mask = zero_mask(input_xyz, self.pad_val, name="mask_1")
             input_points = multiply([input_points, mask])
             input_xyz = multiply([input_xyz, mask])
+            input_xyz_m = input_xyz
+            input_points_m = input_points
+
 
         l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.05, self.fac*4, 
                                                [self.fac*4,
@@ -232,7 +235,7 @@ class PUNet(Network):
         return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
 
     def trunc_loss(self, y_true, y_pred):
-        return keras.losses.mse(y_true/y_true, y_pred/y_true)#tf.reduce_mean(y_pred, axis=1))
+        return keras.losses.mse(y_true, y_pred)#tf.reduce_mean(y_pred, axis=1))
 
     def temp_loss(self, y_true, y_pred):
         import tensorflow as tf
