@@ -1,4 +1,6 @@
 import tensorflow as tf
+import keras
+import keras.backend as K
 from tensorflow.python.framework import ops
 import os.path as osp
 
@@ -22,7 +24,7 @@ ops.NoGradient('ApproxMatch')
 def _approx_match_shape(op):
 	shape1=op.inputs[0].get_shape().with_rank(3)
 	shape2=op.inputs[1].get_shape().with_rank(3)
-	return [tf.TensorShape([shape1.dims[0],shape2.dims[1],shape1.dims[1]])]
+	return [tf.TensorShape([shape1.dims[0],shape1.dims[1],shape2.dims[1]])]
 
 def match_cost(xyz1,xyz2,match):
 	'''
@@ -40,18 +42,27 @@ def _match_cost_shape(op):
 	shape1=op.inputs[0].get_shape().with_rank(3)
 	shape2=op.inputs[1].get_shape().with_rank(3)
 	shape3=op.inputs[2].get_shape().with_rank(3)
-	return [tf.TensorShape([shape1.dims[0]])]
+	return [tf.TensorShape([shape1.dims[0], shape1.dims[1], shape2.dims[1]])]
+
 @tf.RegisterGradient('MatchCost')
 def _match_cost_grad(op,grad_cost):
 	xyz1=op.inputs[0]
 	xyz2=op.inputs[1]
 	match=op.inputs[2]
 	grad_1,grad_2=approxmatch_module.match_cost_grad(xyz1,xyz2,match)
-	return [grad_1*tf.expand_dims(tf.expand_dims(grad_cost,1),2),grad_2*tf.expand_dims(tf.expand_dims(grad_cost,1),2),None]
+	return [grad_1*grad_cost[:,:1,:1],grad_2*grad_cost[:,:1,:1],None]
 
 def emd_loss(y_true, y_pred):
-    match = approx_match(y_pred, y_true)
-    return match_cost(y_pred, y_true, match)/tf.cast(tf.shape(y_pred)[1], tf.float32)
+	match = approx_match(y_true, y_pred)
+
+	'''a = K.expand_dims(y_true,axis=2)	
+	a = K.repeat_elements(a,y_pred.get_shape()[1],axis=2)
+
+	b = K.expand_dims(y_pred,axis=1)
+	b = K.repeat_elements(b,y_pred.get_shape()[1],axis=1)
+	
+	return K.sum(K.sum(K.square(a - b), axis=-1) * match, axis=-1)'''
+	return K.sum(match_cost(y_true, y_pred, match),axis=-1)
 
 if __name__=='__main__':
 	alpha=0.5

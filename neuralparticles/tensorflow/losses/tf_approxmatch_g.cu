@@ -185,8 +185,8 @@ __global__ void matchcost(int b,int n,int m,const float * __restrict__ xyz1,cons
 	const int Block=1024;
 	__shared__ float buf[Block*3];
 	for (int i=blockIdx.x;i<b;i+=gridDim.x){
-		float subsum=0;
 		for (int k0=0;k0<n;k0+=blockDim.x){
+			float subsum=0;
 			int k=k0+threadIdx.x;
 			float x1=0,y1=0,z1=0;
 			if (k<n){
@@ -196,22 +196,23 @@ __global__ void matchcost(int b,int n,int m,const float * __restrict__ xyz1,cons
 			}
 			for (int l0=0;l0<m;l0+=Block){
 				int lend=min(m,l0+Block)-l0;
-				for (int l=threadIdx.x;l<lend*3;l+=blockDim.x)
+				for (int l=threadIdx.x;l<lend*3;l+=blockDim.x){
 					buf[l]=xyz2[i*m*3+l0*3+l];
+				}
 				__syncthreads();
 				if (k<n){
 					for (int l=0;l<lend;l++){
 						float x2=buf[l*3+0];
 						float y2=buf[l*3+1];
 						float z2=buf[l*3+2];
-						float d=sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1));
-						subsum+=d*match[i*n*m+(l0+l)*n+k];
+						float d=(x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1);
+						out[i*n*m+(l0+l)*n+k]=d*match[i*n*m+(l0+l)*n+k];
 					}
 				}
 				__syncthreads();
 			}
 		}
-		allsum[threadIdx.x]=subsum;
+		/*allsum[threadIdx.x]=subsum;
 		for (int j=1;j<blockDim.x;j<<=1){
 			__syncthreads();
 			if ((threadIdx.x&j)==0 && threadIdx.x+j<blockDim.x){
@@ -219,7 +220,7 @@ __global__ void matchcost(int b,int n,int m,const float * __restrict__ xyz1,cons
 			}
 		}
 		if (threadIdx.x==0)
-			out[i]=allsum[0];
+			out[i]=allsum[0];*/
 		__syncthreads();
 	}
 }
@@ -240,7 +241,7 @@ __global__ void matchcostgrad2(int b,int n,int m,const float * __restrict__ xyz1
 				float x1=x2-xyz1[(i*n+j)*3+0];
 				float y1=y2-xyz1[(i*n+j)*3+1];
 				float z1=z2-xyz1[(i*n+j)*3+2];
-				float d=match[i*n*m+k*n+j]*rsqrtf(fmaxf(x1*x1+y1*y1+z1*z1,1e-20f));
+				float d=match[i*n*m+k*n+j]/fmaxf(x1*x1+y1*y1+z1*z1,1e-20f);
 				subsumx+=x1*d;
 				subsumy+=y1*d;
 				subsumz+=z1*d;
@@ -278,7 +279,7 @@ __global__ void matchcostgrad1(int b,int n,int m,const float * __restrict__ xyz1
 				float x2=xyz2[i*m*3+k*3+0];
 				float y2=xyz2[i*m*3+k*3+1];
 				float z2=xyz2[i*m*3+k*3+2];
-				float d=match[i*n*m+k*n+l]*rsqrtf(fmaxf((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2),1e-20f));
+				float d=match[i*n*m+k*n+l]/fmaxf((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2),1e-20f);
 				dx+=(x1-x2)*d;
 				dy+=(y1-y2)*d;
 				dz+=(z1-z2)*d;

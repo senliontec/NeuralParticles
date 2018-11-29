@@ -62,6 +62,7 @@ class PatchGenerator(keras.utils.Sequence):
     def __init__(self, data_path, config_path, chunk_size,
                  d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None):
         np.random.seed(45)
+        random.seed(45)
         with open(config_path, 'r') as f:
             config = json.loads(f.read())
 
@@ -127,7 +128,6 @@ class PatchGenerator(keras.utils.Sequence):
             
             idx = np.array([[x,y] for x in range(self.d_start, self.d_end) for y in range(self.t_start, self.t_end)])
             np.random.shuffle(idx)
-            idx = idx[:int(len(idx))]
 
             for i in range(self.chunk_cnt):
                 chunk = Chunk(frames=idx[i*self.chunk_size:(i+1)*self.chunk_size])
@@ -242,7 +242,7 @@ class PatchGenerator(keras.utils.Sequence):
                 idx = np.argmin(np.linalg.norm(src[0][...,:3], axis=-1), axis=1)
                 vel = vel - np.expand_dims(vel[np.arange(len(idx)), idx],axis=1)
                 
-                adv_src = src[0][...,:3] + vel / (self.fps * self.patch_size)
+                adv_src = src[0][...,:3] + vel * 0.1 / self.fps
                 src.append(np.concatenate((adv_src, src[0][...,3:]), axis=-1))
                 ref.insert(1, np.concatenate((ref[0], ref[0]), axis=1))
             else:

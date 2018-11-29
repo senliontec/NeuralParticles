@@ -175,7 +175,7 @@ for i in range(len(eval_dataset)):
         print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patch[0][:,:,:1] != pre_config['pad_val'])))
         print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patch[:,:1] != pre_config['pad_val'])))
 
-        eval_patch_src = eval_patch_src + 0.1 * eval_patch_aux['v'] / (data_config['fps'] * pre_config['patch_size'])
+        eval_patch_src = eval_patch_src + 0.01 * eval_patch_aux['v'] / (data_config['fps'] * pre_config['patch_size'])
         #eval_patch_aux['v'] *= 0.9
 
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])

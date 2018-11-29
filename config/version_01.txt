@@ -2,5 +2,5 @@
     "id":           "v01",
     "data":         "data/data_00.txt",
     "preprocess":   "preprocess/pre_00.txt",
-    "train":        "train/train_01.txt"
+    "train":        "train/train_02.txt"
 }
