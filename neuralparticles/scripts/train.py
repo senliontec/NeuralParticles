@@ -181,7 +181,7 @@ for i in range(len(eval_dataset)):
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])
 
 punet.build_model()
-keras.utils.plot_model(punet.model, tmp_model_path + '.pdf') 
+keras.utils.plot_model(punet.model, tmp_model_path + '.pdf', show_shapes=True, show_layer_names=True) 
 punet.save_model(tmp_model_path+".h5")
 if verbose:
     punet.model.summary()

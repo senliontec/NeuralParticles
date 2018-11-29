@@ -192,8 +192,8 @@ class PUNet(Network):
             trunc = concatenate(l, 1, name="cnt")
             out_mask = concatenate(out_mask, axis=1, name="truncation_mask")'''
 
-            if self.mask:
-                x_t = multiply([x_t, mask])
+            #if self.mask:
+            #    x_t = multiply([x_t, mask])
 
             x_t = unstack(x_t, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
@@ -237,7 +237,7 @@ class PUNet(Network):
         return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
 
     def trunc_loss(self, y_true, y_pred):
-        return keras.losses.mse(y_true, y_pred)#tf.reduce_mean(y_pred, axis=1))
+        return keras.losses.mse(y_true, y_pred)#keras.losses.mse(1, y_pred/y_true)
 
     def temp_loss(self, y_true, y_pred):
         import tensorflow as tf

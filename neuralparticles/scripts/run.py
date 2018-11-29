@@ -149,8 +149,6 @@ else:
     print(test)
     plot_particles(test[0], [-1,1], [-1,1], 5, src=test_src[0])'''
 
-src_data = None
-positions = None
 for d in range(d_start, d_end):
     for v in range(var):
         tmp_path = dst_path%(d,v)
@@ -161,6 +159,10 @@ for d in range(d_start, d_end):
             if not os.path.exists(tmp_path):
                 os.makedirs(tmp_path)
 
+        src_data = None
+        positions = None    
+
+        patch = None
         for t in range(t_start, t_end):
             if temp_coh_dt == 0 or src_data is None:
                 if real:
@@ -180,7 +182,10 @@ for d in range(d_start, d_end):
 
             if len(patch_pos) == 3:
                 idx = get_nearest_idx(patch_extractor.positions, patch_pos)
-                patch = patch_extractor.get_patch(idx, False)
+                if patch is None:
+                    patch = patch_extractor.get_patch(idx, False)
+                else:
+                    patch += 0.01 * patch[...,3:6] / (data_config['fps'] * patch_size)
                 plot_particles(patch_extractor.positions, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
                 patch_pos = patch_extractor.positions[idx]
                 if real:

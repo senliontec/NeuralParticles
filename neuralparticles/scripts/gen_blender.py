@@ -8,6 +8,8 @@ from neuralparticles.tools.param_helpers import *
 import random
 import math
 
+import numpy as np
+
 data_path = getParam("data", "data/")
 manta_path = getParam("manta", "neuralparticles/")
 config_path = getParam("config", "config/version_00.txt")
@@ -24,6 +26,10 @@ var = int(getParam("var", 0))
 gui = int(getParam("gui", 0))
 pause = int(getParam("pause", 0))
 
+real = int(getParam("real", 0)) != 0
+
+patch_pos = np.fromstring(getParam("patch", ""),sep=",")
+
 checkUnusedParams()
 
 with open(config_path, 'r') as f:
@@ -38,8 +44,11 @@ with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
 with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
     train_config = json.loads(f.read())
 
-data_path += "result/%s_%s-%s_%s_d%03d_var%02d/" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
+data_path += ("result/%s_%s-%s_%s_d%03d_var%02d" + ("_real/" if real else "/")) % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
 
+if len(patch_pos) == 3:
+    data_path += "patch_%d-%d-%d/" % (patch_pos[0],patch_pos[1],patch_pos[2])
+    
 prefix_surface = data_path + ("surface_%d/" % int(surface_fac*100) if surface_fac > 0 else "surface/")
 prefix_foam = data_path + ("foam_%d/" % int((1-surface_fac)*100) if surface_fac > 0 else "foam/")
 
@@ -78,6 +87,9 @@ param['gui'] = gui
 param['pause'] = pause
 param['surface'] = surface_fac
 
+if len(patch_pos) == 3:
+    res = int(res * pre_config['patch_size_ref'])
+
 param['in'] = data_path + "result_%03d.uni"
 param['out_surface'] = prefix_surface + "result/fluidsurface_final_%04d.bobj.gz"
 param['out_foam'] = prefix_foam + "result/fluidsurface_final_%04d.bobj.gz"
@@ -88,7 +100,9 @@ param['out_surface'] = prefix_surface + "reference/fluidsurface_final_%04d.bobj.
 param['out_foam'] = prefix_foam + "reference/fluidsurface_final_%04d.bobj.gz"
 run_manta(manta_path, "scenes/blender.py", param, verbose)
 
-param['res'] = int(res / math.pow(pre_config['factor'],1/dim))
+param['res'] = int(param['res'] / math.pow(pre_config['factor'],1/dim))
+if len(patch_pos) == 3:
+    res = int(res * pre_config['patch_size'])
 param['in'] = data_path + "source_%03d.uni"
 param['out_surface'] = prefix_surface + "source/fluidsurface_final_%04d.bobj.gz"
 param['out_foam'] = prefix_foam + "source/fluidsurface_final_%04d.bobj.gz"
