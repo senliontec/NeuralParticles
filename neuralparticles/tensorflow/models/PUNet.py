@@ -14,7 +14,7 @@ from neuralparticles.tools.data_augmentation import *
 from neuralparticles.tools.data_helpers import get_data
 
 from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
-#from neuralparticles.tensorflow.losses.tf_auctionmatch import emd_loss as pu_emd_loss
+#from neuralparticles.tensorflow.losses.tf_auctionmatch import emd_loss as emd_loss
 from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
 from neuralparticles.tensorflow.layers.add_const_layer import AddConst
 from neuralparticles.tensorflow.losses.repulsion_loss import repulsion_loss, get_repulsion_loss4
@@ -245,7 +245,7 @@ class PUNet(Network):
             return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
         else:
             #return keras.losses.mse(emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val)), -emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)))
-            return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1)) 
+            return keras.losses.mse(pred, pred_t)#, emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val))) 
  
     def trunc_metric(self, y_true, y_pred):
         if y_pred.get_shape()[1] == self.particle_cnt_dst:
@@ -263,8 +263,8 @@ class PUNet(Network):
             if self.use_temp_emd: 
                 return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
             else:
-                #return keras.losses.mse(keras.losses.mse(pred, pred_t), keras.backend.mean(emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)),axis=-1)) 
-                return keras.losses.mse(keras.losses.mse(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
+                return keras.losses.mse(keras.losses.mse(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val))) 
+                #return keras.losses.mse(keras.losses.mse(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
         else:           
             return keras.losses.mse(y_true, y_pred)
 
