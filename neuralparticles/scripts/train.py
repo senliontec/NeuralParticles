@@ -22,7 +22,7 @@ data_path = getParam("data", "data/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
 gpu = getParam("gpu", "")
-chunk_size = int(getParam("chunk", 0))
+chunk_size = int(getParam("chunk", 100))
 checkpoint = getParam("checkpoint", "")
 
 eval_cnt = int(getParam("eval_cnt", 5))
