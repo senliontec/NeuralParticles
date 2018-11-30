@@ -28,8 +28,11 @@ usage_text = (
 parser = argparse.ArgumentParser(description=usage_text)
 
 parser.add_argument("-if", "--foam", dest="foam_path", type=str, default=None, metavar='DIR', help="This is the path to the folder that contains the '.obj' files. Prefix relative paths with '//'.")
+parser.add_argument("-ifr", "--foam_ref", dest="foam_ref_path", type=str, default=None, metavar='DIR', help="This is the path to the folder that contains the '.obj' files. Prefix relative paths with '//'.")
+parser.add_argument("-ifs", "--foam_src", dest="foam_src_path", type=str, default=None, metavar='DIR', help="This is the path to the folder that contains the '.obj' files. Prefix relative paths with '//'.")
 parser.add_argument("-ic", "--foam_coarse", dest="foam_coarse_path", type=str, default=None, metavar='DIR', help="This is the path to the folder that contains the '.obj' files. Prefix relative paths with '//'.")
 parser.add_argument("-is", "--surface", dest="surface_path", type=str, default=None, metavar='DIR', help="This is the path to the folder that contains the '.obj' files. Prefix relative paths with '//'.")
+parser.add_argument("-ps", "--particle_scale", type=int, default=1, help="Scale of particle.")
 parser.add_argument("-o", "--output", dest="output_path", type=str, required=True, metavar='FILE', help="This is the path to the file where the rendered video will be saved. Prefix relative paths with '//'.")
 parser.add_argument("-sf", "--start_frame", type=int, default=0, help="Overwrite start frame of rendering.")
 parser.add_argument("-ef", "--end_frame", type=int, default=-1, help="Overwrite end frame of rendering.")
@@ -136,11 +139,29 @@ def main():
         bpy.data.objects["Foam"].hide_render = False
         bpy.data.objects["Foam"].modifiers["Fluidsim"].settings.filepath = args.foam_path
         print("Fluid Input Path: {}".format(bpy.data.objects["Foam"].modifiers["Fluidsim"].settings.filepath))
+        
+        bpy.data.objects["Particle"].scale *= args.particle_scale
 
     if args.foam_coarse_path:
         bpy.data.objects["FoamCoarse"].hide_render = False
         bpy.data.objects["FoamCoarse"].modifiers["Fluidsim"].settings.filepath = args.foam_coarse_path
         print("Fluid Input Path: {}".format(bpy.data.objects["FoamCoarse"].modifiers["Fluidsim"].settings.filepath))
+
+        bpy.data.objects["ParticleCoarse"].scale *= args.particle_scale
+
+    if args.foam_ref_path:
+        bpy.data.objects["FoamRef"].hide_render = False
+        bpy.data.objects["FoamRef"].modifiers["Fluidsim"].settings.filepath = args.foam_ref_path
+        print("Fluid Input Path: {}".format(bpy.data.objects["FoamRef"].modifiers["Fluidsim"].settings.filepath))
+
+        bpy.data.objects["ParticleRef"].scale *= args.particle_scale
+
+    if args.foam_src_path:
+        bpy.data.objects["FoamSrc"].hide_render = False
+        bpy.data.objects["FoamSrc"].modifiers["Fluidsim"].settings.filepath = args.foam_src_path
+        print("Fluid Input Path: {}".format(bpy.data.objects["FoamSrc"].modifiers["Fluidsim"].settings.filepath))
+
+        bpy.data.objects["ParticleSrc"].scale *= args.particle_scale
 
     # Background Material
     if args.type == "network":

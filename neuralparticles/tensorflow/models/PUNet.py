@@ -191,6 +191,9 @@ class PUNet(Network):
             trunc = concatenate(l, 1, name="cnt")
             out_mask = concatenate(out_mask, axis=1, name="truncation_mask")'''
 
+            #if self.mask:
+            #    x_t = multiply([x_t, mask])
+
             x_t = unstack(x_t, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
 
