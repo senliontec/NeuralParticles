@@ -378,7 +378,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
 
 
 class PatchExtractor:
-    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=-1, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None, last_pos=None):
+    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=-1, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None, last_pos=None, temp_coh=False):
         self.src_data = src_data
         self.radius = patch_size/2
         self.cnt = cnt
@@ -397,15 +397,21 @@ class PatchExtractor:
             np.random.shuffle(rnd)
             idx = idx[rnd]
             p = p[rnd]
-            self.pos_idx = np.empty((0,),dtype=int)
 
-            i = 0
-            while len(p) > 0:
-                p_idx = 0 if last_pos is None or i >= len(last_pos) else get_nearest_idx(p, last_pos[i])
-                self.pos_idx = np.append(self.pos_idx, [idx[p_idx]])
-                r_idx = particle_radius(p, p[p_idx], self.stride)
-                p = np.delete(p, r_idx, axis=0)
-                idx = np.delete(idx, r_idx, axis=0)
+            if temp_coh:
+                self.pos_idx = np.empty((len(last_pos),),dtype=int)
+                for i in range(len(last_pos)):
+                    p_idx = get_nearest_idx(p, last_pos[i])
+                    self.pos_idx[i] = idx[p_idx]
+            else:
+                self.pos_idx = np.empty((0,),dtype=int)
+                i = 0
+                while len(p) > 0:
+                    p_idx = 0 if last_pos is None or i >= len(last_pos) else get_nearest_idx(p, last_pos[i])
+                    self.pos_idx = np.append(self.pos_idx, [idx[p_idx]])
+                    r_idx = particle_radius(p, p[p_idx], self.stride)
+                    p = np.delete(p, r_idx, axis=0)
+                    idx = np.delete(idx, r_idx, axis=0)
 
             self.positions = src_data[self.pos_idx]
         '''p = get_positions(src_data, sdf_data, patch_size, surface, bnd)

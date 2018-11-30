@@ -7,7 +7,7 @@ from neuralparticles.tools.data_helpers import PatchExtractor
 
 import io, os
 
-def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
+def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0, truncate=False):
     result = model.predict(src)
 
     if type(result) is list:
@@ -22,12 +22,12 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
         cnt = int(result[1][0] * result[0].shape[1])
         if verbose > 0: print("Reduce points to: " + str(cnt))
         result = result[0][0,:cnt]
-    elif False:
+    elif truncate:
         cnt = int(np.count_nonzero(src[0][...,1] != -2.0)) * (result.shape[1]//src[0].shape[1])
         if verbose > 0: print("Reduce points to: " + str(cnt))
         result = result[0,:cnt]
     else:
-        print("NO REDUCED POINTS!")
+        if verbose > 0: print("No Truncation!")
         result = result[0]
 
     if path != "" and verbose > 0:
@@ -154,7 +154,8 @@ class EvalCallback(keras.callbacks.TensorBoard):
                  features=[], 
                  multiple_runs=False,
                  batch_intervall=0, 
-                 z=None, verbose=0,
+                 z=None, truncate=False,
+                 verbose=0,
                  histogram_freq=0,
                  batch_size=32,
                  write_graph=True,
@@ -183,6 +184,7 @@ class EvalCallback(keras.callbacks.TensorBoard):
         self.features = features
         self.batch_intervall = batch_intervall
         self.z = z
+        self.truncate = truncate
         self.verbose = verbose
         self.run_cnt = 0 if multiple_runs else -1
         self.run_suffix = ""
@@ -197,7 +199,7 @@ class EvalCallback(keras.callbacks.TensorBoard):
 
         for i in range(len(self.src)):
             for j in range(len(self.src[i])):
-                eval_patch(self.model, self.src[i][j], self.path + self.suffix%(self.run_suffix, -1, i, j), self.ref[i][j], self.features, self.z, self.verbose)
+                eval_patch(self.model, self.src[i][j], self.path + self.suffix%(self.run_suffix, -1, i, j), self.ref[i][j], self.features, self.z, self.verbose, self.truncate)
     
     def on_epoch_end(self,ep,logs={}):
         super().on_epoch_end(ep, logs)
@@ -206,7 +208,7 @@ class EvalCallback(keras.callbacks.TensorBoard):
         print("Eval Patch")
         for i in range(len(self.src)):
             for j in range(len(self.src[i])):
-                res = eval_patch(self.model, self.src[i][j], self.path + self.suffix%(self.run_suffix, ep, i, j), self.ref[i][j], self.features, self.z, self.verbose)
+                res = eval_patch(self.model, self.src[i][j], self.path + self.suffix%(self.run_suffix, ep, i, j), self.ref[i][j], self.features, self.z, self.verbose, self.truncate)
                 add_images(self.writer, self.tag%(self.run_suffix, i, j), self.src[i][j][0][0], self.ref[i][j], res, ep, xlim=[-1,1], ylim=[-1,1], s=5, z=self.z)
 
     def on_batch_end(self,batch,logs={}):
@@ -214,7 +216,7 @@ class EvalCallback(keras.callbacks.TensorBoard):
             return
         for i in range(len(self.src)):
             for j in range(len(self.src[i])):
-                res = eval_patch(self.model, self.src[i][j], self.path + self.suffix%(self.run_suffix, batch//self.batch_intervall, i, j), self.ref[i][j], self.features, self.z, self.verbose)
+                res = eval_patch(self.model, self.src[i][j], self.path + self.suffix%(self.run_suffix, batch//self.batch_intervall, i, j), self.ref[i][j], self.features, self.z, self.verbose, self.truncate)
                 add_images(self.writer, self.tag%(self.run_suffix, i, j), self.src[i][j][0][0], self.ref[i][j], res, batch//self.batch_intervall, xlim=[-1,1], ylim=[-1,1], s=5, z=self.z)
 
 class EvalCompleteCallback(keras.callbacks.TensorBoard):

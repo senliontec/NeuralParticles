@@ -163,6 +163,9 @@ if guion:
 	gui.show()
 	if pause: gui.pause()
 
+vmax = 0
+pmax = 0
+dmax = 0
 while (iisph.s.timeTotal*fps < t): # main loop
 	if out_path != "" and iisph.s.timeTotal*fps > out['frame']:
 		path = out_path % out['frame']
@@ -171,6 +174,10 @@ while (iisph.s.timeTotal*fps < t): # main loop
 		iisph.pV.save(path + "_pv.uni")
 		iisph.pD.save(path + "_pd.uni")
 		iisph.pP.save(path + "_pp.uni")
+
+		vmax += iisph.pV.getMax()
+		pmax += iisph.pP.getMax()
+		dmax += iisph.pD.getMax()
 
 		unionParticleLevelset(parts=iisph.pp, indexSys=iisph.gIdxSys, flags=iisph.gFlags, index=iisph.gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=iisph.pT, exclude=FlagObstacle)
 		extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
@@ -199,3 +206,7 @@ while (iisph.s.timeTotal*fps < t): # main loop
 	'''if s.timeTotal*fps > i:
 		i+=1
 		gui.screenshot("2D_sph_%03d.png" % i)'''
+
+print("mean max velocity: %d" % (vmax/t))
+print("mean max pressure: %d" % (pmax/t))
+print("mean max density: %d" % (dmax/t))

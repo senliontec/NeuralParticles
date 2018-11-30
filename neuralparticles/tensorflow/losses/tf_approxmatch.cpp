@@ -93,7 +93,7 @@ void matchcost_cpu(int b,int n,int m,const float * xyz1,const float * xyz2,const
 				float x2=xyz2[k*3+0];
 				float y2=xyz2[k*3+1];
 				float z2=xyz2[k*3+2];
-				float d=((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1))*match[j*m+k];
+				float d=sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1))*match[j*m+k];
 				cost[k]=d;
 			}
 			cost+=m;
@@ -117,7 +117,7 @@ void matchcostgrad_cpu(int b,int n,int m,const float * xyz1,const float * xyz2,c
 				float x1=xyz1[k*3+0];
 				float y1=xyz1[k*3+1];
 				float z1=xyz1[k*3+2];
-				float d=std::max((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1),1e-20f);
+				float d=std::max(sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1)),1e-20f);
 				float dx=match[k*m+j]*((x2-x1)/d);
 				float dy=match[k*m+j]*((y2-y1)/d);
 				float dz=match[k*m+j]*((z2-z1)/d);

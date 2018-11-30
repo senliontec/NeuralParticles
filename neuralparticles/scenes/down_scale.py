@@ -142,6 +142,9 @@ for i in range(t):
 	lcnt = cntPts(t=pT, itype=FlagFluid)
 	print("particles reduced: %d -> %d (%.1f)" % (hcnt, lcnt, hcnt/lcnt))
 
+	pV.multConst(vec3(1/factor_d))
+	pP.multConst(1/factor)
+
 	if out_path != "":
 		path = out_path % i
 		pp.save(path + "_ps.uni")
