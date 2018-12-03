@@ -158,25 +158,25 @@ class PatchGenerator(keras.utils.Sequence):
 
     def _load_chunk(self):
         frame_chunk = self.chunked_idx[self.chunk_idx]
-        self.chunk = np.empty((frame_chunk.size, 4), dtype=object)        
+        self.chunk = np.empty((frame_chunk.size, 2), dtype=object)        
         for i in range(frame_chunk.size):
             frame = frame_chunk[i]
             idx = frame.position_idx
             if self.fac < 1.0:
                 idx = idx[random.sample(range(len(idx)), int(np.ceil(self.fac * len(idx))))]
-            (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep, 0, features=self.features)
+            (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep, 0, features=self.features, ref_features=['v'])
             patch_ex_src = PatchExtractor(src_data, sdf_data, self.patch_size, self.par_cnt, pad_val=self.pad_val, positions=src_data[idx], aux_data=par_aux, features=self.features)
-            patch_ex_ref = PatchExtractor(ref_data, ref_sdf_data, self.patch_size_ref, self.par_cnt_ref, pad_val=self.pad_val, positions=src_data[idx]*self.fac_d)
+            patch_ex_ref = PatchExtractor(ref_data, ref_sdf_data, self.patch_size_ref, self.par_cnt_ref, pad_val=self.pad_val, positions=src_data[idx]*self.fac_d, aux_data=ref_aux, features=['v'])
 
-            patch_ex_ref_n = None
+            '''patch_ex_ref_n = None
             patch_ex_src_n = None
             if self.temp_coh:
                 pos = src_data[idx] + par_aux['v'][idx] / self.fps
                 (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep+1, 0, features=self.features)
                 patch_ex_src_n = PatchExtractor(src_data, sdf_data, self.patch_size, self.par_cnt, self.surface, 0, self.bnd, self.pad_val, par_aux, self.features, last_pos=pos, temp_coh=True)
-                patch_ex_ref_n = PatchExtractor(ref_data, ref_sdf_data, self.patch_size_ref, self.par_cnt_ref, pad_val=self.pad_val, positions=patch_ex_src_n.positions*self.fac_d)
+                patch_ex_ref_n = PatchExtractor(ref_data, ref_sdf_data, self.patch_size_ref, self.par_cnt_ref, pad_val=self.pad_val, positions=patch_ex_src_n.positions*self.fac_d)'''
 
-            self.chunk[i] = [patch_ex_src, patch_ex_ref, patch_ex_src_n, patch_ex_ref_n]
+            self.chunk[i] = [patch_ex_src, patch_ex_ref]#, patch_ex_src_n, patch_ex_ref_n]
         np.random.shuffle(self.chunk)
         self.chunk_idx += 1
 
@@ -186,7 +186,8 @@ class PatchGenerator(keras.utils.Sequence):
         ref = [np.empty((self.batch_size, self.par_cnt_ref, 3))]
         if self.temp_coh:
             src.append(src[0].copy())
-            ref.append(np.empty((self.batch_size, self.par_cnt_ref*2, 3)))
+            src.append(src[0].copy())
+            ref.append(np.empty((self.batch_size, self.par_cnt_ref*3, 3)))
 
         for i in range(self.batch_size):
             if len(self.chunk) <= 0:
@@ -199,24 +200,39 @@ class PatchGenerator(keras.utils.Sequence):
 
             c_idx = np.random.randint(len(self.chunk))
             src[0][i] = self.chunk[c_idx][0].pop_patch(remove_data=False)
-            ref[0][i] = self.chunk[c_idx][1].pop_patch(remove_data=False)
+            ref_patch = self.chunk[c_idx][1].pop_patch(remove_data=False)
+            ref[0][i] = ref_patch[...,:3]
 
             if self.temp_coh:
+                vel = src[0][i][...,3:6]
+                idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
+                vel = vel - np.expand_dims(vel[idx],axis=0)
+
+                adv_src = src[0][i][...,:3] - vel / (self.fps * self.patch_size)
+                src[1][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
+
+                adv_src = src[0][i][...,:3] + vel / (self.fps * self.patch_size)
+                src[2][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
+
+                vel = ref_patch[...,3:]
+                idx = np.argmin(np.linalg.norm(ref_patch[...,:3], axis=-1), axis=0)
+                vel = vel - np.expand_dims(vel[idx],axis=0)
+
+                ref[1][i] = np.concatenate((
+                        ref_patch[...,:3],
+                        ref_patch[...,:3] - vel / (self.fps * self.patch_size_ref),
+                        ref_patch[...,:3] + vel / (self.fps * self.patch_size_ref))
+                    )
+
+            """if self.temp_coh:
                 if index % 2 == 0 or not self.neg_examples or (self.chunk[c_idx][1].positions is None and len(self.chunk) == 1):
-                    """src[1][i] = self.chunk[c_idx][2].pop_patch(remove_data=False)
-                    ref[1][i] = np.concatenate((ref[0][i],self.chunk[c_idx][3].pop_patch(remove_data=False)))"""
-                    vel = src[0][i][...,3:6]
-                    idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
-                    vel = vel - np.expand_dims(vel[idx],axis=0)
-                    
-                    adv_src = src[0][i][...,:3] + vel / (self.fps * self.patch_size)
-                    src[1][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
-                    ref[1][i] = np.concatenate((ref[0][i],ref[0][i]))
+                    src[1][i] = self.chunk[c_idx][2].pop_patch(remove_data=False)
+                    ref[1][i] = np.concatenate((ref[0][i],self.chunk[c_idx][3].pop_patch(remove_data=False)))
                 else:
                     neg_idx = np.random.randint(len(self.chunk))
                     neg_patch = np.random.randint(len(self.chunk[neg_idx][3].positions))
                     src[1][i] = self.chunk[neg_idx][2].get_patch(neg_patch, remove_data=False)
-                    ref[1][i] = np.concatenate((ref[0][i],self.chunk[neg_idx][3].get_patch(neg_patch, remove_data=False)))
+                    ref[1][i] = np.concatenate((ref[0][i],self.chunk[neg_idx][3].get_patch(neg_patch, remove_data=False)))"""
 
             if self.chunk[c_idx][1].positions is None:
                 self.chunk = np.delete(self.chunk, c_idx, 0)

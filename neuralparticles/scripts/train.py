@@ -141,7 +141,7 @@ for i in range(len(eval_dataset)):
     eval_patch_src, _, eval_patch_aux = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i], features=['v'] if len(train_config['features']) == 0 else train_config['features'])[0]
     
     for j in range(eval_timesteps):
-        (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
+        (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data,_) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
         #eval_par_aux['p'] = np.sign(eval_par_aux['p'])*np.sqrt(np.abs(eval_par_aux['p']))
         eval_ref_datas[i][j] = eval_ref_data
 
