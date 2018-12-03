@@ -162,7 +162,7 @@ for d in range(d_start, d_end):
         src_data = None
         positions = None    
 
-        patch = None
+        #patch = None
         for t in range(t_start, t_end):
             if temp_coh_dt == 0 or src_data is None:
                 if real:
@@ -182,10 +182,8 @@ for d in range(d_start, d_end):
 
             if len(patch_pos) == 3:
                 idx = get_nearest_idx(patch_extractor.positions, patch_pos)
-                if patch is None:
-                    patch = patch_extractor.get_patch(idx, False)
-                else:
-                    patch += 0.01 * patch[...,3:6] / (data_config['fps'] * patch_size)
+                patch = patch_extractor.get_patch(idx, False)
+                
                 plot_particles(patch_extractor.positions, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
                 patch_pos = patch_extractor.positions[idx]
                 if real:
@@ -215,17 +213,17 @@ for d in range(d_start, d_end):
                         ref_patch[..., 2] = 0.5
                     writeParticlesUni(tmp_path + "reference_%03d.uni"%t, hdr, ref_patch)
 
-                patch = (patch[...,:3] + 1) * 0.5 * patch_size
+                src = (patch[...,:3] + 1) * 0.5 * patch_size
                 if dim == 2:
-                    patch[..., 2] = 0.5
+                    src[..., 2] = 0.5
 
-                hdr['dim'] = len(patch)
+                hdr['dim'] = len(src)
                 hdr['dimX'] = int(patch_size)
                 hdr['dimY'] = int(patch_size)
                 
-                writeParticlesUni(tmp_path + "source_%03d.uni"%t, hdr, patch)
+                writeParticlesUni(tmp_path + "source_%03d.uni"%t, hdr, src)
 
-                print("particles: %d -> %d (fac: %.2f)" % (len(patch), len(result), (len(result)/len(patch))))
+                print("particles: %d -> %d (fac: %.2f)" % (np.count_nonzero(patch[...,0] != pre_config['pad_val']), len(result), (len(result)/np.count_nonzero(patch[...,0] != pre_config['pad_val']))))
             else:
                 write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 5, res//2 if dim == 3 else None)
 
