@@ -179,6 +179,7 @@ class PatchGenerator(keras.utils.Sequence):
             rnd_idx = np.random.randint(0, len(self.chunk), self.batch_size)
             src.extend([np.array([s[i] for s in self.chunk[rnd_idx,0]]) for i in range(len(self.chunk[0,0]))])
             ref.insert(1, np.concatenate((ref[0], [np.array([r[i] for r in self.chunk[rnd_idx,1]]) for i in range(len(self.chunk[0,1]))][0]), axis=1))
+
         return src, ref
 
 

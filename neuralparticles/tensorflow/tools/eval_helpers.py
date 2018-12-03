@@ -22,10 +22,14 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0):
         cnt = int(result[1][0] * result[0].shape[1])
         if verbose > 0: print("Reduce points to: " + str(cnt))
         result = result[0][0,:cnt]
-    else:
+
+    elif False:
         cnt = int(np.count_nonzero(src[0][...,1] != -2.0)) * (result.shape[1]//src[0].shape[1])
         if verbose > 0: print("Reduce points to: " + str(cnt))
         result = result[0,:cnt]
+    else:
+        print("NO REDUCED POINTS!")
+        result = result[0]
 
     if path != "" and verbose > 0:
         _i = 0

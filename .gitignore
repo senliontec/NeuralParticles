@@ -16,3 +16,13 @@ sanity_check/
 sanity_check_3D/
 
 \.ipynb_checkpoints/
+
+mesh_data/
+
+sept2_data/
+
+rendering/
+
+test/
+
+test_data/
