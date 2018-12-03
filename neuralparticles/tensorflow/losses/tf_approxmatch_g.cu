@@ -184,6 +184,7 @@ __global__ void matchcost(int b,int n,int m,const float * __restrict__ xyz1,cons
 	const int Block=1024;
 	__shared__ float buf[Block*3];
 	for (int i=blockIdx.x;i<b;i+=gridDim.x){
+		float subsum=0;
 		for (int k0=0;k0<n;k0+=blockDim.x){
 			int k=k0+threadIdx.x;
 			float x1=0,y1=0,z1=0;
@@ -204,12 +205,23 @@ __global__ void matchcost(int b,int n,int m,const float * __restrict__ xyz1,cons
 						float y2=buf[l*3+1];
 						float z2=buf[l*3+2];
 						float d=sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1));
-						out[i*n*m+(l0+l)*n+k]=d*match[i*n*m+(l0+l)*n+k];
+						subsum+=d*match[i*n*m+(l0+l)*n+k];
 					}
 				}
 				__syncthreads();
 			}
-		}
+		}    
+		if(threadIdx.x < n)
+			out[i*n + threadIdx.x]=subsum;
+		/*allsum[threadIdx.x]=subsum; 
+		for (int j=1;j<blockDim.x;j<<=1){ 
+		  __syncthreads(); 
+		  if ((threadIdx.x&j)==0 && threadIdx.x+j<blockDim.x){ 
+			allsum[threadIdx.x]+=allsum[threadIdx.x+j]; 
+		  } 
+		} 
+		if (threadIdx.x==0) 
+		  out[i]=allsum[0];*/ 
 		__syncthreads();
 	}
 }

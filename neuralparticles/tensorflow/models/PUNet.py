@@ -216,7 +216,7 @@ class PUNet(Network):
 
             trunc = MultConst(1/self.particle_cnt_src)(add(unstack(mask,1)))
 
-            trunc = add([trunc, x_t])
+            trunc = add([trunc, x_t], name="truncation")
 
             out_mask = soft_trunc_mask(trunc, self.particle_cnt_dst, name="truncation_mask")
 
@@ -230,17 +230,20 @@ class PUNet(Network):
             self.model = Model(inputs=inputs, outputs=[out])
 
         if self.temp_coh:
-            inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))]
+            inputs = [
+                Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),
+                Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),
+                Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))]
             out = self.model(inputs[0])
 
             if self.truncate:
                 trunc = Lambda(lambda x: x, name="trunc")(out[1])
                 out = Lambda(lambda x: x, name="points")(out[0])
-                out1 = concatenate([out, self.model(inputs[1])[0]], axis=1, name='temp')
+                out1 = concatenate([out, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
                 self.train_model = Model(inputs=inputs, outputs=[out, out1, trunc])
             else:
                 out = Lambda(lambda x: x, name="points")(out)
-                out1 = concatenate([out, self.model(inputs[1])], axis=1, name='temp')
+                out1 = concatenate([out, self.model(inputs[1]), self.model(inputs[2])], axis=1, name='temp')
                 self.train_model = Model(inputs=inputs, outputs=[out, out1])
         else:
             self.train_model = self.model
@@ -254,14 +257,14 @@ class PUNet(Network):
 
     def temp_loss(self, y_true, y_pred):
         import tensorflow as tf
-        pred, pred_t = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst], 1)
-        gt, gt_t = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst], 1)
+        pred, pred_p, pred_n = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
+        gt, gt_p, gt_n = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
         if self.use_temp_emd: 
             return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
         else:
             #return keras.losses.mse(emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val)), -emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)))
             #return keras.backend.square(emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)) + emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val))) + 0.1 * keras.losses.mse(pred, pred_t)#, emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val))) 
-            return keras.losses.mse(pred, pred_t)
+            return keras.losses.mse(pred, pred_p) + keras.losses.mse(pred, pred_n)
  
     def trunc_metric(self, y_true, y_pred):
         if y_pred.get_shape()[1] == self.particle_cnt_dst:
@@ -269,18 +272,10 @@ class PUNet(Network):
         return keras.backend.constant(0)
 
     def particle_metric(self, y_true, y_pred):
-        import tensorflow as tf
         if y_pred.get_shape()[1] == self.particle_cnt_dst:    
-            loss = 0#repulsion_loss(y_pred) * 0.0
-            return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
+            return self.mask_loss(y_true, y_pred)
         elif y_pred.get_shape()[1] == self.particle_cnt_dst*2:
-            pred, pred_t = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst], 1)
-            gt, gt_t = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst], 1)
-            if self.use_temp_emd: 
-                return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
-            else:
-                return keras.losses.mse(keras.losses.mse(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val))) 
-                #return keras.losses.mse(keras.losses.mse(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
+            return self.temp_loss(y_true, y_pred)
         else:           
             return keras.losses.mse(y_true, y_pred)
 

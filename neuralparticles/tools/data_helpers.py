@@ -288,7 +288,7 @@ def get_norm_factor(data_path, config_path):
 
     return norm_factor
 
-def get_data_pair(data_path, config_path, dataset, timestep, var, features=None):
+def get_data_pair(data_path, config_path, dataset, timestep, var, features=[], ref_features=[]):
     with open(config_path, 'r') as f:
         config = json.loads(f.read())
 
@@ -304,9 +304,9 @@ def get_data_pair(data_path, config_path, dataset, timestep, var, features=None)
     path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
     path_ref = "%sreference/%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d_%03d"
     
-    if features is None: features = train_config['features']
+    if len(features) == 0: features = train_config['features']
 
-    return get_data(path_src%(dataset,var,timestep), par_aux=features), get_data(path_ref%(dataset,timestep))[:2]
+    return get_data(path_src%(dataset,var,timestep), par_aux=features), get_data(path_ref%(dataset,timestep), par_aux=ref_features)
 
 def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_stop=None, v_start=0, v_stop=None, pv_start=0, pv_stop=None, features=None, features_ref=None):
     with open(config_path, 'r') as f:

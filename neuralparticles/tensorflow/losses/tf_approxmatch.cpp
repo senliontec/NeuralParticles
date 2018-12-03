@@ -94,9 +94,9 @@ void matchcost_cpu(int b,int n,int m,const float * xyz1,const float * xyz2,const
 				float y2=xyz2[k*3+1];
 				float z2=xyz2[k*3+2];
 				float d=sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1))*match[j*m+k];
-				cost[k]=d;
+				s+=d;
 			}
-			cost+=m;
+			cost[j]=s;
 		}
 		xyz1+=n*3;
 		xyz2+=m*3;
@@ -222,7 +222,7 @@ class MatchCostGpuOp: public OpKernel{
 			const float * match=&(match_flat(0));
 
 			Tensor * cost_tensor=NULL;
-			OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b,n,m},&cost_tensor));
+			OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b,n},&cost_tensor));
 			auto cost_flat=cost_tensor->flat<float>();
 			float * cost=&(cost_flat(0));
 			matchcostLauncher(b,n,m,xyz1,xyz2,match,cost);
@@ -252,7 +252,7 @@ class MatchCostOp: public OpKernel{
 			const float * match=&(match_flat(0));
 
 			Tensor * cost_tensor=NULL;
-			OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b,n,m},&cost_tensor));
+			OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b,n},&cost_tensor));
 			auto cost_flat=cost_tensor->flat<float>();
 			float * cost=&(cost_flat(0));
 			matchcost_cpu(b,n,m,xyz1,xyz2,match,cost);

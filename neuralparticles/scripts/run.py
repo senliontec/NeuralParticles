@@ -169,7 +169,7 @@ for d in range(d_start, d_end):
                     path_src = "%sreal/%s_%s_d%03d_%03d" % (data_path, data_config['prefix'], data_config['id'], d, t)
                     src_data, sdf_data, par_aux = get_data(path_src, par_aux=train_config['features'])
                 else:
-                    (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data) = get_data_pair(data_path, config_path, d, t, v) 
+                    (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, _) = get_data_pair(data_path, config_path, d, t, v) 
             else:
                 src_data = src_data + par_aux['v'] * temp_coh_dt / data_config['fps']
 
