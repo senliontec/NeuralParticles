@@ -28,7 +28,7 @@ def read_csv(path):
 def extract_stride(data, z, offset, pos=None):
 	if pos is None:
 		pos = data
-	idx = np.where(np.any([pos[:,2] < (z + offset), pos[:,2] > (z - offset)], axis=0))[0]
+	idx = np.where(np.all([pos[:,2] < (z + offset), pos[:,2] > (z - offset)], axis=0))[0]
 	return data[idx,0], data[idx,1]
 
 def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=None, vel=None, z=None, offset=None):
