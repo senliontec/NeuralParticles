@@ -207,11 +207,11 @@ class PUNet(Network):
             trunc = AddConst((self.particle_cnt_dst+1)/self.particle_cnt_dst, name="truncation")(trunc)"""
 
 
-            x_t = Dense(self.fac, activation='tanh', kernel_regularizer=keras.regularizers.l2(0.02))(x_t)
+            x_t = Dense(self.fac, activation='tanh')(x_t)
             #x_t = Dropout(self.dropout)(x_t)
             b = np.zeros(1, dtype='float32')
             W = np.zeros((self.fac, 1), dtype='float32')
-            x_t = Dense(1, activation='tanh', kernel_regularizer=keras.regularizers.l2(0.02), weights=[W,b], name="cnt")(x_t)
+            x_t = Dense(1, activation='tanh', weights=[W,b], name="cnt")(x_t)
             #x_t = AddConst((self.particle_cnt_dst+1)/self.particle_cnt_dst, name="truncation")(trunc)
 
             trunc = MultConst(1/self.particle_cnt_src)(add(unstack(mask,1)))
