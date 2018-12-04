@@ -181,6 +181,7 @@ void approxmatchLauncher(int b,int n,int m,const float * xyz1,const float * xyz2
 	approxmatch<<<32,512>>>(b,n,m,xyz1,xyz2,match,temp);
 }
 __global__ void matchcost(int b,int n,int m,const float * __restrict__ xyz1,const float * __restrict__ xyz2,const float * __restrict__ match,float * __restrict__ out){
+	__shared__ float allsum[512];
 	const int Block=1024;
 	__shared__ float buf[Block*3];
 	for (int i=blockIdx.x;i<b;i+=gridDim.x){
@@ -195,9 +196,8 @@ __global__ void matchcost(int b,int n,int m,const float * __restrict__ xyz1,cons
 			}
 			for (int l0=0;l0<m;l0+=Block){
 				int lend=min(m,l0+Block)-l0;
-				for (int l=threadIdx.x;l<lend*3;l+=blockDim.x){
+				for (int l=threadIdx.x;l<lend*3;l+=blockDim.x)
 					buf[l]=xyz2[i*m*3+l0*3+l];
-				}
 				__syncthreads();
 				if (k<n){
 					for (int l=0;l<lend;l++){
@@ -210,18 +210,16 @@ __global__ void matchcost(int b,int n,int m,const float * __restrict__ xyz1,cons
 				}
 				__syncthreads();
 			}
-		}    
-		if(threadIdx.x < n)
-			out[i*n + threadIdx.x]=subsum;
-		/*allsum[threadIdx.x]=subsum; 
-		for (int j=1;j<blockDim.x;j<<=1){ 
-		  __syncthreads(); 
-		  if ((threadIdx.x&j)==0 && threadIdx.x+j<blockDim.x){ 
-			allsum[threadIdx.x]+=allsum[threadIdx.x+j]; 
-		  } 
-		} 
-		if (threadIdx.x==0) 
-		  out[i]=allsum[0];*/ 
+		}
+		allsum[threadIdx.x]=subsum;
+		for (int j=1;j<blockDim.x;j<<=1){
+			__syncthreads();
+			if ((threadIdx.x&j)==0 && threadIdx.x+j<blockDim.x){
+				allsum[threadIdx.x]+=allsum[threadIdx.x+j];
+			}
+		}
+		if (threadIdx.x==0)
+			out[i]=allsum[0];
 		__syncthreads();
 	}
 }
@@ -295,4 +293,3 @@ void matchcostgradLauncher(int b,int n,int m,const float * xyz1,const float * xy
 	matchcostgrad1<<<32,512>>>(b,n,m,xyz1,xyz2,match,grad1);
 	matchcostgrad2<<<dim3(32,32),256>>>(b,n,m,xyz1,xyz2,match,grad2);
 }
-

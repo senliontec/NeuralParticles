@@ -21,7 +21,7 @@ import numpy as np
 data_path = getParam("data", "data/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
-gpu = getParam("gpu", "")
+gpu = getParam("gpu", "-1")
 chunk_size = int(getParam("chunk", 100))
 checkpoint = getParam("checkpoint", "")
 
@@ -58,7 +58,7 @@ os.mkdir(tmp_checkpoint_path)
 tmp_eval_path = tmp_folder + "eval/"
 os.mkdir(tmp_eval_path)
 
-if not gpu is "":
+if not gpu is "-1":
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu
 
 with open(config_path, 'r') as f:

@@ -84,8 +84,8 @@ void approxmatch_cpu(int b,int n,int m,const float * xyz1,const float * xyz2,flo
 }
 void matchcost_cpu(int b,int n,int m,const float * xyz1,const float * xyz2,const float * match,float * cost){
 	for (int i=0;i<b;i++){
-		for (int j=0;j<n;j++){
-			double s=0;
+		double s=0;
+		for (int j=0;j<n;j++)
 			for (int k=0;k<m;k++){
 				float x1=xyz1[j*3+0];
 				float y1=xyz1[j*3+1];
@@ -96,12 +96,11 @@ void matchcost_cpu(int b,int n,int m,const float * xyz1,const float * xyz2,const
 				float d=sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1))*match[j*m+k];
 				s+=d;
 			}
-			cost[j]=s;
-		}
+		cost[0]=s;
 		xyz1+=n*3;
 		xyz2+=m*3;
 		match+=n*m;
-		cost+=n;
+		cost+=1;
 	}
 }
 void matchcostgrad_cpu(int b,int n,int m,const float * xyz1,const float * xyz2,const float * match,float * grad1,float * grad2){
@@ -192,7 +191,7 @@ class ApproxMatchOp: public OpKernel{
 			auto xyz2_flat=xyz2_tensor.flat<float>();
 			const float * xyz2=&(xyz2_flat(0));
 			Tensor * match_tensor=NULL;
-			OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b,n,m},&match_tensor));
+			OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b,m,n},&match_tensor));
 			auto match_flat=match_tensor->flat<float>();
 			float * match=&(match_flat(0));
 			approxmatch_cpu(b,n,m,xyz1,xyz2,match);
@@ -217,12 +216,12 @@ class MatchCostGpuOp: public OpKernel{
 			const float * xyz2=&(xyz2_flat(0));
 
 			const Tensor& match_tensor=context->input(2);
-			OP_REQUIRES(context,match_tensor.dims()==3 && match_tensor.shape().dim_size(0)==b && match_tensor.shape().dim_size(1)==n && match_tensor.shape().dim_size(2)==m,errors::InvalidArgument("MatchCost expects (batch_size,#dataset,#query) match shape"));
+			OP_REQUIRES(context,match_tensor.dims()==3 && match_tensor.shape().dim_size(0)==b && match_tensor.shape().dim_size(1)==m && match_tensor.shape().dim_size(2)==n,errors::InvalidArgument("MatchCost expects (batch_size,#query,#dataset) match shape"));
 			auto match_flat=match_tensor.flat<float>();
 			const float * match=&(match_flat(0));
 
 			Tensor * cost_tensor=NULL;
-			OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b,n},&cost_tensor));
+			OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b},&cost_tensor));
 			auto cost_flat=cost_tensor->flat<float>();
 			float * cost=&(cost_flat(0));
 			matchcostLauncher(b,n,m,xyz1,xyz2,match,cost);
@@ -247,12 +246,12 @@ class MatchCostOp: public OpKernel{
 			const float * xyz2=&(xyz2_flat(0));
 
 			const Tensor& match_tensor=context->input(2);
-			OP_REQUIRES(context,match_tensor.dims()==3 && match_tensor.shape().dim_size(0)==b && match_tensor.shape().dim_size(1)==n && match_tensor.shape().dim_size(2)==m,errors::InvalidArgument("MatchCost expects (batch_size,#dataset,#query) match shape"));
+			OP_REQUIRES(context,match_tensor.dims()==3 && match_tensor.shape().dim_size(0)==b && match_tensor.shape().dim_size(1)==m && match_tensor.shape().dim_size(2)==n,errors::InvalidArgument("MatchCost expects (batch_size,#query,#dataset) match shape"));
 			auto match_flat=match_tensor.flat<float>();
 			const float * match=&(match_flat(0));
 
 			Tensor * cost_tensor=NULL;
-			OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b,n},&cost_tensor));
+			OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b},&cost_tensor));
 			auto cost_flat=cost_tensor->flat<float>();
 			float * cost=&(cost_flat(0));
 			matchcost_cpu(b,n,m,xyz1,xyz2,match,cost);
@@ -278,7 +277,7 @@ class MatchCostGradGpuOp: public OpKernel{
 			const float * xyz2=&(xyz2_flat(0));
 
 			const Tensor& match_tensor=context->input(2);
-			OP_REQUIRES(context,match_tensor.dims()==3 && match_tensor.shape().dim_size(0)==b && match_tensor.shape().dim_size(1)==n && match_tensor.shape().dim_size(2)==m,errors::InvalidArgument("MatchCost expects (batch_size,#dataset,#query) match shape"));
+			OP_REQUIRES(context,match_tensor.dims()==3 && match_tensor.shape().dim_size(0)==b && match_tensor.shape().dim_size(1)==m && match_tensor.shape().dim_size(2)==n,errors::InvalidArgument("MatchCost expects (batch_size,#query,#dataset) match shape"));
 			auto match_flat=match_tensor.flat<float>();
 			const float * match=&(match_flat(0));
 
@@ -312,7 +311,7 @@ class MatchCostGradOp: public OpKernel{
 			const float * xyz2=&(xyz2_flat(0));
 
 			const Tensor& match_tensor=context->input(2);
-			OP_REQUIRES(context,match_tensor.dims()==3 && match_tensor.shape().dim_size(0)==b && match_tensor.shape().dim_size(1)==n && match_tensor.shape().dim_size(2)==m,errors::InvalidArgument("MatchCost expects (batch_size,#dataset,#query) match shape"));
+			OP_REQUIRES(context,match_tensor.dims()==3 && match_tensor.shape().dim_size(0)==b && match_tensor.shape().dim_size(1)==m && match_tensor.shape().dim_size(2)==n,errors::InvalidArgument("MatchCost expects (batch_size,#query,#dataset) match shape"));
 			auto match_flat=match_tensor.flat<float>();
 			const float * match=&(match_flat(0));
 
