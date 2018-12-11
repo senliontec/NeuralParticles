@@ -149,7 +149,10 @@ class IISPH:
         # solve pressure
         self.pP.multConst(s=0.5)         # p = 0.5*p_prev
         d_avg, iters, d_err_th = self.sph.density, 0, self.sph.density*self.sph.eta/100.0
+        prev_v = 0
         while ((d_avg - self.sph.density)>d_err_th) or (iters<2):
+            prev_v = d_avg - self.sph.density
+
             sphComputeIisphDijPj(dijpj=self.pDijPj, d=self.pD, p=self.pP, k=self.kern, sph=self.sph, dt=self.s.timestep, itype=self.overFld, jtype=self.overAll)
 
             self.pDtmp.setConst(0.0)
@@ -161,11 +164,13 @@ class IISPH:
             sphComputeIisphD(d_next=self.pDtmp, d_adv=self.pDadv, d=self.pD, p=self.pP, dii=self.pDii, dijpj=self.pDijPj, k=self.kern, sph=self.sph, dt=self.s.timestep, itype=self.overFld, jtype=self.overAll)
             d_avg = self.pDtmp.sum(t=self.pT, itype=self.overFld)/cntPts(t=self.pT, itype=self.overFld)
             iters += 1
-
             # for the safety
-            if iters>999:
-                print('\tFail to converge: d_avg = {} (<{}), iters = {}'.format(d_avg, d_err_th+self.sph.density, iters))
-                sys.exit(0)
+            if iters>200:
+                if (d_avg - self.sph.density) < prev_v + self.sph.eta:
+                    break
+                else:
+                    print('\tFail to converge: d_avg = {} (<{}), iters = {}'.format(d_avg, d_err_th+self.sph.density, iters))
+                    sys.exit(0)
 
         print('\td_avg = {} (<{}), iters = {}'.format(d_avg, d_err_th+self.sph.density, iters))
         ######################################################################

@@ -2,7 +2,7 @@
     "id":             "dat00",
     "prefix":         "mesh",
     "train":          "Patches_noHole_and_collected.h5",
-    "test":           "test/",
+    "test":           "spider/",
     "dim":            3,
     "fps":            120,
     "frame_count":    1,

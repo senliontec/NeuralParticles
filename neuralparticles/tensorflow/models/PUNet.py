@@ -13,7 +13,7 @@ from neuralparticles.tools.data_augmentation import *
 
 from neuralparticles.tools.data_helpers import get_data
 
-from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
+from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss, approx_match, match_cost
 #from neuralparticles.tensorflow.losses.tf_auctionmatch import emd_loss as emd_loss
 from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
 from neuralparticles.tensorflow.layers.add_const_layer import AddConst
@@ -262,9 +262,17 @@ class PUNet(Network):
         if self.use_temp_emd: 
             return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
         else:
+            pred_v0 = pred - pred_p
+            pred_v1 = pred_n - pred
+            gt_v0 = gt - gt_p
+            gt_v1 = gt_n - gt
+
+            match = approx_match(pred, gt)
+            return (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2
+
             #return keras.losses.mse(emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val)), -emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)))
             #return keras.backend.square(emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)) + emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val))) + 0.1 * keras.losses.mse(pred, pred_t)#, emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val))) 
-            return keras.losses.mse(pred, pred_p) + keras.losses.mse(pred, pred_n)
+            #return keras.losses.mse(pred, pred_p) + keras.losses.mse(pred, pred_n)
  
     def trunc_metric(self, y_true, y_pred):
         if y_pred.get_shape()[1] == self.particle_cnt_dst:

@@ -10,29 +10,45 @@ import math
 import time
 from collections import OrderedDict
 
+import keras
+from neuralparticles.tensorflow.models.PUNet import PUNet
+
+from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles, in_bound, get_data, get_nearest_idx
+
 from keras.layers import Input, multiply, concatenate, Conv1D, Lambda, add, Dropout, Dense, Reshape, RepeatVector, Flatten, Permute
 from keras.models import Model, load_model
-from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw
+from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw, readNumpyOBJ
+from neuralparticles.tools.plot_helpers import plot_particles, write_csv
+from neuralparticles.tensorflow.tools.eval_helpers import eval_frame, eval_patch
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module, Interpolate, SampleAndGroup
-from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
+from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss
 
-def extract_xyz(X, **kwargs):
-    return Lambda(lambda x: x[...,:3], **kwargs)(X)
-
-def extract_aux(X, **kwargs):
-    return Lambda(lambda x: x[...,3:], **kwargs)(X)
+dst_path = getParam("dst", "")
 
 data_path = getParam("data", "data/")
 config_path = getParam("config", "config/version_00.txt")
+test_path = getParam("test", "test/")
+verbose = int(getParam("verbose", 0)) != 0
+gpu = getParam("gpu", "")
 
 temp_coh_dt = float(getParam("temp_coh_dt", 0))
 
+checkpoint = int(getParam("checkpoint", -1))
+
+patch_pos = np.fromstring(getParam("patch", ""),sep=",")
+if len(patch_pos) == 2:
+    patch_pos = np.append(patch_pos, [0.5])
+
 checkUnusedParams()
 
-dst_path = data_path + "result/"
+if dst_path == "":
+    dst_path = data_path + "result/"
+
 if not os.path.exists(dst_path):
 	os.makedirs(dst_path)
+
+if not gpu is "":
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu
 
 with open(config_path, 'r') as f:
     config = json.loads(f.read())
@@ -46,96 +62,147 @@ with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
 with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
     train_config = json.loads(f.read())
 
-dst_path += "%s_%s-%s_%s" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id']) + "_d%03d_var%02d/"
+if verbose:
+    print("Config Loaded:")
+    print(config)
+    print(data_config)
+    print(pre_config)
+    print(train_config)
 
-features = train_config['features']
-par_cnt = pre_config['par_cnt']
-par_cnt_dst = pre_config['par_cnt_ref']
-norm_factor = 1.
-fac = train_config['fac']
-l2_reg = train_config['l2_reg']
+dst_path += "%s_%s/" % (test_path[:-1], config['id'])
+
+if verbose:
+    print(dst_path)
+
+pad_val = pre_config['pad_val']
+
 dim = data_config['dim']
 factor_d = math.pow(pre_config['factor'], 1/dim)
+factor_d = np.array([factor_d, factor_d, 1 if dim == 2 else factor_d])
+patch_size = pre_config['patch_size'] * data_config['res'] / factor_d[0]
+patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
+par_cnt = pre_config['par_cnt']
+par_cnt_dst = pre_config['par_cnt_ref']
+
 hres = data_config['res']
-res = int(hres/factor_d)
+res = int(hres/factor_d[0])
 
-point_cnt = 5000
+bnd = data_config['bnd']/factor_d[0]
 
-activation = keras.activations.relu
-inputs = Input((point_cnt, 3 + len(features) + (2 if 'v' in features or 'n' in features else 0)), name="main_input")
-input_xyz = extract_xyz(inputs, name="extract_pos")
-input_points = input_xyz
+half_ps = patch_size_ref//2
 
-if len(features) > 0:
-    input_points = extract_aux(inputs, name="extract_aux")
-    input_points = MultConst(1./norm_factor, name="normalization")(input_points)
-    input_points = concatenate([input_xyz, input_points], axis=-1, name='input_concatenation')
+features = train_config['features']
 
-l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, point_cnt, 0.05, fac*4, 
-                                        [fac*4,
-                                        fac*4,
-                                        fac*8], kernel_regularizer=keras.regularizers.l2(l2_reg), activation=activation)
-l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, point_cnt//2, 0.1, fac*4, 
-                                        [fac*8,
-                                        fac*8,
-                                        fac*16], activation=activation, kernel_regularizer=keras.regularizers.l2(l2_reg))
-l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, point_cnt//4, 0.2, fac*4, 
-                                        [fac*16,
-                                        fac*16,
-                                        fac*32], activation=activation, kernel_regularizer=keras.regularizers.l2(l2_reg))
-l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, point_cnt//8, 0.3, fac*4, 
-                                        [fac*32,
-                                        fac*32,
-                                        fac*64], activation=activation, kernel_regularizer=keras.regularizers.l2(l2_reg))
 
-# interpoliere die features in l2_points auf die Punkte in x
-up_l2_points = pointnet_fp_module(input_xyz, l2_xyz, None, l2_points, [fac*8], kernel_regularizer=keras.regularizers.l2(l2_reg), activation=activation)
-up_l3_points = pointnet_fp_module(input_xyz, l3_xyz, None, l3_points, [fac*8], kernel_regularizer=keras.regularizers.l2(l2_reg), activation=activation)
-up_l4_points = pointnet_fp_module(input_xyz, l4_xyz, None, l4_points, [fac*8], kernel_regularizer=keras.regularizers.l2(l2_reg), activation=activation)
+if checkpoint > 0:
+    model_path = data_path + "models/checkpoints/%s_%s_%02d.h5" % (data_config['prefix'], config['id'], checkpoint)
+else:
+    model_path = data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id'])
 
-x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, input_xyz], axis=-1)
-x_t = x
-l = []
-for i in range(par_cnt_dst//par_cnt):
-    tmp = Conv1D(fac*32, 1, name="expansion_1_"+str(i+1), kernel_regularizer=keras.regularizers.l2(l2_reg), activation=activation)(x)
-    tmp = Conv1D(fac*16, 1, name="expansion_2_"+str(i+1), kernel_regularizer=keras.regularizers.l2(l2_reg), activation=activation)(tmp)
-    l.append(tmp)
-x = concatenate(l, axis=1, name="pixel_conv") if par_cnt_dst//par_cnt > 1 else l[0]
+config_dict = {**data_config, **pre_config, **train_config}
+punet = PUNet(**config_dict)
+punet.load_model(model_path)
 
-x = Conv1D(fac*8, 1, name="coord_reconstruction_1", kernel_regularizer=keras.regularizers.l2(l2_reg), activation=activation)(x)
+print(model_path)
 
-x = Conv1D(3, 1, name="coord_reconstruction_2")(x)
-
-out = x
-
-m = Model(inputs=inputs, outputs=out)
-m.load_weights(data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id']))
-
-samples = glob(data_config['test'] + "*.xyz")
+samples = glob(test_path + "*.obj")
 samples.sort()
 
-for i,item in enumerate(samples):
-    if not os.path.exists(dst_path%(i,0)):
-        os.makedirs(dst_path%(i,0))
-    input = np.loadtxt(item)
-    input = np.expand_dims(input, axis=0)
-    pred = (m.predict(input)[0]+1) * hres/2
-    input = (input[0,:,:3]+1) * res/2
-    
-    hdr = OrderedDict([ ('dim',len(pred)),
-                        ('dimX',hres),
-                        ('dimY',hres),
-                        ('dimZ',1 if dim == 2 else hres),
-                        ('elementType',0),
-                        ('bytesPerElement',16),
-                        ('info',b'\0'*256),
-                        ('timestamp',(int)(time.time()*1e6))])
+positions = None
 
-    writeParticlesUni((dst_path + "result_%03d.uni")%(i,0,0), hdr, pred)
-    hdr['dim'] = len(pred)
-    writeParticlesUni((dst_path + "reference_%03d.uni")%(i,0,0), hdr, pred)
-    hdr['dim'] = len(input)
-    hdr['dimX'] = res
-    hdr['dimY'] = res
-    if dim == 3: hdr['dimZ'] = res
-    writeParticlesUni((dst_path + "source_%03d.uni")%(i,0,0), hdr, input)
+tmp_path = dst_path
+if not os.path.exists(tmp_path):
+    os.makedirs(tmp_path)
+if len(patch_pos) == 3:
+    tmp_path += "patch_%d-%d-%d/" % (patch_pos[0],patch_pos[1],patch_pos[2])
+    if not os.path.exists(tmp_path):
+        os.makedirs(tmp_path)
+
+max_v = 0
+data = None
+
+for i,item in enumerate(samples):
+    d = readNumpyOBJ(item)
+
+    if data is None:
+        data = np.empty((len(samples), d.shape[0], 6))
+    
+    data[i] = d
+        
+data[...,:3] -= np.min(data[...,:3],axis=(0,1))#np.expand_dims(np.min(data[...,:3],axis=1), axis=1)
+data[...,:3] *= (res - 2 * data_config['bnd']) / np.max(data[...,:3])
+data[...,:3] += data_config['bnd']
+
+for i,item in enumerate(data):
+    src_data = item[...,:3]
+    par_aux = {}
+    if i+1 < len(data):
+        src_data_n = data[i+1][...,:3]
+        par_aux['v'] = (src_data_n - src_data) * data_config['fps']
+    else:
+        src_data_p  = data[i-1][...,:3]
+        par_aux['v'] = (src_data - src_data_p) * data_config['fps']
+    par_aux['d'] = np.ones((item.shape[0],1))
+    par_aux['p'] = np.ones((item.shape[0],1))
+
+    patch_extractor = PatchExtractor(src_data, np.zeros((1 if dim == 2 else res, res,res,1)), patch_size, par_cnt, pre_config['surf'], 0 if len(patch_pos) == 3 else 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions, stride_hys=1.0)
+
+    if len(patch_pos) == 3:
+        idx = get_nearest_idx(patch_extractor.positions, patch_pos)
+        patch = patch_extractor.get_patch(idx, False)
+
+        plot_particles(patch_extractor.positions, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%i, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=patch_pos[2] if dim == 3 else None)
+        patch_pos = patch_extractor.positions[idx] + par_aux['v'][patch_extractor.pos_idx[idx]] / data_config['fps']
+        result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%i, z=None if dim == 2 else 0, verbose=3 if verbose else 1)
+       
+        hdr = OrderedDict([ ('dim',len(result)),
+                            ('dimX',int(patch_size_ref)),
+                            ('dimY',int(patch_size_ref)),
+                            ('dimZ',1 if dim == 2 else int(patch_size_ref)),
+                            ('elementType',0),
+                            ('bytesPerElement',16),
+                            ('info',b'\0'*256),
+                            ('timestamp',(int)(time.time()*1e6))])
+
+        result = (result + 1) * 0.5 * patch_size_ref
+        if dim == 2:
+            result[..., 2] = 0.5
+        writeParticlesUni(tmp_path + "result_%03d.uni"%i, hdr, result)
+
+        src = (patch[...,:3] + 1) * 0.5 * patch_size
+        if dim == 2:
+            src[..., 2] = 0.5
+
+        hdr['dim'] = len(src)
+        hdr['dimX'] = int(patch_size)
+        hdr['dimY'] = int(patch_size)
+        
+        writeParticlesUni(tmp_path + "source_%03d.uni"%i, hdr, src)
+
+        print("particles: %d -> %d (fac: %.2f)" % (np.count_nonzero(patch[...,0] != pre_config['pad_val']), len(result), (len(result)/np.count_nonzero(patch[...,0] != pre_config['pad_val']))))
+                
+    else:    
+        positions = patch_extractor.positions + par_aux['v'][patch_extractor.pos_idx] / data_config['fps']
+                
+        plot_particles(patch_extractor.positions, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%i, z=res//2 if dim == 3 else None)
+
+        result = eval_frame(punet, patch_extractor, factor_d[0], tmp_path + "result_%s" + "_%03d"%i, src_data, par_aux, None, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
+
+        hdr = OrderedDict([ ('dim',len(result)),
+                            ('dimX',hres),
+                            ('dimY',hres),
+                            ('dimZ',1 if dim == 2 else hres),
+                            ('elementType',0),
+                            ('bytesPerElement',16),
+                            ('info',b'\0'*256),
+                            ('timestamp',(int)(time.time()*1e6))])
+
+        writeParticlesUni(tmp_path + "result_%03d.uni"%i, hdr, result)
+
+        hdr['dim'] = len(src_data)
+        hdr['dimX'] = res
+        hdr['dimY'] = res
+        if dim == 3: hdr['dimZ'] = res
+        writeParticlesUni(tmp_path + "source_%03d.uni"%i, hdr, src_data)
+
+        print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))

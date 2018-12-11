@@ -176,7 +176,7 @@ for d in range(d_start, d_end):
             #src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
             if real and positions is not None:
                 positions = src_data[positions]
-            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 0 if len(patch_pos) == 3 else 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions)
+            patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 0 if len(patch_pos) == 3 else 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions, stride_hys=1.0)
 
             positions = patch_extractor.pos_idx if real else (patch_extractor.positions + par_aux['v'][patch_extractor.pos_idx] / data_config['fps'])
 
@@ -185,7 +185,7 @@ for d in range(d_start, d_end):
                 patch = patch_extractor.get_patch(idx, False)
                 
                 plot_particles(patch_extractor.positions, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
-                patch_pos = patch_extractor.positions[idx]
+                patch_pos = patch_extractor.positions[idx] + par_aux['v'][patch_extractor.pos_idx[idx]] / data_config['fps']
                 if real:
                     result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, z=None if dim == 2 else 0, verbose=3 if verbose else 1)
                 else:

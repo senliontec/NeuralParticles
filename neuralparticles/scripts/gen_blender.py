@@ -14,6 +14,7 @@ data_path = getParam("data", "data/")
 manta_path = getParam("manta", "neuralparticles/")
 config_path = getParam("config", "config/version_00.txt")
 verbose = int(getParam("verbose", 0)) != 0
+test_path = getParam("test", "")
 
 surface_fac = float(getParam("surface", 0))
 
@@ -44,7 +45,16 @@ with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
 with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
     train_config = json.loads(f.read())
 
-data_path += ("result/%s_%s-%s_%s_d%03d_var%02d" + ("_real/" if real else "/")) % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
+if dataset < 0:
+    dataset = data_config['data_count']
+
+if t_end < 0:
+    t_end = data_config['frame_count']
+
+if test_path != "":
+    data_path += "result/%s_%s/" % (test_path[:-1], config['id'])
+else:   
+    data_path += ("result/%s_%s-%s_%s_d%03d_var%02d" + ("_real/" if real else "/")) % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
 
 if len(patch_pos) == 3:
     data_path += "patch_%d-%d-%d/" % (patch_pos[0],patch_pos[1],patch_pos[2])
@@ -70,12 +80,6 @@ if not os.path.exists(prefix_foam + "result/"):
     os.makedirs(prefix_foam + "result/")
 
 param = {}
-
-if dataset < 0:
-    dataset = data_config['data_count']
-
-if t_end < 0:
-    t_end = data_config['frame_count']
 
 dim = data_config['dim']
 res = data_config['res']

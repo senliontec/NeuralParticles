@@ -81,6 +81,7 @@ if src_path != "":
 	
 if guion:
 	gui = Gui()
+	gui.setCamRot(60,30,0)
 	gui.show()
 	if pause: gui.pause()
 

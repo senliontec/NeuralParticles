@@ -378,7 +378,7 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
 
 
 class PatchExtractor:
-    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=-1, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None, last_pos=None, temp_coh=False):
+    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=-1, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None, last_pos=None, temp_coh=False, stride_hys=0):
         self.src_data = src_data
         self.radius = patch_size/2
         self.cnt = cnt
@@ -404,14 +404,41 @@ class PatchExtractor:
                     p_idx = get_nearest_idx(p, last_pos[i])
                     self.pos_idx[i] = idx[p_idx]
             else:
+                if last_pos is not None:
+                    temp_p = p[:]
+                    temp_idx = idx[:]
+
+                    """dist = np.min(np.linalg.norm(np.expand_dims(p,axis=1)-np.expand_dims(last_pos,axis=0),axis=-1),axis=0)
+                    thres = np.count_nonzero(dist < 0.5)
+                    last_pos = last_pos[np.argsort(dist,axis=0)]
+                    last_pos = last_pos[:thres]"""
+
                 self.pos_idx = np.empty((0,),dtype=int)
                 i = 0
-                while len(p) > 0:
-                    p_idx = 0 if last_pos is None or i >= len(last_pos) else get_nearest_idx(p, last_pos[i])
-                    self.pos_idx = np.append(self.pos_idx, [idx[p_idx]])
-                    r_idx = particle_radius(p, p[p_idx], self.stride)
-                    p = np.delete(p, r_idx, axis=0)
-                    idx = np.delete(idx, r_idx, axis=0)
+                while True:# and (last_pos is None or i < len(last_pos)):
+                    if last_pos is not None and i < len(last_pos):
+                        if len(temp_p) == 0:
+                            break
+                        p_idx = get_nearest_idx(temp_p, last_pos[i]) 
+                        i+=1
+                        self.pos_idx = np.append(self.pos_idx, [temp_idx[p_idx]])
+
+                        small_r_idx = particle_radius(temp_p, temp_p[p_idx], self.stride-stride_hys)
+                        r_idx = particle_radius(p, temp_p[p_idx], self.stride)
+                        
+                        temp_p = np.delete(temp_p, small_r_idx, axis=0)
+                        temp_idx = np.delete(temp_idx, small_r_idx, axis=0)
+
+                        p = np.delete(p, r_idx, axis=0)
+                        idx = np.delete(idx, r_idx, axis=0)
+                    else:
+                        if len(p) == 0:
+                            break
+                        p_idx = 0
+                        self.pos_idx = np.append(self.pos_idx, [idx[p_idx]])
+                        r_idx = particle_radius(p, p[p_idx], self.stride)
+                        p = np.delete(p, r_idx, axis=0)
+                        idx = np.delete(idx, r_idx, axis=0)
 
             self.positions = src_data[self.pos_idx]
         '''p = get_positions(src_data, sdf_data, patch_size, surface, bnd)

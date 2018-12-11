@@ -286,6 +286,38 @@ def writeNumpyXYZ(filename, data):
 	with open(filename + ".xyz", "w") as f:
 		f.writelines(" ".join(str(el) for el in d) + "\n" for d in data)
 
+def readNumpyOBJ(filename):
+	cnt = 0
+	result = None
+	with open(filename, "r") as f:
+		for l in f:
+			data = l.split(" ")
+			if len(data) > 0 and data[0] is "v":
+				cnt += 1
+	
+		result = np.empty((cnt,6))
+	
+	with open(filename, "r") as f:
+		d_i = 0
+		n_i = 0
+		for l in f:
+			data = l.split(" ")
+			if len(data) > 0:
+				if data[0] is "v":
+					result[d_i,:3] = np.array(data[1:])
+					d_i += 1
+				elif data[0] is "vn":
+					result[n_i,3:] = np.array(data[1:])		
+					n_i += 1	
+
+	return result
+	
+def writeNumpyOBJ(filename, data):
+	with open(filename, "w") as f:
+		f.writelines("v " + " ".join(str(el) for el in d) + "\n" for d in data[...,:3])
+		if data.shape[-1] > 3:
+			f.writelines("vn " + " ".join(str(el) for el in d) + "\n" for d in data[...,3:6])
+
 def readNumpyH5(filename, data_key):
 	with h5py.File(filename+'.h5', 'r') as f:
 		return f[data_key][:]
@@ -305,7 +337,9 @@ def readGrid(filename):
         return readNumpyRaw(filename)
 
 def readParticles(filename, data_type=None):
-    if os.path.isfile(filename + ".uni"):
-        return readParticlesUni(filename+".uni", data_type)[1]
-    else:
-        return readNumpyRaw(filename)
+	if os.path.isfile(filename + ".uni"):
+		return readParticlesUni(filename+".uni", data_type)[1]
+	elif os.path.isfile(filename + ".obj"):
+		return readNumpyOBJ(filename+".obj")
+	else:
+		return readNumpyRaw(filename)
