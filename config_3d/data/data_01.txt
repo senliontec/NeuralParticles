@@ -9,7 +9,7 @@
     "sub_res":        2,
     "res":            120,
     "seed":           5234244,
-    "bnd":            1,
+    "bnd":            2,
 
     "modes": 
     [
