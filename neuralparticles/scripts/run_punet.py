@@ -17,7 +17,7 @@ from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, ex
 
 from keras.layers import Input, multiply, concatenate, Conv1D, Lambda, add, Dropout, Dense, Reshape, RepeatVector, Flatten, Permute
 from keras.models import Model, load_model
-from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw, readNumpyOBJ
+from neuralparticles.tools.uniio import writeParticlesUni, readNumpyOBJ
 from neuralparticles.tools.plot_helpers import plot_particles, write_csv
 from neuralparticles.tensorflow.tools.eval_helpers import eval_frame, eval_patch
 from neuralparticles.tools.param_helpers import *

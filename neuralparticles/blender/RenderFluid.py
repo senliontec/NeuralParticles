@@ -6,6 +6,8 @@ import bpy
 import os
 
 # How to call
+#/usr/local/blender-2.79b-linux-glibc219-x86_64/blender SPHOpaqueRender.blend --background --python RenderFluid.py -- -if "//../../3D_data/result/sph_3D_dat00-p00_t02_d010_var00/patch_40-20-30/foam/result/" -o "//../../rendering/patch_temp/result_" -sf 30 -ef 59 -x 512 -y 320 --gpu 0 --type network --cinematic -ps 8
+
 # blender FluidTransparentRender.blend --background --python RenderFluid.py -- -i "//../path/to/obj/" -o "//../path/to/Render_" -sf 0 -ef -1 -x 1024 -y 720 --gpu --type reference
 # blender FluidTransparentRender.blend --background --python RenderFluid.py -- -i "//../path/to/obj/" -o "//../path/to/Render_" -sf 0 -ef -1 -x 1024 -y 720 --gpu --type network --architecture split_pressure
 

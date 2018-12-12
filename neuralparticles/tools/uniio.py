@@ -22,6 +22,7 @@ from datetime import date
 from collections import namedtuple
 import numpy as np
 import h5py
+import re
 
 PY3K = sys.version_info >= (3, 0)
 
@@ -287,30 +288,48 @@ def writeNumpyXYZ(filename, data):
 		f.writelines(" ".join(str(el) for el in d) + "\n" for d in data)
 
 def readNumpyOBJ(filename):
-	cnt = 0
-	result = None
+	vertices = None
+	normals = None
+	faces = None
+	v_cnt = 0
+	n_cnt = 0
+	f_cnt = 0
+	quads = True
 	with open(filename, "r") as f:
-		for l in f:
-			data = l.split(" ")
-			if len(data) > 0 and data[0] is "v":
-				cnt += 1
-	
-		result = np.empty((cnt,6))
-	
-	with open(filename, "r") as f:
-		d_i = 0
-		n_i = 0
 		for l in f:
 			data = l.split(" ")
 			if len(data) > 0:
-				if data[0] is "v":
-					result[d_i,:3] = np.array(data[1:])
-					d_i += 1
-				elif data[0] is "vn":
-					result[n_i,3:] = np.array(data[1:])		
-					n_i += 1	
+				if data[0] == "v":
+					v_cnt += 1
+				elif data[0] == "vn":
+					n_cnt += 1
+				elif data[0] == "f":
+					f_cnt += 1
+					if len(data) < 5:
+						quads = False
+	
+		vertices = np.empty((v_cnt,3))
+		normals = np.empty((n_cnt,3))
+		faces = np.empty((f_cnt,2,4 if quads else 3),dtype=int)
 
-	return result
+	with open(filename, "r") as f:
+		v_i = 0
+		n_i = 0
+		f_i = 0
+		for l in f:
+			data = re.split(" |/", l)
+			if len(data) > 0:
+				if data[0] == "v":
+					vertices[v_i] = np.array(data[1:])
+					v_i += 1
+				elif data[0] == "vn":
+					normals[n_i] = np.array(data[1:])		
+					n_i += 1	
+				elif data[0] == "f":
+					faces[f_i] = np.array([data[1::3],data[3::3]],dtype=int)-1
+					f_i += 1
+
+	return (vertices, normals, faces)
 	
 def writeNumpyOBJ(filename, data):
 	with open(filename, "w") as f:
