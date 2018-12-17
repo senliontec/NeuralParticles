@@ -122,16 +122,25 @@ max_v = 0
 data = None
 
 for i,item in enumerate(samples):
-    d = readNumpyOBJ(item)
+    d = readNumpyOBJ(item)[0]
 
     if data is None:
         data = np.empty((len(samples), d.shape[0], 6))
     
-    data[i] = d
+    data[i,:,:3] = d
         
+print(np.min(data[...,:3],axis=(0,1)))
+print(np.max(data[...,:3],axis=(0,1)))
+print(np.min(data[...,:3]))
+print(np.max(data[...,:3]))
 data[...,:3] -= np.min(data[...,:3],axis=(0,1))#np.expand_dims(np.min(data[...,:3],axis=1), axis=1)
 data[...,:3] *= (res - 2 * data_config['bnd']) / np.max(data[...,:3])
 data[...,:3] += data_config['bnd']
+
+print(np.min(data[...,:3],axis=(0,1)))
+print(np.max(data[...,:3],axis=(0,1)))
+print(np.min(data[...,:3]))
+print(np.max(data[...,:3]))
 
 for i,item in enumerate(data):
     src_data = item[...,:3]

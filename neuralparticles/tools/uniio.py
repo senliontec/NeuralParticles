@@ -311,6 +311,7 @@ def readNumpyOBJ(filename):
 		vertices = np.empty((v_cnt,3))
 		normals = np.empty((n_cnt,3))
 		faces = np.empty((f_cnt,2,4 if quads else 3),dtype=int)
+		#faces = np.empty((f_cnt * (2 if quads else 1),2,3),dtype=int)
 
 	with open(filename, "r") as f:
 		v_i = 0
@@ -327,6 +328,11 @@ def readNumpyOBJ(filename):
 					n_i += 1	
 				elif data[0] == "f":
 					faces[f_i] = np.array([data[1::3],data[3::3]],dtype=int)-1
+					"""if quads:
+						faces[f_i*2] = np.array([[data[1],data[4],data[7]],[data[3],data[6],data[9]]],dtype=int)-1
+						faces[f_i*2+1] = np.array([[data[1],data[7],data[10]],[data[3],data[9],data[12]]],dtype=int)-1
+					else:
+						faces[f_i] = np.array([data[1::3],data[3::3]],dtype=int)-1"""
 					f_i += 1
 
 	return (vertices, normals, faces)

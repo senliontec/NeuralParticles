@@ -50,6 +50,15 @@ parser.add_argument("--cinematic", action="store_true", help="Cinematic camera s
 args = parser.parse_args(argv)  # In this example we wont use the args
 
 
+def check_path(path):
+    if path:
+        if path[:2] == "//":
+            path = path[2:]
+        if not os.path.exists(path):
+            print("Path '%s' doesn't exist!" % path)
+            exit()
+        return True
+    return False
 
 # -----------------------------------------------------------------------------------------------
 def main():
@@ -132,33 +141,33 @@ def main():
     print("\tResolution: {}x{}".format(scene.render.resolution_x, scene.render.resolution_y))
 
     # Fluid Object Input
-    if args.surface_path:
+    if check_path(args.surface_path):
         bpy.data.objects["Surface"].hide_render = False
         bpy.data.objects["Surface"].modifiers["Fluidsim"].settings.filepath = args.surface_path
         print("Fluid Input Path: {}".format(bpy.data.objects["Surface"].modifiers["Fluidsim"].settings.filepath))
 
-    if args.foam_path:
+    if check_path(args.foam_path):
         bpy.data.objects["Foam"].hide_render = False
         bpy.data.objects["Foam"].modifiers["Fluidsim"].settings.filepath = args.foam_path
         print("Fluid Input Path: {}".format(bpy.data.objects["Foam"].modifiers["Fluidsim"].settings.filepath))
         
         bpy.data.objects["Particle"].scale *= args.particle_scale
 
-    if args.foam_coarse_path:
+    if check_path(args.foam_coarse_path):
         bpy.data.objects["FoamCoarse"].hide_render = False
         bpy.data.objects["FoamCoarse"].modifiers["Fluidsim"].settings.filepath = args.foam_coarse_path
         print("Fluid Input Path: {}".format(bpy.data.objects["FoamCoarse"].modifiers["Fluidsim"].settings.filepath))
 
         bpy.data.objects["ParticleCoarse"].scale *= args.particle_scale
 
-    if args.foam_ref_path:
+    if check_path(args.foam_ref_path):
         bpy.data.objects["FoamRef"].hide_render = False
         bpy.data.objects["FoamRef"].modifiers["Fluidsim"].settings.filepath = args.foam_ref_path
         print("Fluid Input Path: {}".format(bpy.data.objects["FoamRef"].modifiers["Fluidsim"].settings.filepath))
 
         bpy.data.objects["ParticleRef"].scale *= args.particle_scale
 
-    if args.foam_src_path:
+    if check_path(args.foam_src_path):
         bpy.data.objects["FoamSrc"].hide_render = False
         bpy.data.objects["FoamSrc"].modifiers["Fluidsim"].settings.filepath = args.foam_src_path
         print("Fluid Input Path: {}".format(bpy.data.objects["FoamSrc"].modifiers["Fluidsim"].settings.filepath))
