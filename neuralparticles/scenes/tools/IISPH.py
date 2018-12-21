@@ -53,6 +53,9 @@ class IISPH:
         self.gCnt     = self.s.create(IntGrid)
         self.gFlags   = self.s.create(FlagGrid)
         self.neighbor = self.s.create(ParticleNeighbors)
+
+        # boundary setup
+        self.gFlags.initDomain(self.bnd-1)
         
         self.pT = self.pp.create(PdataInt)        # particle type
         self.pV = self.pp.create(PdataVec3)       # velocity
@@ -77,9 +80,6 @@ class IISPH:
 
     def init_fluid(self, init_phi):
         self.pp.clear()
-
-        # boundary setup
-        self.gFlags.initDomain(self.bnd-1)
 
         begin = self.pp.pySize()
         sampleFlagsWithParticles(flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0, ftype=2)
@@ -152,6 +152,9 @@ class IISPH:
         prev_v = 0
         while ((d_avg - self.sph.density)>d_err_th) or (iters<2):
             prev_v = d_avg - self.sph.density
+            print(d_avg)
+            print((d_avg - self.sph.density))
+            print(d_err_th)
 
             sphComputeIisphDijPj(dijpj=self.pDijPj, d=self.pD, p=self.pP, k=self.kern, sph=self.sph, dt=self.s.timestep, itype=self.overFld, jtype=self.overAll)
 

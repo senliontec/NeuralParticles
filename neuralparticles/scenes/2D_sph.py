@@ -124,6 +124,7 @@ if cube_cnt == 0 and sphere_cnt == 0:
 	fld = iisph.s.create(Box, center=iisph.gs*vec3(0.5,0.1,0.5), size=iisph.gs*vec3(1.0, 0.1,1))
 	init_phi.join(fld.computeLevelset())
 
+init_phi.setBound(bnd)
 iisph.init_fluid(init_phi)
 
 if not wltstrength == 0:

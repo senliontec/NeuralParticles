@@ -71,6 +71,8 @@ class PUNet(Network):
         self.temp_coh = tmp_w[1] > 0.0
         self.truncate = tmp_w[2] > 0.0
 
+        self.acc_fac = kwargs.get("acc_fac")
+
         if self.temp_coh:
             self.loss_weights.append(tmp_w[1])
         
@@ -249,7 +251,7 @@ class PUNet(Network):
             self.train_model = self.model
         
     def mask_loss(self, y_true, y_pred):
-        loss = 0#get_repulsion_loss4(y_pred)
+        loss = get_repulsion_loss4(y_pred)
         return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
 
     def trunc_loss(self, y_true, y_pred):
@@ -262,13 +264,17 @@ class PUNet(Network):
         if self.use_temp_emd: 
             return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
         else:
+            #return keras.losses.mse(pred, pred_n)
+            #return keras.losses.mse(pred-pred_p, pred_n-pred)
             pred_v0 = pred - pred_p
             pred_v1 = pred_n - pred
             gt_v0 = gt - gt_p
             gt_v1 = gt_n - gt
+            pred_a = pred_v1 - pred_v0
+            gt_a = gt_v1 - gt_v0
 
             match = approx_match(pred, gt)
-            return (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2
+            return (1 - self.acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + self.acc_fac * match_cost(pred_a, gt_a, match)
 
             #return keras.losses.mse(emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val)), -emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)))
             #return keras.backend.square(emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)) + emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val))) + 0.1 * keras.losses.mse(pred, pred_t)#, emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val))) 
@@ -281,7 +287,7 @@ class PUNet(Network):
 
     def particle_metric(self, y_true, y_pred):
         if y_pred.get_shape()[1] == self.particle_cnt_dst:    
-            return self.mask_loss(y_true, y_pred)
+            return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
         elif y_pred.get_shape()[1] == self.particle_cnt_dst*2:
             return self.temp_loss(y_true, y_pred)
         else:           

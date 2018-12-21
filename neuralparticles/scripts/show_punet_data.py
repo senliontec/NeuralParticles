@@ -60,7 +60,7 @@ if show_results:
     param['in'] = data_path + "result_%03d.uni"
     if not show_temp_coh:
         param['src'] = data_path + "source_%03d.uni"
-        #param['ref'] = data_path + "result/%sreference" % test_path + "_%03d.uni"
+        param['ref'] = data_path + "reference_%03d.uni"
 else:
     pass
 
