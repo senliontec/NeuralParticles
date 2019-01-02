@@ -12,6 +12,8 @@
     "epochs":             10,
     "dropout":            0.0,
     "loss_weights":       [1.0,0.0,1.0],
+    "repulsion":          0.0,
+    "acc_fac":            0.8,
     "mask":               true,
     "residual":           false,
     "use_temp_emd":       false,

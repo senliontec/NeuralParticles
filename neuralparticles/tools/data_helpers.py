@@ -376,6 +376,20 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
     
     return [main, aux] if len(features) > 0 else [main], [reference, ref_aux] if len(features_ref) > 0 else [reference], pos
 
+def eval_output_clusterness(src, res):
+    from scipy.optimize import linear_sum_assignment
+
+    fac = res.shape[0] // src.shape[0]
+    res = np.reshape(res, (fac, res.shape[0]//fac, 3))
+    r_mean = np.mean(res, axis=0)
+    r_mean_dev = np.mean(np.linalg.norm(res-r_mean,axis=-1))
+    r_min_dev = np.mean(np.min(np.linalg.norm(res-r_mean,axis=-1),axis=0))
+    r_max_dev = np.mean(np.max(np.linalg.norm(res-r_mean,axis=-1),axis=0))
+    in_r_diff = np.mean(np.linalg.norm(r_mean-src, axis=-1))
+
+    cost = np.linalg.norm(np.expand_dims(r_mean, axis=0) - np.expand_dims(src, axis=1), axis=-1)
+    row_ind, col_ind = linear_sum_assignment(cost)
+    in_r_emd = cost[row_ind, col_ind].sum()
 
 class PatchExtractor:
     def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=-1, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None, last_pos=None, temp_coh=False, stride_hys=0):

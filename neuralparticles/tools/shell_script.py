@@ -2,10 +2,10 @@ import os
 from subprocess import Popen, PIPE
 
 def manta_script(manta_path, path):
-    return "%s/build/manta %s%s" % (manta_path, path)
+    return "%s/manta %s%s" % (manta_path, path)
 
 def run_manta(manta_path, scene, param={},verbose=False,logfile=""):
-    command = [manta_path+"build/manta", manta_path+scene]
+    command = [manta_path+"manta", manta_path + "../" + scene]
 
     for k, v in param.items():
         command += [k, str(v)]

@@ -31,12 +31,8 @@ A_r = np.array([
     [+0.,+0.,-1.,+1.]
 ])
 
-manta_path = getParam("manta", "neuralparticles/")
-verbose = int(getParam("verbose", 0)) != 0
 mesh_path = getParam("mesh", "mesh/")
 config_path = getParam("config", "config/version_00.txt")
-gui = int(getParam("gui", 0))
-pause = int(getParam("pause", 0))
 res = int(getParam("res", -1))
 
 checkUnusedParams()

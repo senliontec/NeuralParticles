@@ -72,6 +72,7 @@ class PUNet(Network):
         self.truncate = tmp_w[2] > 0.0
 
         self.acc_fac = kwargs.get("acc_fac")
+        self.repulsion = kwargs.get("repulsion")
 
         if self.temp_coh:
             self.loss_weights.append(tmp_w[1])
@@ -251,8 +252,11 @@ class PUNet(Network):
             self.train_model = self.model
         
     def mask_loss(self, y_true, y_pred):
-        loss = get_repulsion_loss4(y_pred)
+        loss = 0
+        if self.repulsion > 0:
+            loss += get_repulsion_loss4(y_pred) * self.repulsion
         return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
+
 
     def trunc_loss(self, y_true, y_pred):
         return keras.losses.mse(1, y_pred/y_true)

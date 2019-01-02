@@ -43,11 +43,13 @@ def select_child_mesh(obj):
     for c in obj.children:
         if c.type == "MESH":
             c.select = True
-            select_child_mesh(c)
+        select_child_mesh(c)
 
 obj = bpy.data.objects[args.object]
 obj.animation_data.action = bpy.data.actions[args.animation]
 
+for ob in bpy.context.selected_objects:
+    ob.select = False
 select_child_mesh(obj)
 
 t_start, t_end = get_keyframe(bpy.data.actions[args.animation])

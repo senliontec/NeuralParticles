@@ -10,6 +10,10 @@ import math
 import time
 from collections import OrderedDict
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 import keras
 from neuralparticles.tensorflow.models.PUNet import PUNet
 
