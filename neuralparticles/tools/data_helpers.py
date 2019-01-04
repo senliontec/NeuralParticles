@@ -376,20 +376,60 @@ def gen_patches(data_path, config_path, d_start=0, d_stop=None, t_start=0, t_sto
     
     return [main, aux] if len(features) > 0 else [main], [reference, ref_aux] if len(features_ref) > 0 else [reference], pos
 
-def eval_output_clusterness(src, res):
+def cluster_analysis(src, res, res_cnt, permute):
     from scipy.optimize import linear_sum_assignment
+            
+    pnt_cnt = int(np.count_nonzero(src[...,1] != -2.0))
 
-    fac = res.shape[0] // src.shape[0]
-    res = np.reshape(res, (fac, res.shape[0]//fac, 3))
-    r_mean = np.mean(res, axis=0)
-    r_mean_dev = np.mean(np.linalg.norm(res-r_mean,axis=-1))
-    r_min_dev = np.mean(np.min(np.linalg.norm(res-r_mean,axis=-1),axis=0))
-    r_max_dev = np.mean(np.max(np.linalg.norm(res-r_mean,axis=-1),axis=0))
-    in_r_diff = np.mean(np.linalg.norm(r_mean-src, axis=-1))
+    r_mean_dev = 0
+    r_min_dev = 0
+    r_max_dev = 0
+    in_r_diff = 0
+    in_r_emd = 0
+
+    if permute:
+        fac = res.shape[0]//src.shape[0]
+
+        pnt_cnt = min(pnt_cnt, res_cnt//fac)
+
+        r_mean = np.zeros((pnt_cnt, src.shape[-1]))
+        res = res[:res_cnt]
+
+        for i in range(pnt_cnt):
+            tmp = res[i*fac:(i+1)*fac]
+            r_mean[i] = np.mean(tmp, axis=0)
+            r_mean_dev += np.mean(np.linalg.norm(r_mean[i]-tmp, axis=-1))
+            r_min_dev += np.min(np.linalg.norm(r_mean[i]-tmp, axis=-1))
+            r_max_dev += np.max(np.linalg.norm(r_mean[i]-tmp, axis=-1))
+            in_r_diff += np.linalg.norm(src[i]-r_mean[i])
+    
+    else:
+        fac = math.ceil(res_cnt/src.shape[0])
+        r_mean = np.zeros((pnt_cnt, src.shape[-1]))
+        res = res[:res_cnt]
+        
+        for i in range(pnt_cnt):
+            tmp = res[i:i+fac*src.shape[0]:src.shape[0]]
+            r_mean[i] = np.mean(tmp, axis=0)
+            r_mean_dev += np.mean(np.linalg.norm(r_mean[i]-tmp, axis=-1))
+            r_min_dev += np.min(np.linalg.norm(r_mean[i]-tmp, axis=-1))
+            r_max_dev += np.max(np.linalg.norm(r_mean[i]-tmp, axis=-1))
+            in_r_diff += np.linalg.norm(src[i]-r_mean[i])
+
+    src = src[:pnt_cnt]
+
+    r_mean_dev /= pnt_cnt
+    r_min_dev /= pnt_cnt
+    r_max_dev /= pnt_cnt
+    in_r_diff /= pnt_cnt
+
 
     cost = np.linalg.norm(np.expand_dims(r_mean, axis=0) - np.expand_dims(src, axis=1), axis=-1)
     row_ind, col_ind = linear_sum_assignment(cost)
-    in_r_emd = cost[row_ind, col_ind].sum()
+
+    in_r_emd = np.mean(cost[row_ind, col_ind])
+
+    return r_mean_dev, r_min_dev, r_max_dev, in_r_diff, in_r_emd
 
 class PatchExtractor:
     def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=-1, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None, last_pos=None, temp_coh=False, stride_hys=0):
@@ -512,3 +552,36 @@ class PatchExtractor:
 
     def set_patches(self, patches):
         self.data = np.concatenate((self.data, np.concatenate(self.transform_patch(patches, np.expand_dims(self.positions,axis=1)))))
+
+if __name__ == "__main__":
+    from .plot_helpers import plot_particles
+
+    permute = False
+    fac = 9
+    fac_d = math.sqrt(fac)
+
+    patch_size = 10
+
+    np.random.seed(3)
+    src = np.random.random((patch_size*patch_size//2,2))
+    src[:,1] *= 0.5
+
+    src[-5:] = -2
+
+    gt = np.random.random((src.shape[0]*fac,2))
+    gt[:,1] *= 0.5
+
+    tmp = np.repeat(src, fac, axis=0)
+    displace = (np.transpose(np.reshape(np.mgrid[:fac_d,:fac_d] + 0.5,(2,-1))) / fac_d - 0.5) / patch_size
+    displace = np.concatenate(np.repeat(np.expand_dims(displace, axis=0), src.shape[0], axis=0))
+        
+    reg = tmp + displace * np.array([1.,1.])
+
+    if not permute:
+        reg = np.reshape(reg, (src.shape[0], fac, 2))
+        reg = np.reshape(np.transpose(reg, (1,0,2)), (-1,2))
+
+    print(cluster_analysis(src, gt, 400, permute))
+    print(cluster_analysis(src, reg, 400, permute))
+
+    plot_particles(reg, src=src, xlim=[0,1], ylim=[0,1], ref=gt, s=5)

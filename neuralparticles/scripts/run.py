@@ -90,18 +90,6 @@ dst_path += "%s_%s-%s_%s" % (data_config['prefix'], data_config['id'], pre_confi
 if t_end < 0:
     t_end = data_config['frame_count']
 
-def write_out_particles(particles, d, v, t, suffix, xlim=None, ylim=None, s=5, z=None):
-    writeNumpyRaw((dst_path + suffix + "_%03d")%(d,v,t), particles)
-    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%(d,v,t), z=z)
-    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%(d,v,t), z=z)
-    write_csv((dst_path + suffix + "_%03d.csv")%(d,v,t), particles)
-
-def write_out_vel(particles, vel, d, v, t, suffix, xlim=None, ylim=None, s=5, z=None):
-    writeNumpyRaw((dst_path + suffix + "_%03d")%(d,v,t), vel)
-    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%(d,v,t), src=particles, vel=vel, z=z)
-    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%(d,v,t), src=particles, vel=vel, z=z)
-    write_csv((dst_path + suffix + "_%03d.csv")%(d,v,t), vel)
-
 if verbose:
     print(dst_path)
     print(t_start)
@@ -126,6 +114,21 @@ half_ps = patch_size_ref//2
 #border = int(math.ceil(half_ps-(patch_size//2*factor_2D)))
 
 features = train_config['features']
+
+
+def write_out_particles(particles, d, v, t, suffix, xlim=None, ylim=None, s=5, z=None):
+    writeNumpyRaw((dst_path + suffix + "_%03d")%(d,v,t), particles)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%(d,v,t), z=z)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%(d,v,t), z=z)
+    write_csv((dst_path + suffix + "_%03d.csv")%(d,v,t), particles)
+
+def write_out_vel(particles, vel, d, v, t, suffix, xlim=None, ylim=None, s=5, z=None):
+    writeNumpyRaw((dst_path + suffix + "_%03d")%(d,v,t), vel)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%(d,v,t), src=particles, vel=vel, z=z)
+    plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%(d,v,t), src=particles, vel=vel, z=z)
+    write_csv((dst_path + suffix + "_%03d.csv")%(d,v,t), vel)
+
+
 
 if checkpoint > 0:
     model_path = data_path + "models/checkpoints/%s_%s_%02d.h5" % (data_config['prefix'], config['id'], checkpoint)

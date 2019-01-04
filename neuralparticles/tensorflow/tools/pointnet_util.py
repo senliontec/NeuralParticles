@@ -17,7 +17,7 @@ import numpy as np
 import keras
 import keras.backend as K
 
-from keras.layers import Conv1D, Conv2D, Lambda, multiply, MaxPool2D, concatenate, Reshape
+from keras.layers import Conv1D, Conv2D, Lambda, multiply, MaxPool2D, concatenate, Reshape, Dropout
 
 def sample_and_group(npoint, radius, nsample, xyz, points, tnet_spec=None, knn=False, use_xyz=True):
     '''
@@ -100,7 +100,7 @@ class SampleAndGroup(keras.layers.Layer):
         config['nsample'] = self.nsample
         return config
 
-def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mask_val=None, **kwargs):
+def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mask_val=None, dropout=0.0, **kwargs):
     ''' PointNet Set Abstraction (SA) Module
         Input:
             xyz: (batch_size, ndataset, 3) TF tensor
@@ -125,6 +125,7 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mask_val=None,
         mask = zero_mask(new_points, mask_val, name="mask_1")
 
     for num_out_channel in mlp:
+        new_points = Dropout(dropout)(new_points)
         new_points = Conv2D(num_out_channel, 1, **kwargs)(new_points)
 
     if mask_val is not None:
@@ -149,7 +150,7 @@ class Interpolate(keras.layers.Layer):
         weight = (1.0/dist) / norm
         return three_interpolate(X[0], idx, weight)
 
-def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, **kwargs):
+def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, dropout=0.0, **kwargs):
     ''' PointNet Feature Propogation (FP) Module
         Input:                                                                                                      
             xyz1: (batch_size, ndataset1, 3) TF tensor                                                              
@@ -167,6 +168,8 @@ def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, **kwargs):
         new_points1 = interpolated_points
 
     for num_out_channel in mlp:
+        if dropout > 0.0:
+            new_points1 = Dropout(dropout)(new_points1)
         new_points1 = Conv1D(num_out_channel, 1, **kwargs)(new_points1)
 
     return new_points1

@@ -89,6 +89,7 @@ class PUNet(Network):
 
         self.use_temp_emd = kwargs.get("use_temp_emd")
         self.residual = kwargs.get("residual")
+        self.permutate = kwargs.get("permutate")
 
     def _init_optimizer(self, epochs=1):
         self.optimizer = keras.optimizers.adam(lr=self.learning_rate, decay=self.decay)
@@ -113,22 +114,13 @@ class PUNet(Network):
 
 
         l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.25, self.fac*4, 
-                                               [self.fac*4,
-                                                self.fac*4,
-                                                self.fac*8], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
+                                               [self.fac*4, self.fac*4, self.fac*8], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
         l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, self.particle_cnt_src//2, 0.5, self.fac*4, 
-                                               [self.fac*8,
-                                                self.fac*8,
-                                                self.fac*16], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
+                                               [self.fac*8, self.fac*8, self.fac*16], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
         l3_xyz, l3_points = pointnet_sa_module(l2_xyz, l2_points, self.particle_cnt_src//4, 0.6, self.fac*4, 
-                                               [self.fac*16,
-                                                self.fac*16,
-                                                self.fac*32], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
+                                               [self.fac*16, self.fac*16, self.fac*32], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
         l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, self.particle_cnt_src//8, 0.7, self.fac*4, 
-                                               [self.fac*32,
-                                                self.fac*32,
-                                                self.fac*64], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
-
+                                               [self.fac*32, self.fac*32, self.fac*64], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
 
         if self.mask:
             mask = zero_mask(input_xyz, self.pad_val, name="mask_2")
@@ -150,11 +142,14 @@ class PUNet(Network):
         x_t = x
         l = []
         for i in range(self.particle_cnt_dst//self.particle_cnt_src):
-            tmp = Conv1D(self.fac*32, 1, name="expansion_1_"+str(i+1), kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)(x)
+            tmp = Dropout(self.dropout)(x)
+            tmp = Conv1D(self.fac*32, 1, name="expansion_1_"+str(i+1), kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)(tmp)
+            tmp = Dropout(self.dropout)(tmp)
             tmp = Conv1D(self.fac*16, 1, name="expansion_2_"+str(i+1), kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)(tmp)
             l.append(tmp)
         x = concatenate(l, axis=1, name="pixel_conv") if self.particle_cnt_dst//self.particle_cnt_src > 1 else l[0]
-
+            
+        x = Dropout(self.dropout)(x)
         x = Conv1D(self.fac*8, 1, name="coord_reconstruction_1", kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)(x)
 
         b = np.zeros((3,), dtype='float32')
@@ -162,11 +157,6 @@ class PUNet(Network):
         x = Conv1D(3, 1, name="coord_reconstruction_2")(x)#, weights=[W,b])(x)
         
         out = x
-        
-        if self.truncate:
-            out = Reshape((self.particle_cnt_dst//self.particle_cnt_src, self.particle_cnt_src, 3))(out)
-            out = Permute((2,1,3))(out)
-            out = Reshape((self.particle_cnt_dst, 3))(out)
 
         if self.residual:
             x = Flatten()(input_xyz_m)
@@ -175,47 +165,27 @@ class PUNet(Network):
 
             out = add([x, out])
 
+        if self.permutate:
+            out = Reshape((self.particle_cnt_dst//self.particle_cnt_src*1, self.particle_cnt_src//1, 3))(out)
+            out = Permute((2,1,3))(out)
+            out = Reshape((self.particle_cnt_dst, 3))(out)
+
         if self.truncate:
-            x_t = Conv1D(self.fac*4, 1)(input_points)
+            x_t = Dropout(self.dropout)(input_points)
             x_t = Conv1D(self.fac*4, 1)(x_t)
-
-            '''out_mask = []
-            for i in range(self.particle_cnt_dst//self.particle_cnt_src): 
-                tmp = unstack(l[i], 1, name='unstack_%d'%(i+1))
-                tmp = add(tmp, name='merge_features_%d'%(i+1))
-
-                tmp = Dense(self.fac, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), name="truncation_%d"%(i+1))(tmp)
-                #x_t = Dropout(self.dropout)(x_t)
-                b = np.zeros(1, dtype='float32')
-                W = np.zeros((self.fac, 1), dtype='float32')
-                tmp = Dense(1, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), weights=[W,b], name="cnt_%d"%(i+1))(tmp)
-                l[i] = AddConst((self.particle_cnt_src+1)/self.particle_cnt_src)(tmp)
-                out_mask.append(soft_trunc_mask(l[i], self.particle_cnt_src, name="truncation_mask_%d"%(i+1)))
-            trunc = concatenate(l, 1, name="cnt")
-            out_mask = concatenate(out_mask, axis=1, name="truncation_mask")'''
-
-            #if self.mask:
-            #    x_t = multiply([x_t, mask])
+            x_t = Dropout(self.dropout)(x_t)
+            x_t = Conv1D(self.fac*4, 1)(x_t)
 
             x_t = unstack(x_t, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
 
-
-            """#x_t = Dropout(self.dropout)(x_t)
-            x_t = Dense(self.fac, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02))(x_t)
-            #x_t = Dropout(self.dropout)(x_t)
-            b = np.zeros(1, dtype='float32')
-            W = np.zeros((self.fac, 1), dtype='float32')
-            trunc = Dense(1, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), weights=[W,b], name="cnt")(x_t)
-            trunc = AddConst((self.particle_cnt_dst+1)/self.particle_cnt_dst, name="truncation")(trunc)"""
-
-
+            x_t = Dropout(self.dropout)(x_t)
             x_t = Dense(self.fac, activation='tanh')(x_t)
-            #x_t = Dropout(self.dropout)(x_t)
+
             b = np.zeros(1, dtype='float32')
             W = np.zeros((self.fac, 1), dtype='float32')
+            x_t = Dropout(self.dropout)(x_t)
             x_t = Dense(1, activation='tanh', weights=[W,b], name="cnt")(x_t)
-            #x_t = AddConst((self.particle_cnt_dst+1)/self.particle_cnt_dst, name="truncation")(trunc)
 
             trunc = MultConst(1/self.particle_cnt_src)(add(unstack(mask,1)))
 
@@ -223,13 +193,22 @@ class PUNet(Network):
 
             out_mask = soft_trunc_mask(trunc, self.particle_cnt_dst, name="truncation_mask")
 
+            """out_mask = Reshape((self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src))(out_mask)
+            out_mask = Permute((2,1))(out_mask)"""
+            out_mask = Reshape((self.particle_cnt_dst, 1))(out_mask)
+
             self.trunc_model = Model(inputs=inputs, outputs=trunc)
-            out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)], name="masked_coords")
+            out = multiply([out, out_mask], name="masked_coords")
             self.model = Model(inputs=inputs, outputs=[out,trunc])
         else:
             if self.mask:# or True:
                 out_mask = RepeatVector(self.particle_cnt_dst//self.particle_cnt_src)(Flatten()(mask))
-                out = multiply([out, Reshape((self.particle_cnt_dst,1))(out_mask)])
+
+                out_mask = Reshape((self.particle_cnt_dst//self.particle_cnt_src, self.particle_cnt_src))(out_mask)
+                out_mask = Permute((2,1))(out_mask)
+                out_mask = Reshape((self.particle_cnt_dst, 1))(out_mask)
+
+                out = multiply([out, out_mask])
             self.model = Model(inputs=inputs, outputs=[out])
 
         if self.temp_coh:
@@ -251,25 +230,24 @@ class PUNet(Network):
         else:
             self.train_model = self.model
         
+
     def mask_loss(self, y_true, y_pred):
         loss = 0
         if self.repulsion > 0:
-            loss += get_repulsion_loss4(y_pred) * self.repulsion
+            #loss += get_repulsion_loss4(y_pred) * self.repulsion
+            loss += self.cluster_loss(y_pred) * self.repulsion
         return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
 
 
     def trunc_loss(self, y_true, y_pred):
         return keras.losses.mse(1, y_pred/y_true)
 
+
     def temp_loss(self, y_true, y_pred):
         import tensorflow as tf
         pred, pred_p, pred_n = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
         gt, gt_p, gt_n = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
         if self.use_temp_emd: 
-            return keras.losses.mse(emd_loss(pred, pred_t), emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val)))
-        else:
-            #return keras.losses.mse(pred, pred_n)
-            #return keras.losses.mse(pred-pred_p, pred_n-pred)
             pred_v0 = pred - pred_p
             pred_v1 = pred_n - pred
             gt_v0 = gt - gt_p
@@ -279,11 +257,29 @@ class PUNet(Network):
 
             match = approx_match(pred, gt)
             return (1 - self.acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + self.acc_fac * match_cost(pred_a, gt_a, match)
+        else:
+            #return keras.losses.mse(pred, pred_n)
+            return (1 - self.acc_fac) * keras.losses.mse(pred, pred_n) + self.acc_fac * keras.losses.mse(pred-pred_p, pred_n-pred)
 
             #return keras.losses.mse(emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val)), -emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)))
             #return keras.backend.square(emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)) + emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val))) + 0.1 * keras.losses.mse(pred, pred_t)#, emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val))) 
             #return keras.losses.mse(pred, pred_p) + keras.losses.mse(pred, pred_n)
  
+    def cluster_loss(self, y_pred): 
+        mask = zero_mask(y_pred, 0.0)
+        if self.permutate:
+            y_pred = keras.backend.reshape(y_pred, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 3))
+            group_mean = keras.backend.mean(y_pred, axis=2, keepdims=True)
+            mask = keras.backend.reshape(mask, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src))
+            mask = keras.backend.sum(mask, axis=2)
+        else:
+            y_pred = keras.backend.reshape(y_pred, (-1, self.particle_cnt_dst//self.particle_cnt_src, self.particle_cnt_src, 3))
+            group_mean = keras.backend.mean(y_pred, axis=1, keepdims=True)
+            mask = keras.backend.reshape(mask, (-1, self.particle_cnt_dst//self.particle_cnt_src, self.particle_cnt_src))
+            mask = keras.backend.sum(mask, axis=1)
+        return keras.backend.mean(mask/(keras.backend.sum(keras.backend.sqrt(keras.backend.sum(keras.backend.square(group_mean - y_pred), axis=-1)+1e-8), axis=-1)), axis=-1)
+
+
     def trunc_metric(self, y_true, y_pred):
         if y_pred.get_shape()[1] == self.particle_cnt_dst:
             return keras.losses.mse(keras.backend.sum(zero_mask(y_true, self.pad_val),axis=-2)/self.particle_cnt_dst,keras.backend.sum(zero_mask(y_pred, 0.0),axis=-2)/self.particle_cnt_dst)
@@ -300,11 +296,11 @@ class PUNet(Network):
     def repulsion_metric(self, y_true, y_pred):
         if y_pred.get_shape()[1] > self.particle_cnt_dst:    
             pred = y_pred[:,:self.particle_cnt_dst]
-            return repulsion_loss(pred)
+            return self.cluster_loss(y_pred)
         elif y_pred.get_shape()[1] < self.particle_cnt_dst:
             return keras.losses.mse(y_true, y_pred)
         else:
-            return repulsion_loss(y_pred)
+            return self.cluster_loss(y_pred)
 
     def compile_model(self):
         loss = [self.mask_loss]
@@ -314,29 +310,13 @@ class PUNet(Network):
         if self.truncate:
             loss.append(self.trunc_loss)
             self.trunc_model.compile(loss=self.trunc_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
-            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric])
+            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.repulsion_metric])
         else:
-            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric])
+            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric, self.repulsion_metric])
 
     def _train(self, epochs, **kwargs):
         callbacks = kwargs.get("callbacks", [])
         if "generator" in kwargs:
-            '''self.train_model.trainable = False
-            self.trunc_model.trainable = True
-            tmp_w = self.loss_weights
-            self.loss_weights[0] = 0.0
-            self.loss_weights[1] = 0.0
-            self.compile_model()
-            self.trunc_model.summary()
-            self.train_model.summary()
-            self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1, verbose=1, callbacks=callbacks, epochs=epochs, shuffle=False)
-
-            self.trunc_model.trainable = False
-            self.train_model.trainable = True
-            self.loss_weights[0] = tmp_w[0]
-            self.loss_weights[1] = tmp_w[1]
-            self.loss_weights[2] = 0.0
-            self.compile_model()'''
             return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1, verbose=1, callbacks=callbacks, epochs=epochs, shuffle=False)
         else:
             src_data = kwargs.get("src")

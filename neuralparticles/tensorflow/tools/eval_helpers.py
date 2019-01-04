@@ -3,7 +3,7 @@ import tensorflow as tf
 import numpy as np
 
 from neuralparticles.tools.plot_helpers import plot_particles, write_csv
-from neuralparticles.tools.data_helpers import PatchExtractor
+from neuralparticles.tools.data_helpers import PatchExtractor, cluster_analysis
 
 import io, os
 
@@ -11,22 +11,17 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0, tr
     result = model.predict(src)
 
     if type(result) is list:
-        '''cnt = (np.clip(result[1][0], 0, 1) * src[0].shape[1]).astype(int)
-        if verbose > 0: print("Reduce points to: " + str(cnt))
-        r = np.empty((np.sum(cnt), 3))
-        idx = 0
-        for i in range(result[0].shape[1]//src[0].shape[1]):
-            r[idx:idx+cnt[i]] = result[0][0,src[0].shape[1]*i:src[0].shape[1]*i+cnt[i]]
-            idx = idx + cnt[i]
-        result = r'''
+        raw_result = result[0][0]
         cnt = int(result[1][0] * result[0].shape[1])
         if verbose > 0: print("Reduce points to: " + str(cnt))
         result = result[0][0,:cnt]
     elif truncate:
+        raw_result = result[0]
         cnt = int(np.count_nonzero(src[0][...,1] != -2.0)) * (result.shape[1]//src[0].shape[1])
         if verbose > 0: print("Reduce points to: " + str(cnt))
         result = result[0,:cnt]
     else:
+        raw_result = result[0]
         if verbose > 0: print("No Truncation!")
         result = result[0]
 
@@ -44,11 +39,23 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0, tr
             if verbose > 2: write_csv(path + "_%s.csv"%features[i], aux_src)'''
         
         if verbose > 0:
+            permutate = True
+            print(cluster_analysis(src[0][0][...,:3], raw_result, result.shape[0], permutate))
+
+            c = np.arange(src[0][0].shape[0])
+            #c[0] = 0
+            if permutate:
+                c = np.repeat(c, raw_result.shape[0]//src[0][0].shape[0])[:result.shape[0]]
+            else:
+                c = np.repeat(np.expand_dims(c,0), raw_result.shape[0]//src[0][0].shape[0]).flatten()[:result.shape[0]]
+            
+            plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("detail") + ".png", src=src[0][0], vel=vel_src, z = z, c=c)
             plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".png", ref=ref, src=src[0][0], vel=vel_src, z = z)
             plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("src") + ".png", src=src[0][0], vel=vel_src, z = z)
             if ref is not None: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".png",  z = z)
             plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("res") + ".png", z = z)
             if verbose > 1:
+                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("detail") + ".svg", src=src[0][0], vel=vel_src, z = z, c=c)
                 plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".svg", ref=ref, src=src[0][0], vel=vel_src, z = z)
                 plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("src") + ".svg", src=src[0][0], vel=vel_src, z = z)
                 if ref is not None: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".svg",  z = z)

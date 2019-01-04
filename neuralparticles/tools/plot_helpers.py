@@ -31,7 +31,7 @@ def extract_stride(data, z, offset, pos=None):
 	idx = np.where(np.all([pos[:,2] < (z + offset), pos[:,2] > (z - offset)], axis=0))[0]
 	return data[idx,0], data[idx,1]
 
-def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=None, vel=None, z=None, offset=None):
+def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=None, vel=None, z=None, offset=None, c='c'):
 	if z is not None and offset is None:
 		if xlim is None:
 			offset = (np.max(data) - np.min(data)) * 0.1
@@ -41,7 +41,7 @@ def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=Non
 	if not ref is None:
 		rx, ry = (ref[:,0], ref[:, 1]) if z is None else extract_stride(ref, z,offset)
 		plt.scatter(rx,ry,s=s,c='#ff6c00')
-	plt.scatter(dx,dy,s=s,c='c')
+	plt.scatter(dx,dy,s=s,c=c, cmap=plt.get_cmap("nipy_spectral"))
 	if not src is None:
 		sx,sy = (src[:,0], src[:,1]) if z is None else extract_stride(src, z,offset)
 		plt.scatter(sx,sy,s=s,c='#0a3213')
