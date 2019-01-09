@@ -255,7 +255,7 @@ class PUNet(Network):
             else:
                 out = Lambda(lambda x: x[...,:3], name="points")(out0)
                 out0 = Lambda(lambda x: x, name="out_m")(out0)
-                out1 = concatenate([out, self.model(inputs[1]), self.model(inputs[2])], axis=1, name='temp')
+                out1 = concatenate([out, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
                 self.train_model = Model(inputs=inputs, outputs=[out0, out1])
 
             """if self.truncate:
@@ -357,7 +357,7 @@ class PUNet(Network):
 
         if self.truncate:
             if self.pretrain:
-                self.trunc_model.compile(loss=self.trunc_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate*0.1, decay=self.decay))
+                self.trunc_model.compile(loss=self.trunc_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
                 self.trunc_model.trainable = False
             else:
                 loss.append(self.trunc_loss)
@@ -369,7 +369,7 @@ class PUNet(Network):
         callbacks = kwargs.get("callbacks", [])
         if "generator" in kwargs:
             if self.truncate and self.pretrain:
-                self.trunc_model.fit_generator(generator=kwargs['trunc_generator'], validation_data=kwargs.get("val_trunc_generator"), use_multiprocessing=False, workers=1, verbose=0, callbacks=callbacks, epochs=1, shuffle=False)
+                self.trunc_model.fit_generator(generator=kwargs['trunc_generator'], validation_data=kwargs.get("val_trunc_generator"), use_multiprocessing=False, workers=1, verbose=0, callbacks=callbacks, epochs=3, shuffle=False)
             return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1, verbose=0, callbacks=callbacks, epochs=epochs, shuffle=False)
         else:
             src_data = kwargs.get("src")
