@@ -92,7 +92,7 @@ class PatchGenerator(keras.utils.Sequence):
 
         tmp_w = train_config['loss_weights']
         self.temp_coh = tmp_w[1] > 0.0
-        self.trunc = tmp_w[2] > 0.0 and True
+        self.trunc = tmp_w[2] > 0.0 and not train_config['pretrain']
         self.trunc_only = trunc
         self.fac = train_config['sub_fac']
         self.gen_vel = train_config['gen_vel']

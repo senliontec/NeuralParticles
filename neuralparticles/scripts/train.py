@@ -41,8 +41,6 @@ if len(eval_var) > 0:
 if len(eval_patch_idx) > 0:
     eval_patch_idx = list(map(float, eval_patch_idx.split(',')))
 
-pretrain = False
-
 checkUnusedParams()
 
 src_path = data_path + "patches/source/"
@@ -92,6 +90,8 @@ np.random.seed(data_config['seed'])
 config_dict = {**data_config, **pre_config, **train_config}
 config_dict['norm_factor'] = get_norm_factor(data_path, config_path)
 punet = PUNet(**config_dict)
+
+pretrain = train_config['pretrain']
 
 if len(eval_dataset) < eval_cnt:
     eval_dataset.extend(np.random.randint(data_config['data_count'], data_config['data_count'] + data_config['test_count'], eval_cnt-len(eval_dataset)))

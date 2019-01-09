@@ -78,7 +78,7 @@ class PUNet(Network):
         if self.temp_coh:
             self.loss_weights.append(tmp_w[1])
         
-        self.pretrain = False
+        self.pretrain = kwargs.get('pretrain')
         if self.truncate and not self.pretrain:
             self.loss_weights.append(tmp_w[2])
 
@@ -230,7 +230,7 @@ class PUNet(Network):
 
                 out = multiply([out, out_mask])
             else:
-                out_mask = K.constant(np.zeros((self.particle_cnt_dst, 1)))
+                out_mask = Lambda(lambda x: K.ones_like(x)[...,:1])(x)
             self.model = Model(inputs=inputs, outputs=[out])
 
         out = concatenate([out, out_mask], axis=-1, name="out_masked")

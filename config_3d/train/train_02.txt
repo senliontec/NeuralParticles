@@ -12,6 +12,7 @@
     "epochs":             10,
     "dropout":            0.0,
     "loss_weights":       [1.0,0.001,1.0],
+    "pretrain":           false,
     "repulsion":          0.001,
     "acc_fac":            0.5,
     "mask":               true,
