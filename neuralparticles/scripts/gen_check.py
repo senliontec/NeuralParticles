@@ -14,7 +14,7 @@ import math
 
 if __name__ == "__main__":
     data_path = getParam("data", "data/")
-    manta_path = getParam("manta", "neuralparticles/")
+    manta_path = getParam("manta", "neuralparticles/build/")
     config_path = getParam("config", "config/version_00.txt")
     gui = int(getParam("gui", 0))
     verbose = int(getParam("verbose", 0)) != 0

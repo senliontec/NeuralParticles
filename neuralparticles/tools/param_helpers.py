@@ -92,17 +92,15 @@ def getNextTestPath(folder_no = 1, basePath="../data/"):
 def getNextSimPath(folder_no = 1, basePath="../data/"):
 	return getNextGenericPath("sim", folder_no, basePath)
 
-# custom Logger to write Log to file
 class Logger(object):
-	def __init__(self, test_path):
-		self.terminal = sys.stdout
-		self.log = open(test_path + "logfile.log", "a")
+    def __init__(self, path):
+        self.terminal = sys.stdout
+        self.log = open(path, "a")
 
-	def write(self, message):
-		self.terminal.write(message)
-		self.log.write(message)
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)  
 
-	def flush(self): 
-		# to avoid errormsg, " AttributeError: 'Logger' object has no attribute 'flush' "
-		pass
+    def flush(self):
+        pass    
 

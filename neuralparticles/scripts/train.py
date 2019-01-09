@@ -1,4 +1,4 @@
-import os
+import os, sys
 
 import json
 import math
@@ -12,7 +12,7 @@ import keras
 from neuralparticles.tensorflow.models.PUNet import PUNet
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_idx, get_norm_factor
-from neuralparticles.tensorflow.tools.eval_helpers import EvalCallback, EvalCompleteCallback
+from neuralparticles.tensorflow.tools.eval_helpers import EvalCallback, EvalCompleteCallback, NthLogger
 #from neuralparticles.tensorflow.tools.patch_generator import PatchGenerator
 from neuralparticles.tensorflow.tools.patch_extract_generator import PatchGenerator
 
@@ -41,6 +41,8 @@ if len(eval_var) > 0:
 if len(eval_patch_idx) > 0:
     eval_patch_idx = list(map(float, eval_patch_idx.split(',')))
 
+pretrain = False
+
 checkUnusedParams()
 
 src_path = data_path + "patches/source/"
@@ -57,6 +59,8 @@ tmp_checkpoint_path = tmp_model_path + "checkpoints/"
 os.mkdir(tmp_checkpoint_path)
 tmp_eval_path = tmp_folder + "eval/"
 os.mkdir(tmp_eval_path)
+
+sys.stdout = Logger(tmp_folder + "logfile.log")
 
 if not gpu is "-1":
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu
@@ -112,6 +116,9 @@ print("Load Training Data")
 if chunk_size > 0:
     patch_generator = PatchGenerator(data_path, config_path, chunk_size)
     val_generator = PatchGenerator(data_path, config_path, chunk_size, chunked_idx=patch_generator.get_val_idx())
+    if train_config['loss_weights'][2] > 0.0 and pretrain:
+        trunc_patch_generator = PatchGenerator(data_path, config_path, chunk_size, trunc=True)
+        trunc_val_generator = PatchGenerator(data_path, config_path, chunk_size, chunked_idx=patch_generator.get_val_idx(), trunc=True)
 else:
     src_data, ref_data = load_patches_from_file(data_path, config_path)
     src_data = np.concatenate(src_data, axis=-1)
@@ -197,13 +204,16 @@ if checkpoint != "":
 if chunk_size > 0:
     config_dict['generator'] = patch_generator
     config_dict['val_generator'] = val_generator
+    if train_config['loss_weights'][2] > 0.0 and pretrain:
+        config_dict['trunc_generator'] = trunc_patch_generator
+        config_dict['trunc_val_generator'] = trunc_val_generator
 else:
     config_dict['src'] = src_data
     config_dict['ref'] = ref_data
     
 config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches, punet.model,
                                           train_config['features'], z=None if data_config['dim'] == 2 else 0, truncate=train_config['mask'], verbose=3 if verbose else 1)),
-                            keras.callbacks.ModelCheckpoint(tmp_checkpoint_path)]
+                            keras.callbacks.ModelCheckpoint(tmp_checkpoint_path), NthLogger(100)]
 ''',
                             (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,punet.model,
                                                   factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=3 if verbose else 1))]'''

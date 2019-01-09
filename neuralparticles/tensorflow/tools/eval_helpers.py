@@ -140,22 +140,36 @@ def add_images(writer, tag, src, ref, res, epoch, xlim=None, ylim=None, s=1.0, z
 
     return
 
-class NthLogger(keras.callbacks.Callback):
-    def __init__(self,li=10,cpi=100,cpt_path="model", offset=0):
-        self.act = offset
-        self.li = li
-        self.cpi = cpi
-        self.cpt_path = cpt_path
+class NthLogger(keras.callbacks.ProgbarLogger):
+    def __init__(self, batch_intervall,
+                 count_mode='steps',
+                 stateful_metrics=None):
+        super(NthLogger, self).__init__(count_mode, stateful_metrics)
+        self.batch_intervall = batch_intervall
+    
 
-    def on_epoch_end(self,batch,logs={}):
-        self.act += 1
-        if self.act % self.li == 0 or self.act == 1:
-            print('%d/%d - loss: %f val_loss: %f' % (self.act, self.params['epochs'], logs['loss'], logs['val_loss']))
-        if self.act % self.cpi == 0:
-            path = "%s_%04d.h5" % (self.cpt_path, self.act//self.cpi)
-            self.model.save(path)
-            print('Saved Checkpoint: %s' % path)
+    def on_train_begin(self, logs=None):
+        self.verbose = True
+        self.epochs = self.params['epochs']
 
+    def on_batch_end(self, batch, logs=None):
+        logs = logs or {}
+        batch_size = logs.get('size', 0)
+        if self.use_steps:
+            self.seen += 1
+        else:
+            self.seen += batch_size
+
+        if self.seen % self.batch_intervall == 0 or (self.seen == 1 and self.use_steps) or (self.seen == batch_size and not self.use_steps):
+            for k in self.params['metrics']:
+                if k in logs:
+                    self.log_values.append((k, logs[k]))
+
+            # Skip progbar update for the last batch;
+            # will be handled by on_epoch_end.
+            if self.verbose and self.seen < self.target:
+                self.progbar.update(self.seen, self.log_values)
+            
 class EvalCallback(keras.callbacks.TensorBoard):
     def __init__(self, path, src, ref, model,
                  features=[], 

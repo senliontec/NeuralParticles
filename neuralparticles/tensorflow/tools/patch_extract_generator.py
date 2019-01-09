@@ -49,7 +49,7 @@ class Chunk:
 
 class PatchGenerator(keras.utils.Sequence):
     def __init__(self, data_path, config_path, chunk_size,
-                 d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None):
+                 d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None, trunc=False):
         np.random.seed(45)
         random.seed(45)
         with open(config_path, 'r') as f:
@@ -92,7 +92,8 @@ class PatchGenerator(keras.utils.Sequence):
 
         tmp_w = train_config['loss_weights']
         self.temp_coh = tmp_w[1] > 0.0
-        self.trunc = tmp_w[2] > 0.0
+        self.trunc = tmp_w[2] > 0.0 and True
+        self.trunc_only = trunc
         self.fac = train_config['sub_fac']
         self.gen_vel = train_config['gen_vel']
         self.batch_size = train_config['batch_size']
@@ -183,11 +184,15 @@ class PatchGenerator(keras.utils.Sequence):
 
     def __getitem__(self, index):
         src = [np.empty((self.batch_size, self.par_cnt, 3 + len(self.features) + (2 if 'v' in self.features or 'n' in self.features else 0)))]
-        ref = [np.empty((self.batch_size, self.par_cnt_ref, 3))]
-        if self.temp_coh:
-            src.append(src[0].copy())
-            src.append(src[0].copy())
-            ref.append(np.empty((self.batch_size, self.par_cnt_ref*3, 3)))
+
+        if self.trunc_only:
+            ref = [np.empty((self.batch_size,))]        
+        else:
+            ref = [np.empty((self.batch_size, self.par_cnt_ref, 3))]
+            if self.temp_coh:
+                src.append(src[0].copy())
+                src.append(src[0].copy())
+                ref.append(np.empty((self.batch_size, self.par_cnt_ref*3, 3)))
 
         for i in range(self.batch_size):
             if len(self.chunk) <= 0:
@@ -200,29 +205,33 @@ class PatchGenerator(keras.utils.Sequence):
 
             c_idx = np.random.randint(len(self.chunk))
             src[0][i] = self.chunk[c_idx][0].pop_patch(remove_data=False)
+
             ref_patch = self.chunk[c_idx][1].pop_patch(remove_data=False)
-            ref[0][i] = ref_patch[...,:3]
+            if self.trunc_only:
+                ref[0][i] = np.count_nonzero(ref_patch[...,1] != self.pad_val, axis=0)/self.par_cnt_ref
+            else:
+                ref[0][i] = ref_patch[...,:3]
 
-            if self.temp_coh:
-                vel = src[0][i][...,3:6]
-                idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
-                vel = vel - np.expand_dims(vel[idx],axis=0)
+                if self.temp_coh:
+                    vel = src[0][i][...,3:6]
+                    idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
+                    vel = vel - np.expand_dims(vel[idx],axis=0)
 
-                adv_src = src[0][i][...,:3] - vel / (self.fps * self.patch_size)
-                src[1][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
+                    adv_src = src[0][i][...,:3] - vel / (self.fps * self.patch_size)
+                    src[1][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
 
-                adv_src = src[0][i][...,:3] + vel / (self.fps * self.patch_size)
-                src[2][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
+                    adv_src = src[0][i][...,:3] + vel / (self.fps * self.patch_size)
+                    src[2][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
 
-                vel = ref_patch[...,3:]
-                idx = np.argmin(np.linalg.norm(ref_patch[...,:3], axis=-1), axis=0)
-                vel = vel - np.expand_dims(vel[idx],axis=0)
+                    vel = ref_patch[...,3:]
+                    idx = np.argmin(np.linalg.norm(ref_patch[...,:3], axis=-1), axis=0)
+                    vel = vel - np.expand_dims(vel[idx],axis=0)
 
-                ref[1][i] = np.concatenate((
-                        ref_patch[...,:3],
-                        ref_patch[...,:3] - vel / (self.fps * self.patch_size_ref),
-                        ref_patch[...,:3] + vel / (self.fps * self.patch_size_ref))
-                    )
+                    ref[1][i] = np.concatenate((
+                            ref_patch[...,:3],
+                            ref_patch[...,:3] - vel / (self.fps * self.patch_size_ref),
+                            ref_patch[...,:3] + vel / (self.fps * self.patch_size_ref))
+                        )
 
             """if self.temp_coh:
                 if index % 2 == 0 or not self.neg_examples or (self.chunk[c_idx][1].positions is None and len(self.chunk) == 1):
@@ -237,7 +246,7 @@ class PatchGenerator(keras.utils.Sequence):
             if self.chunk[c_idx][1].positions is None:
                 self.chunk = np.delete(self.chunk, c_idx, 0)
 
-        if self.trunc:
+        if self.trunc and not self.trunc_only: 
             ref.append(np.count_nonzero(ref[0][...,1] != self.pad_val, axis=1)/self.par_cnt_ref)
 
         return src, ref
