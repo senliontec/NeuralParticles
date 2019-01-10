@@ -301,17 +301,11 @@ class PUNet(Network):
             gt_a = gt_v1 - gt_v0
 
             match = approx_match(pred, gt*zero_mask(gt, self.pad_val))
-            return (1 - self.acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + self.acc_fac * match_cost(pred_a, gt_a, match)
+            return ((1 - self.acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + self.acc_fac * match_cost(pred_a, gt_a, match)) / tf.cast(tf.shape(y_pred)[1], tf.float32)
         else:
-            #return keras.losses.mse(pred, pred_n)
             return (1 - self.acc_fac) * keras.losses.mse(pred, pred_n) + self.acc_fac * keras.losses.mse(pred-pred_p, pred_n-pred)
-
-            #return keras.losses.mse(emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val)), -emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)))
-            #return K.square(emd_loss(pred_t, gt * zero_mask(gt, self.pad_val)) + emd_loss(pred, gt_t * zero_mask(gt_t, self.pad_val))) + 0.1 * keras.losses.mse(pred, pred_t)#, emd_loss(gt * zero_mask(gt, self.pad_val), gt_t * zero_mask(gt_t, self.pad_val))) 
-            #return keras.losses.mse(pred, pred_p) + keras.losses.mse(pred, pred_n)
  
     def cluster_loss(self, mask, y_pred): 
-        #mask = zero_mask(y_true, self.pad_val)
         if self.permutate:
             y_pred = K.reshape(y_pred, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 3))
             mask = K.reshape(mask, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 1))
