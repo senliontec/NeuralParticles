@@ -25,6 +25,7 @@ gpu = getParam("gpu", "-1")
 chunk_size = int(getParam("chunk", 100))
 checkpoint = getParam("checkpoint", "")
 
+plot_intervall = int(getParam("plt_i", 100))
 eval_cnt = int(getParam("eval_cnt", 5))
 eval_dataset = getParam("eval_d", []) #'18,18,18,19,19'
 eval_t = getParam("eval_t", []) #'5,5,6,6,7'
@@ -213,8 +214,8 @@ else:
     
 config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches, punet.model,
                                           train_config['features'], z=None if data_config['dim'] == 2 else 0, truncate=train_config['mask'], verbose=3 if verbose else 1)),
-                            keras.callbacks.ModelCheckpoint(tmp_checkpoint_path), NthLogger(100)]
-config_dict['trunc_callbacks'] = [NthLogger(100)]
+                            keras.callbacks.ModelCheckpoint(tmp_checkpoint_path), NthLogger(plot_intervall)]
+config_dict['trunc_callbacks'] = [NthLogger(plot_intervall)]
 ''',
                             (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,punet.model,
                                                   factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=3 if verbose else 1))]'''
