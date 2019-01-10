@@ -152,9 +152,6 @@ class IISPH:
         prev_v = 0
         while ((d_avg - self.sph.density)>d_err_th) or (iters<2):
             prev_v = d_avg - self.sph.density
-            print(d_avg)
-            print((d_avg - self.sph.density))
-            print(d_err_th)
 
             sphComputeIisphDijPj(dijpj=self.pDijPj, d=self.pD, p=self.pP, k=self.kern, sph=self.sph, dt=self.s.timestep, itype=self.overFld, jtype=self.overAll)
 

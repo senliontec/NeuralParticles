@@ -197,10 +197,10 @@ class PUNet(Network):
             x_t = add(x_t, name='merge_features')
 
             x_t = Dropout(self.dropout)(x_t)
-            x_t = Dense(self.fac*8, activation='tanh')(x_t)
+            x_t = Dense(self.fac*4, activation='tanh')(x_t)
 
             b = np.zeros(1, dtype='float32')
-            W = np.zeros((self.fac*8, 1), dtype='float32')
+            W = np.zeros((self.fac*4, 1), dtype='float32')
             x_t = Dropout(self.dropout)(x_t)
             x_t = Dense(1, activation='tanh', weights=[W,b], name="cnt")(x_t)
 
