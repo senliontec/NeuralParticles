@@ -233,7 +233,7 @@ class PUNet(Network):
                 out_mask = Lambda(lambda x: K.ones_like(x)[...,:1])(x)
             self.model = Model(inputs=inputs, outputs=[out])
 
-        out = concatenate([out, out_mask], axis=-1, name="out_masked")
+        out = concatenate([out, out_mask], axis=-1, name="out_m")
         if not self.truncate or (self.pretrain and self.truncate):
             self.train_model = Model(inputs=inputs, outputs=[out])
         else:
