@@ -197,10 +197,10 @@ class PUNet(Network):
             x_t = add(x_t, name='merge_features')
 
             x_t = Dropout(self.dropout)(x_t)
-            x_t = Dense(self.fac*4, activation='tanh')(x_t)
+            x_t = Dense(self.fac*8, activation='tanh')(x_t)
 
             b = np.zeros(1, dtype='float32')
-            W = np.zeros((self.fac*4, 1), dtype='float32')
+            W = np.zeros((self.fac*8, 1), dtype='float32')
             x_t = Dropout(self.dropout)(x_t)
             x_t = Dense(1, activation='tanh', weights=[W,b], name="cnt")(x_t)
 
@@ -249,13 +249,18 @@ class PUNet(Network):
             if self.truncate and not self.pretrain:
                 trunc = Lambda(lambda x: x, name="trunc")(out0[1])
                 out0 = Lambda(lambda x: x, name="out_m")(out0[0])
-                out = Lambda(lambda x: x[...,:3], name="points")(out0)
+            else:
+                out0 = Lambda(lambda x: x, name="out_m")(out0)
+
+            out = Lambda(lambda x: x[...,:3], name="points")(out0)
+            if self.truncate:
                 out1 = concatenate([out, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
+            else:
+                out1 = concatenate([out, self.model(inputs[1]), self.model(inputs[2])], axis=1, name='temp')
+
+            if self.truncate and not self.pretrain:
                 self.train_model = Model(inputs=inputs, outputs=[out0, out1, trunc])
             else:
-                out = Lambda(lambda x: x[...,:3], name="points")(out0)
-                out0 = Lambda(lambda x: x, name="out_m")(out0)
-                out1 = concatenate([out, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
                 self.train_model = Model(inputs=inputs, outputs=[out0, out1])
 
             """if self.truncate:
@@ -295,7 +300,7 @@ class PUNet(Network):
             pred_a = pred_v1 - pred_v0
             gt_a = gt_v1 - gt_v0
 
-            match = approx_match(pred, gt)
+            match = approx_match(pred, gt*zero_mask(gt, self.pad_val))
             return (1 - self.acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + self.acc_fac * match_cost(pred_a, gt_a, match)
         else:
             #return keras.losses.mse(pred, pred_n)
@@ -325,51 +330,35 @@ class PUNet(Network):
         return K.sum(group_cnt/(K.sum(K.sqrt(K.sum(K.square(group_mean - y_pred) * mask, axis=-1)+1e-8), axis=-1)), axis=-1)/(cnt+1e-8)
 
     def trunc_metric(self, y_true, y_pred):
-        mask = y_pred[...,3:]
-        if y_pred.get_shape()[1] == self.particle_cnt_dst:
-            return keras.losses.mse(K.sum(zero_mask(y_true, self.pad_val),axis=-2)/self.particle_cnt_dst,K.sum(mask,axis=-2)/self.particle_cnt_dst)
-        return K.constant(0)
+        return keras.losses.mse(K.sum(zero_mask(y_true, self.pad_val),axis=-2)/self.particle_cnt_dst,K.sum(y_pred[...,3:],axis=-2)/self.particle_cnt_dst)
 
     def particle_metric(self, y_true, y_pred):
-        y_pred = y_pred[...,:3]
-        if y_pred.get_shape()[1] == self.particle_cnt_dst:    
-            return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
-        elif y_pred.get_shape()[1] == self.particle_cnt_dst*2:
-            return self.temp_loss(y_true, y_pred)
-        else:           
-            return keras.losses.mse(y_true, y_pred)
+        return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[...,:3])
 
     def repulsion_metric(self, y_true, y_pred):
-        mask = y_pred[...,3:]
-        y_pred = y_pred[...,:3]
-        if y_pred.get_shape()[1] > self.particle_cnt_dst:    
-            pred = y_pred[:,:self.particle_cnt_dst]
-            return self.cluster_loss(mask, y_pred)
-        elif y_pred.get_shape()[1] < self.particle_cnt_dst:
-            return keras.losses.mse(y_true, y_pred)
-        else:
-            return self.cluster_loss(mask, y_pred)
+        return self.cluster_loss(y_pred[...,3:], y_pred[...,:3])
 
     def compile_model(self):
         loss = [self.mask_loss]
+        metrics = {'out_m':[self.trunc_metric, self.particle_metric, self.repulsion_metric]}
         if self.temp_coh:
             loss.append(self.temp_loss)
 
         if self.truncate:
             if self.pretrain:
-                self.trunc_model.compile(loss=self.trunc_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay))
+                self.trunc_model.compile(loss=self.trunc_loss, optimizer=keras.optimizers.adam(lr=self.learning_rate*0.1, decay=self.decay*0.1))
                 self.trunc_model.trainable = False
             else:
                 loss.append(self.trunc_loss)
-            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric])
+            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=metrics)
         else:
-            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=[self.particle_metric, self.trunc_metric])
+            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=metrics)
 
     def _train(self, epochs, **kwargs):
         callbacks = kwargs.get("callbacks", [])
         if "generator" in kwargs:
             if self.truncate and self.pretrain:
-                self.trunc_model.fit_generator(generator=kwargs['trunc_generator'], validation_data=kwargs.get("val_trunc_generator"), use_multiprocessing=False, workers=1, verbose=0, callbacks=callbacks, epochs=3, shuffle=False)
+                self.trunc_model.fit_generator(generator=kwargs['trunc_generator'], validation_data=kwargs.get("val_trunc_generator"), use_multiprocessing=False, workers=1, verbose=0, callbacks=kwargs.get("trunc_callbacks", []), epochs=3, shuffle=False)
             return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1, verbose=0, callbacks=callbacks, epochs=epochs, shuffle=False)
         else:
             src_data = kwargs.get("src")

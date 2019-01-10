@@ -214,6 +214,7 @@ else:
 config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches, punet.model,
                                           train_config['features'], z=None if data_config['dim'] == 2 else 0, truncate=train_config['mask'], verbose=3 if verbose else 1)),
                             keras.callbacks.ModelCheckpoint(tmp_checkpoint_path), NthLogger(100)]
+config_dict['trunc_callbacks'] = [NthLogger(100)]
 ''',
                             (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,punet.model,
                                                   factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=3 if verbose else 1))]'''
