@@ -81,12 +81,12 @@ if __name__ == "__main__":
                 res = punet.predict(src)
                 if type(res) is list:
                     cnt = (res[1] * res[0].shape[1]).astype(int)
+                    res = res[0]
                 elif train_config['mask']:
                     cnt = np.expand_dims(np.count_nonzero(src[...,0] != pre_config['pad_val'],axis=1), axis=-1) * (res.shape[1]//src.shape[1])
                 else:
                     cnt = np.zeros((res.shape[0], 1)) * res.shape[1]
-                pad_cnt_res = np.concatenate((pad_cnt_res, (res[1] * res[0].shape[1]).astype(int)))
-                res = res[0]
+                pad_cnt_res = np.concatenate((pad_cnt_res, cnt))
 
             cnt = np.expand_dims(np.count_nonzero(src[...,0] != pre_config['pad_val'],axis=1), axis=-1)
             pad_cnt_src = np.concatenate((pad_cnt_src, cnt))
