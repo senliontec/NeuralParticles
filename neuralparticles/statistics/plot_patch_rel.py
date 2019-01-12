@@ -25,7 +25,7 @@ if __name__ == "__main__":
         pre_config = json.loads(f.read())
 
     pad_cnt_src = read_csv(data_path + "statistics/%s_%s-%s_src_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']))
-    pad_cnt_ref = read_csv(data_path + "statistics/%s_%s-%s_%s_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id'], "res" if net else "res"))
+    pad_cnt_ref = read_csv(data_path + "statistics/%s_%s-%s_%s_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id'], "res" if net else "ref"))
 
     grouped_data = np.zeros((pre_config['par_cnt']+1, pre_config['par_cnt_ref']+1))
 

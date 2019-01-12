@@ -1,11 +1,11 @@
 import json
 import os
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tools.data_helpers import *
+from neuralparticles.tools.data_helpers import PatchExtractor, get_data, get_data_pair
 import numpy as np
 from neuralparticles.tools.uniio import readNumpyRaw
 from neuralparticles.tensorflow.models.PUNet import PUNet
-import shutil
+import shutil, math
 
 from neuralparticles.tools.plot_helpers import write_csv, plot_particles
 
@@ -19,8 +19,8 @@ if __name__ == "__main__":
         os.makedirs(data_path + "statistics/")
 
 
-    src_path = data_path + "patches/source/"
-    ref_path = data_path + "patches/reference/"
+    src_path = data_path + "source/"
+    ref_path = data_path + "reference/"
 
     with open(config_path, 'r') as f:
         config = json.loads(f.read())
@@ -43,8 +43,13 @@ if __name__ == "__main__":
     d_start = data_config['data_count']
     d_end = data_config['data_count'] + data_config['test_count']
 
-    src_path = "%s%s_%s-%s_p" % (src_path, data_config['prefix'], data_config['id'], pre_config['id']) + "%s_d%03d_%03d"
-    ref_path = "%s%s_%s-%s_ps" % (ref_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_%03d"
+    fac_d = math.pow(pre_config['factor'], 1/data_config['dim'])
+
+    par_cnt = pre_config['par_cnt']
+    par_cnt_ref = pre_config['par_cnt_ref']
+
+    patch_size = pre_config['patch_size'] * data_config['res'] / fac_d
+    patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
 
     pad_cnt_src = np.empty((0,1))
     pad_cnt_ref = np.empty((0,1))
@@ -58,21 +63,28 @@ if __name__ == "__main__":
         punet.load_model(data_path + "models/%s_%s_trained.h5" % (data_config['prefix'], config['id']))
         features = train_config['features']
         pad_cnt_res = np.empty((0,1))
-        out_res = np.ones((pre_config['par_cnt']+1,pre_config['par_cnt_ref'],3))*pre_config['pad_val']
+        out_res = np.ones((par_cnt+1,par_cnt_ref,3))*pre_config['pad_val']
 
-    out_src = np.ones((pre_config['par_cnt']+1,pre_config['par_cnt'],3))*pre_config['pad_val']
-    out_ref = np.ones((pre_config['par_cnt']+1,pre_config['par_cnt_ref'],3))*pre_config['pad_val']
+    out_src = np.ones((par_cnt+1,par_cnt,3))*pre_config['pad_val']
+    out_ref = np.ones((par_cnt+1,par_cnt_ref,3))*pre_config['pad_val']
     for d in range(d_start, d_end):
         for t in range(t_start, t_end):
-            print("load patch: dataset(s): %03d timestep: %03d" % (d,t), end="\r", flush=True)
-            src = readNumpyRaw(src_path%('s',d,t))
-            ref = readNumpyRaw(ref_path%(d,t))
+            print("load patches: dataset(s): %03d timestep: %03d" % (d,t), end="\r", flush=True)
+            (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, _) = get_data_pair(data_path, config_path, d, t, 0, features=train_config['features'])
+
+            patch_ex_src = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pad_val=pre_config['pad_val'], positions=src_data, aux_data=par_aux, features=train_config['features'])
+            patch_ex_ref = PatchExtractor(ref_data, ref_sdf_data, patch_size_ref, par_cnt_ref, pad_val=pre_config['pad_val'], positions=src_data*fac_d)
+            src = patch_ex_src.get_patches()[0]
+            ref = patch_ex_ref.get_patches()[0]
 
             if use_network:
-                n_in = src
-                if len(features) > 0:
-                    n_in = np.concatenate([n_in]+[readNumpyRaw(src_path%(f,d,t)) for f in features], axis=-1)
-                res = punet.predict(n_in)
+                res = punet.predict(src)
+                if type(res) is list:
+                    cnt = (res[1] * res[0].shape[1]).astype(int)
+                elif train_config['mask']:
+                    cnt = np.expand_dims(np.count_nonzero(src[...,0] != pre_config['pad_val'],axis=1), axis=-1) * (res.shape[1]//src.shape[1])
+                else:
+                    cnt = np.zeros((res.shape[0], 1)) * res.shape[1]
                 pad_cnt_res = np.concatenate((pad_cnt_res, (res[1] * res[0].shape[1]).astype(int)))
                 res = res[0]
 
@@ -82,12 +94,12 @@ if __name__ == "__main__":
 
             for i in range(len(cnt)):
                 if out_src[cnt[i],0,0] == pre_config['pad_val'] or np.random.random() < 0.5:
-                    out_src[cnt[i]] = src[i]
+                    out_src[cnt[i]] = src[i,...,:3]
                     out_ref[cnt[i]] = ref[i]
                     if use_network:
                         out_res[cnt[i]] = res[i]
 
-    for i in range(pre_config['par_cnt']):
+    for i in range(par_cnt):
         tmp_cnt = np.count_nonzero(out_ref[i,:,0] != pre_config['pad_val'])
         if tmp_cnt > 0:
             plot_particles(out_src[i], [-1,1], [-1,1], 5, sample_path + "%06d_%06d_src.svg"%(i,tmp_cnt), z= 0 if data_config['dim'] == 3 else None)

@@ -280,7 +280,7 @@ class PUNet(Network):
         y_pred = y_pred[...,:3]
         if self.repulsion > 0:
             #loss += get_repulsion_loss4(y_pred) * self.repulsion
-            loss += self.cluster_loss(mask, y_pred) * self.repulsion
+            loss += self.mingle_loss(mask, y_pred) * self.repulsion
         return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
 
 
@@ -305,7 +305,37 @@ class PUNet(Network):
         else:
             return (1 - self.acc_fac) * keras.losses.mse(pred, pred_n) + self.acc_fac * keras.losses.mse(pred-pred_p, pred_n-pred)
  
-    def cluster_loss(self, mask, y_pred): 
+    def mingle_loss_2(self, mask, y_pred):
+        if self.permutate:
+            A = K.reshape(y_pred, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 1, 3))
+            B = K.reshape(y_pred, (-1, self.particle_cnt_src, 1, self.particle_cnt_dst//self.particle_cnt_src, 3))
+            A = K.repeat_elements(A, self.particle_cnt_dst//self.particle_cnt_src, 3)
+            B = K.repeat_elements(B, self.particle_cnt_dst//self.particle_cnt_src, 2)
+            
+            m0 = K.reshape(mask, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 1))
+            m1 = K.reshape(mask, (-1, self.particle_cnt_src, 1, self.particle_cnt_dst//self.particle_cnt_src))
+            m0 = K.repeat_elements(m0, self.particle_cnt_dst//self.particle_cnt_src, 3)
+            m1 = K.repeat_elements(m1, self.particle_cnt_dst//self.particle_cnt_src, 2)
+            mask = m0 * m1
+
+            cost = K.sum((K.sum(K.square(A-B),axis=-1)*mask), axis=(2,3))/(K.sum(mask, axis=(2,3))+1e-8)
+        else:
+            A = K.reshape(y_pred, (-1, self.particle_cnt_dst//self.particle_cnt_src, 1, self.particle_cnt_src, 3))
+            B = K.reshape(y_pred, (-1, 1, self.particle_cnt_dst//self.particle_cnt_src, self.particle_cnt_src, 3))
+            A = K.repeat_elements(A, self.particle_cnt_dst//self.particle_cnt_src, 2)
+            B = K.repeat_elements(B, self.particle_cnt_dst//self.particle_cnt_src, 1)
+
+            m0 = K.reshape(mask, (-1, self.particle_cnt_dst//self.particle_cnt_src, 1, self.particle_cnt_src))
+            m1 = K.reshape(mask, (-1, 1, self.particle_cnt_dst//self.particle_cnt_src, self.particle_cnt_src))
+            m0 = K.repeat_elements(m0, self.particle_cnt_dst//self.particle_cnt_src, 2)
+            m1 = K.repeat_elements(m1, self.particle_cnt_dst//self.particle_cnt_src, 1)
+            mask = m0 * m1
+
+            cost = K.sum((K.sum(K.square(A-B),axis=-1)*mask), axis=(1,2))/(K.sum(mask, axis=(1,2))+1e-8)
+
+        return 1./(K.mean(cost, axis=-1)+1e-8)
+        
+    def mingle_loss(self, mask, y_pred): 
         if self.permutate:
             y_pred = K.reshape(y_pred, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 3))
             mask = K.reshape(mask, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 1))
@@ -313,6 +343,7 @@ class PUNet(Network):
             group_cnt = K.sum(mask, axis=2)
             group_mean = K.sum(y_pred, axis=2)/(group_cnt+1e-8)
             group_mean = K.expand_dims(group_mean, axis=2)
+            group_diff = K.sum(K.sqrt(K.sum(K.square(group_mean - y_pred) * mask, axis=-1)+1e-8), axis=2)
         else:
             y_pred = K.reshape(y_pred, (-1, self.particle_cnt_dst//self.particle_cnt_src, self.particle_cnt_src, 3))
             mask = K.reshape(mask, (-1, self.particle_cnt_dst//self.particle_cnt_src, self.particle_cnt_src, 1))
@@ -320,8 +351,9 @@ class PUNet(Network):
             group_cnt = K.sum(mask, axis=1)
             group_mean = K.sum(y_pred, axis=1)/(group_cnt+1e-8)
             group_mean = K.expand_dims(group_mean, axis=1)
+            group_diff = K.sum(K.sqrt(K.sum(K.square(group_mean - y_pred) * mask, axis=-1)+1e-8), axis=1)
         group_cnt = K.clip(K.reshape(group_cnt, (-1, self.particle_cnt_src)) - 1, 0, self.particle_cnt_dst//self.particle_cnt_src)
-        return K.sum(group_cnt/(K.sum(K.sqrt(K.sum(K.square(group_mean - y_pred) * mask, axis=-1)+1e-8), axis=-1)), axis=-1)/(cnt+1e-8)
+        return K.sum(group_cnt/group_diff, axis=-1)/(cnt+1e-8)
 
     def trunc_metric(self, y_true, y_pred):
         return keras.losses.mse(K.sum(zero_mask(y_true, self.pad_val),axis=-2)/self.particle_cnt_dst,K.sum(y_pred[...,3:],axis=-2)/self.particle_cnt_dst)
@@ -329,12 +361,12 @@ class PUNet(Network):
     def particle_metric(self, y_true, y_pred):
         return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[...,:3])
 
-    def repulsion_metric(self, y_true, y_pred):
-        return self.cluster_loss(y_pred[...,3:], y_pred[...,:3])
+    def mingle_metric(self, y_true, y_pred):
+        return self.mingle_loss(y_pred[...,3:], y_pred[...,:3])
 
     def compile_model(self):
         loss = [self.mask_loss]
-        metrics = {'out_m':[self.trunc_metric, self.particle_metric, self.repulsion_metric]}
+        metrics = {'out_m':[self.trunc_metric, self.particle_metric, self.mingle_metric]}
         if self.temp_coh:
             loss.append(self.temp_loss)
 
