@@ -73,6 +73,7 @@ class PUNet(Network):
         self.truncate = tmp_w[2] > 0.0
 
         self.acc_fac = kwargs.get("acc_fac")
+        self.mingle = kwargs.get("mingle")
         self.repulsion = kwargs.get("repulsion")
 
         if self.temp_coh:
@@ -278,9 +279,10 @@ class PUNet(Network):
         loss = 0
         mask = y_pred[...,3:]
         y_pred = y_pred[...,:3]
+        if self.mingle > 0:
+            loss += self.mingle_loss(mask, y_pred) * self.mingle
         if self.repulsion > 0:
-            #loss += get_repulsion_loss4(y_pred) * self.repulsion
-            loss += self.mingle_loss(mask, y_pred) * self.repulsion
+            loss += get_repulsion_loss4(y_pred) * self.repulsion
         return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
 
 
