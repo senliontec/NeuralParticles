@@ -55,7 +55,7 @@ def remove_particles(data, pos, constraint, aux_data={}):
 def extract_particles(data, pos, cnt, constraint, pad_val=0.0, aux_data={}):
     par_idx = particle_radius(data, pos, constraint)
     np.random.shuffle(par_idx)
-    if len(par_idx) > cnt and False:
+    if len(par_idx) > cnt:
         print("Warning: using subset of particles (%d/%d)" % (cnt,len(par_idx)))
     par_idx = par_idx[:min(cnt,len(par_idx))]
 

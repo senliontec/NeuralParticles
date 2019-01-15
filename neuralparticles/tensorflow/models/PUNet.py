@@ -188,35 +188,38 @@ class PUNet(Network):
             if not self.mask:
                 input_points_t = multiply([input_points_t, mask_t])
                 input_xyz_t = multiply([input_xyz_t, mask_t])
-
-            x_t = Dropout(self.dropout)(input_points_t)
+                
+            x_t = Conv1D(self.fac*8, 1)(input_points_t)
             x_t = Conv1D(self.fac*8, 1)(x_t)
-            x_t = Dropout(self.dropout)(x_t)
-            x_t = Conv1D(self.fac*8, 1)(x_t)
-
+            
             x_t = unstack(x_t, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
-
-            x_t = Dropout(self.dropout)(x_t)
-            x_t = Dense(self.fac*4, activation='tanh')(x_t)
-
+            
+            
+            x_t = Dense(self.fac*4, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02))(x_t)
             b = np.zeros(1, dtype='float32')
             W = np.zeros((self.fac*4, 1), dtype='float32')
-            x_t = Dropout(self.dropout)(x_t)
-            x_t = Dense(1, activation='tanh', weights=[W,b], name="cnt")(x_t)
 
-            trunc = MultConst(1/self.particle_cnt_src)(add(unstack(mask_t,1)))
+            x_t = Dense(1, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02), weights=[W,b], name="cnt")(x_t)
+            trunc = AddConst((self.particle_cnt_dst+1)/self.particle_cnt_dst, name="truncation")(x_t)
 
+            """
+            x_t = Dense(self.fac*4, activation='tanh')(x_t)
+            b = np.zeros(1, dtype='float32')
+            W = np.zeros((self.fac*4, 1), dtype='float32')
+            
+            x_t = Dense(1, weights=[W,b], activation='tanh', name="cnt")(x_t)
+
+            trunc = MultConst(1/self.particle_cnt_src)(add(unstack(mask_t, 1)))
             trunc = add([trunc, x_t], name="truncation")
-
+            """
             self.trunc_model = Model(inputs=trunc_input, outputs=trunc, name="truncation")
 
             trunc = self.trunc_model(inputs)
 
+
             out_mask = soft_trunc_mask(trunc, self.particle_cnt_dst)
 
-            """out_mask = Reshape((self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src))(out_mask)
-            out_mask = Permute((2,1))(out_mask)"""
             out_mask = Reshape((self.particle_cnt_dst, 1), name="truncation_mask")(out_mask)
 
             out = multiply([out, out_mask], name="masked_coords")
@@ -230,50 +233,47 @@ class PUNet(Network):
                 out_mask = Reshape((self.particle_cnt_dst, 1), name="truncation_mask")(out_mask)
 
                 out = multiply([out, out_mask])
-            else:
-                out_mask = Lambda(lambda x: K.ones_like(x)[...,:1])(x)
             self.model = Model(inputs=inputs, outputs=[out])
 
-        out = concatenate([out, out_mask], axis=-1, name="out_m")
-        if not self.truncate or (self.pretrain and self.truncate):
-            self.train_model = Model(inputs=inputs, outputs=[out])
-        else:
-            self.train_model = Model(inputs=inputs, outputs=[out, trunc])
 
-        if self.temp_coh:
-            inputs = [
-                Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),
-                Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),
-                Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))]
-            out0 = self.train_model(inputs[0])
-
-            if self.truncate and not self.pretrain:
-                trunc = Lambda(lambda x: x, name="trunc")(out0[1])
-                out0 = Lambda(lambda x: x, name="out_m")(out0[0])
-            else:
-                out0 = Lambda(lambda x: x, name="out_m")(out0)
-
-            out = Lambda(lambda x: x[...,:3], name="points")(out0)
-            if self.truncate:
-                out1 = concatenate([out, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
-            else:
-                out1 = concatenate([out, self.model(inputs[1]), self.model(inputs[2])], axis=1, name='temp')
-
-            if self.truncate and not self.pretrain:
-                self.train_model = Model(inputs=inputs, outputs=[out0, out1, trunc])
-            else:
-                self.train_model = Model(inputs=inputs, outputs=[out0, out1])
-
-            """if self.truncate:
-                trunc = Lambda(lambda x: x, name="trunc")(out[1])
-                out = Lambda(lambda x: x, name="points")(out[0])
-                out1 = concatenate([out, out_mask, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
-                self.train_model = Model(inputs=inputs, outputs=[out, out1])
-            else:
-                out = Lambda(lambda x: x, name="points")(out)
-                out1 = concatenate([out, out_mask, self.model(inputs[1]), self.model(inputs[2])], axis=1, name='temp')
-                self.train_model = Model(inputs=inputs, outputs=[out, out1])"""
+        # gen train model
+        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))]
         
+        out0 = self.model(inputs[0])
+
+        if self.truncate:
+            trunc = Lambda(lambda x: x, name="trunc")(out0[1])
+            out0 = Lambda(lambda x: x)(out0[0])
+            out_mask = soft_trunc_mask(trunc, self.particle_cnt_dst)
+            out_mask = Reshape((self.particle_cnt_dst, 1), name="truncation_mask")(out_mask)
+        else:
+            if self.mask:
+                out_mask = RepeatVector(self.particle_cnt_dst//self.particle_cnt_src)(Flatten()(zero_mask(inputs[0], self.pad_val)))
+
+                out_mask = Reshape((self.particle_cnt_dst//self.particle_cnt_src, self.particle_cnt_src))(out_mask)
+                out_mask = Permute((2,1))(out_mask)
+                out_mask = Reshape((self.particle_cnt_dst, 1))(out_mask)                
+            else:
+                out_mask = Lambda(lambda x: K.ones_like(x)[...,:1])(out0)
+
+        out_m = concatenate([out0, out_mask], axis=-1, name="out_m")
+
+        outputs = [out_m]
+        if self.temp_coh:
+            inputs.extend([
+                Input(inputs[0].shape[1:]),
+                Input(inputs[0].shape[1:])])
+            if self.truncate:
+                out1 = concatenate([out0, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
+            else:
+                out1 = concatenate([out0, self.model(inputs[1]), self.model(inputs[2])], axis=1, name='temp')
+            outputs.append(out1)
+        
+        if self.truncate:
+            outputs.append(trunc)
+            
+        self.train_model = Model(inputs=inputs, outputs=outputs)
+
 
     def mask_loss(self, y_true, y_pred):
         loss = 0
@@ -378,9 +378,7 @@ class PUNet(Network):
                 self.trunc_model.trainable = False
             else:
                 loss.append(self.trunc_loss)
-            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=metrics)
-        else:
-            self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=metrics)
+        self.train_model.compile(loss=loss, optimizer=keras.optimizers.adam(lr=self.learning_rate, decay=self.decay), loss_weights=self.loss_weights, metrics=metrics)
 
     def _train(self, epochs, **kwargs):
         callbacks = kwargs.get("callbacks", [])

@@ -213,7 +213,7 @@ else:
     config_dict['ref'] = ref_data
     
 config_dict['callbacks'] = [(EvalCallback(tmp_eval_path + "eval_patch", eval_src_patches, eval_ref_patches, punet.model,
-                                          train_config['features'], z=None if data_config['dim'] == 2 else 0, truncate=train_config['mask'], verbose=3 if verbose else 1)),
+                                          train_config['features'], z=None if data_config['dim'] == 2 else 0, truncate=train_config['mask'], verbose=3 if verbose else 2)),
                             keras.callbacks.ModelCheckpoint(tmp_checkpoint_path), NthLogger(plot_intervall)]
 config_dict['trunc_callbacks'] = [NthLogger(plot_intervall)]
 ''',
