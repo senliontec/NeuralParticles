@@ -195,7 +195,7 @@ class PUNet(Network):
             x_t = unstack(x_t, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
             
-            
+            """
             x_t = Dense(self.fac*4, activation='elu', kernel_regularizer=keras.regularizers.l2(0.02))(x_t)
             b = np.zeros(1, dtype='float32')
             W = np.zeros((self.fac*4, 1), dtype='float32')
@@ -212,7 +212,7 @@ class PUNet(Network):
 
             trunc = MultConst(1/self.particle_cnt_src)(add(unstack(mask_t, 1)))
             trunc = add([trunc, x_t], name="truncation")
-            """
+            
             self.trunc_model = Model(inputs=trunc_input, outputs=trunc, name="truncation")
 
             trunc = self.trunc_model(inputs)
