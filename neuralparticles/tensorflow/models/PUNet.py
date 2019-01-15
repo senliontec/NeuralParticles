@@ -261,8 +261,8 @@ class PUNet(Network):
         outputs = [out_m]
         if self.temp_coh:
             inputs.extend([
-                Input(inputs[0].shape[1:]),
-                Input(inputs[0].shape[1:])])
+                Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),
+                Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))])
             if self.truncate:
                 out1 = concatenate([out0, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
             else:
