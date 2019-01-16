@@ -153,7 +153,7 @@ for i in range(len(eval_dataset)):
         #eval_par_aux['p'] = np.sign(eval_par_aux['p'])*np.sqrt(np.abs(eval_par_aux['p']))
         eval_ref_datas[i][j] = eval_ref_data
 
-        patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/factor_d)
+        patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/factor_d, shuffle=False)
         eval_patch_extractors[i][j] = patch_extractor
         
         if idx is None:
