@@ -51,6 +51,7 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0, tr
             
             plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("detail") + ".png", src=src[0][0], vel=vel_src, z = z, c=c)"""
             fac = raw_result.shape[0]//src[0][0].shape[0]
+
             plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".png", ref=ref, src=src[0][0], vel=vel_src, z = z)
             plot_particles(result[fac:], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("detail") + ".png", src=src[0][0], vel=vel_src, z = z, ref=result[:fac])
             plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("src") + ".png", src=src[0][0], vel=vel_src, z = z)

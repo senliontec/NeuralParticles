@@ -52,9 +52,10 @@ def remove_particles(data, pos, constraint, aux_data={}):
     
     return data, par_pos, aux_data, par_aux'''
 
-def extract_particles(data, pos, cnt, constraint, pad_val=0.0, aux_data={}):
+def extract_particles(data, pos, cnt, constraint, pad_val=0.0, aux_data={}, random=True):
     par_idx = particle_radius(data, pos, constraint)
-    np.random.shuffle(par_idx)
+    if random:
+        np.random.shuffle(par_idx)
     if len(par_idx) > cnt:
         print("Warning: using subset of particles (%d/%d)" % (cnt,len(par_idx)))
     par_idx = par_idx[:min(cnt,len(par_idx))]
@@ -432,7 +433,7 @@ def cluster_analysis(src, res, res_cnt, permute):
     return r_mean_dev, r_min_dev, r_max_dev, in_r_diff, in_r_emd
 
 class PatchExtractor:
-    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=-1, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None, last_pos=None, temp_coh=False, stride_hys=0):
+    def __init__(self, src_data, sdf_data, patch_size, cnt, surface=1.0, stride=-1, bnd=0, pad_val=0.0, aux_data={}, features=[], positions=None, last_pos=None, temp_coh=False, stride_hys=0, shuffle=True):
         self.src_data = src_data
         self.radius = patch_size/2
         self.cnt = cnt
@@ -440,6 +441,7 @@ class PatchExtractor:
         self.aux_data = aux_data
         self.features = features
         self.pad_val = pad_val
+        self.shuffle = shuffle
 
         if positions is not None:
             self.positions = positions.copy()
@@ -521,7 +523,7 @@ class PatchExtractor:
         if remove_data:
             self.data = remove_particles(self.data, pos, self.stride)[0]
 
-        patch, aux = extract_particles(self.src_data, pos, self.cnt, self.radius, self.pad_val, self.aux_data)
+        patch, aux = extract_particles(self.src_data, pos, self.cnt, self.radius, self.pad_val, self.aux_data, self.shuffle)
         if len(aux) > 0:
             return np.concatenate([patch] + [aux[f] for f in self.features],axis=-1)
         else:
