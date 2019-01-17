@@ -92,8 +92,8 @@ for i,item in enumerate(samples):
     faces[i] = d[2]
 
 vertices -= np.min(vertices,axis=(0,1))
-vertices *= (res - 2 * bnd) / np.max(vertices)
-vertices += bnd
+vertices *= (res - 4 * bnd) / np.max(vertices)
+vertices += bnd * 2
 
 bary_coord = np.empty((len(faces[0]),),dtype=object)
 data_cnt = 0

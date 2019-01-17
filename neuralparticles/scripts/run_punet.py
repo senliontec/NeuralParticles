@@ -93,7 +93,7 @@ hres = data_config['res']
 res = int(hres/factor_d[0])
 
 if out_res < 0:
-    out_res = res
+    out_res = hres
 
 bnd = data_config['bnd']
 
@@ -129,7 +129,6 @@ if len(patch_pos) == 3:
     if not os.path.exists(tmp_path):
         os.makedirs(tmp_path)
 
-max_v = 0
 data = None
 ref_data = None
 
@@ -168,13 +167,13 @@ for i,item in enumerate(data):
     par_aux['d'] = np.ones((item.shape[0],1))*1000
     par_aux['p'] = np.ones((item.shape[0],1))*1000
 
-    patch_extractor = PatchExtractor(src_data, np.zeros((1 if dim == 2 else int(max_v/factor_d[0]), int(max_v/factor_d[0]), int(max_v/factor_d[0]),1)), patch_size, par_cnt, pre_config['surf'], 0 if len(patch_pos) == 3 else 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions, stride_hys=1.0)
+    patch_extractor = PatchExtractor(src_data, np.zeros((1 if dim == 2 else int(out_res/factor_d[0]), int(out_res/factor_d[0]), int(out_res/factor_d[0]),1)), patch_size, par_cnt, pre_config['surf'], 0 if len(patch_pos) == 3 else 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions, stride_hys=1.0)
 
     if len(patch_pos) == 3:
         idx = get_nearest_idx(patch_extractor.positions, patch_pos)
         patch = patch_extractor.get_patch(idx, False)
 
-        plot_particles(patch_extractor.positions, [0,int(max_v/factor_d[0])], [0,int(max_v/factor_d[0])], 5, tmp_path + "patch_centers_%03d.png"%i, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=patch_pos[2] if dim == 3 else None)
+        plot_particles(patch_extractor.positions, [0,int(out_res/factor_d[0])], [0,int(out_res/factor_d[0])], 5, tmp_path + "patch_centers_%03d.png"%i, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=patch_pos[2] if dim == 3 else None)
         patch_pos = patch_extractor.positions[idx] + par_aux['v'][patch_extractor.pos_idx[idx]] / data_config['fps']
         ref_patch = extract_particles(ref_data[i], patch_pos * factor_d, par_cnt_dst, half_ps, pad_val)[0]
         result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%i, z=None if dim == 2 else 0, verbose=3 if verbose else 1)
@@ -214,9 +213,9 @@ for i,item in enumerate(data):
     else:    
         positions = patch_extractor.positions + par_aux['v'][patch_extractor.pos_idx] / data_config['fps']
                 
-        plot_particles(patch_extractor.positions, [0,int(max_v/factor_d[0])], [0,int(max_v/factor_d[0])], 5, tmp_path + "patch_centers_%03d.png"%i, z=int(max_v/factor_d[0])//2 if dim == 3 else None)
+        plot_particles(patch_extractor.positions, [0,int(out_res/factor_d[0])], [0,int(out_res/factor_d[0])], 5, tmp_path + "patch_centers_%03d.png"%i, z=int(out_res/factor_d[0])//2 if dim == 3 else None)
 
-        result = eval_frame(punet, patch_extractor, factor_d[0], tmp_path + "result_%s" + "_%03d"%i, src_data, par_aux, None, max_v, z=None if dim == 2 else max_v//2, verbose=3 if verbose else 1)
+        result = eval_frame(punet, patch_extractor, factor_d[0], tmp_path + "result_%s" + "_%03d"%i, src_data, par_aux, None, out_res, z=None if dim == 2 else out_res//2, verbose=3 if verbose else 1)
 
         hdr = OrderedDict([ ('dim',len(result)),
                             ('dimX',hres),
