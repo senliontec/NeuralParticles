@@ -50,7 +50,7 @@ def plot_particles(data, xlim=None, ylim=None, s=1, path=None, ref=None, src=Non
 
 	if not ref is None:
 		rx, ry = (ref[:,0], ref[:, 1]) if z is None else extract_stride(ref, z,offset)
-		plt.scatter(rx,ry,s=s,c='#ff6c00')
+		plt.scatter(rx,ry,s=s*2,c='#ff6c00')
 	plt.scatter(dx,dy,s=s,c=c, cmap=plt.get_cmap("nipy_spectral"))
 	if not src is None:
 		sx,sy = (src[:,0], src[:,1]) if z is None else extract_stride(src, z,offset)
