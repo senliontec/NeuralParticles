@@ -98,6 +98,16 @@ class IISPH:
         print("fluid particle count: %d" % (end-obstacle_cnt))
 
         self.init_sph()
+    
+    def add_fluid(self, phi):
+        self.gFlags.updateFromLevelset(phi)
+        begin = self.pp.pySize()
+        sampleLevelsetWithParticles(phi=phi, flags=self.gFlags, parts=self.pp, discretization=self.sres, randomness=0)
+        end = self.pp.pySize()
+        self.pT.setConstRange(s=1, begin=begin, end=end, notiming=True)
+
+        self.init_sph()
+
   
     def init_pp(self, pp, pT, pV, pP, neighbor, minN=3, seed=345245):
         self.pp.clear()
