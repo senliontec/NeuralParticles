@@ -51,15 +51,15 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0, tr
             
             plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("detail") + ".png", src=src[0][0], vel=vel_src, z = z, c=c)"""
             fac = raw_result.shape[0]//src[0][0].shape[0]
-            print(fac)
-            plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("detail") + ".png", src=src[0][0], vel=vel_src, z = z, ref=result[:fac])
+
             plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".png", ref=ref, src=src[0][0], vel=vel_src, z = z)
+            plot_particles(result[fac:], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("detail") + ".png", src=src[0][0], vel=vel_src, z = z, ref=result[:fac])
             plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("src") + ".png", src=src[0][0], vel=vel_src, z = z)
             if ref is not None: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".png",  z = z)
             plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("res") + ".png", z = z)
             if verbose > 1:
-                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("detail") + ".svg", src=src[0][0], vel=vel_src, z = z, ref=result[:fac])
                 plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".svg", ref=ref, src=src[0][0], vel=vel_src, z = z)
+                plot_particles(result[fac:], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("detail") + ".svg", src=src[0][0], vel=vel_src, z = z, ref=result[:fac])
                 plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("src") + ".svg", src=src[0][0], vel=vel_src, z = z)
                 if ref is not None: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".svg",  z = z)
                 plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("res") + ".svg", z = z)
