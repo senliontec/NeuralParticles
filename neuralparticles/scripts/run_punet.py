@@ -36,6 +36,7 @@ verbose = int(getParam("verbose", 0)) != 0
 gpu = getParam("gpu", "")
 
 temp_coh_dt = float(getParam("temp_coh_dt", 0))
+out_res = int(getParam("res", -1))
 
 checkpoint = int(getParam("checkpoint", -1))
 
@@ -91,6 +92,9 @@ par_cnt_dst = pre_config['par_cnt_ref']
 hres = data_config['res']
 res = int(hres/factor_d[0])
 
+if out_res < 0:
+    out_res = res
+
 bnd = data_config['bnd']
 
 half_ps = patch_size_ref//2
@@ -143,7 +147,7 @@ for i,item in enumerate(src_samples):
 '''data[...,:3] -= np.min(data[...,:3],axis=(0,1))
 data[...,:3] *= (res - 2 * data_config['bnd']) / np.max(data[...,:3])
 data[...,:3] += data_config['bnd']'''
-
+"""
 def scale_data(data, min_v, max_v, res, bnd):
     data -= min_v
     data *= (res - 2 * bnd) / max_v
@@ -151,7 +155,7 @@ def scale_data(data, min_v, max_v, res, bnd):
     return data
 min_v = np.min(ref_data[...,:3],axis=(0,1))
 max_v = np.max(ref_data[...,:3])
-
+"""
 for i,item in enumerate(data):
     src_data = item[...,:3]
     par_aux = {}
@@ -223,16 +227,16 @@ for i,item in enumerate(data):
                             ('info',b'\0'*256),
                             ('timestamp',(int)(time.time()*1e6))])
                             
-        writeParticlesUni(tmp_path + "result_%03d.uni"%i, hdr, scale_data(result, min_v, max_v, hres, bnd))
+        writeParticlesUni(tmp_path + "result_%03d.uni"%i, hdr, result * res / out_res)
 
         hdr['dim'] = len(ref_data[i])
-        writeParticlesUni(tmp_path + "reference_%03d.uni"%i, hdr, scale_data(ref_data[i], min_v, max_v, hres, bnd))
+        writeParticlesUni(tmp_path + "reference_%03d.uni"%i, hdr, ref_data[i] * res / out_res)
 
         hdr['dim'] = len(src_data)
         hdr['dimX'] = res
         hdr['dimY'] = res
         if dim == 3: hdr['dimZ'] = res
-        writeParticlesUni(tmp_path + "source_%03d.uni"%i, hdr, scale_data(src_data, min_v/factor_d[0], max_v/factor_d[0], res, bnd/factor_d[0]))
+        writeParticlesUni(tmp_path + "source_%03d.uni"%i, hdr, src_data * res / out_res)
 
 
         print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))

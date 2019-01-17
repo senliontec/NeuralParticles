@@ -36,6 +36,7 @@ dataset = int(getParam("dataset", -1))
 var = int(getParam("var", -1))
 gpu = getParam("gpu", "")
 real = int(getParam("real", 0)) != 0
+out_res = int(getParam("res", -1))
 
 patch_pos = np.fromstring(getParam("patch", ""),sep=",")
 
@@ -108,6 +109,9 @@ par_cnt_dst = pre_config['par_cnt_ref']
 hres = data_config['res']
 res = int(hres/factor_d[0])
 
+if out_res < 0:
+    out_res = res
+
 bnd = data_config['bnd']/factor_d[0]
 
 half_ps = patch_size_ref//2
@@ -127,7 +131,6 @@ def write_out_vel(particles, vel, d, v, t, suffix, xlim=None, ylim=None, s=5, z=
     plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.png")%(d,v,t), src=particles, vel=vel, z=z)
     plot_particles(particles, xlim, ylim, s, (dst_path + suffix + "_%03d.svg")%(d,v,t), src=particles, vel=vel, z=z)
     write_csv((dst_path + suffix + "_%03d.csv")%(d,v,t), vel)
-
 
 
 if checkpoint > 0:
@@ -187,7 +190,7 @@ for d in range(d_start, d_end):
                 idx = get_nearest_idx(patch_extractor.positions, patch_pos)
                 patch = patch_extractor.get_patch(idx, False)
                 
-                plot_particles(patch_extractor.positions, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
+                plot_particles(patch_extractor.positions*res/out_res, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
                 patch_pos = patch_extractor.positions[idx] + par_aux['v'][patch_extractor.pos_idx[idx]] / data_config['fps']
                 if real:
                     result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, z=None if dim == 2 else 0, verbose=3 if verbose else 1)
@@ -228,7 +231,7 @@ for d in range(d_start, d_end):
 
                 print("particles: %d -> %d (fac: %.2f)" % (np.count_nonzero(patch[...,0] != pre_config['pad_val']), len(result), (len(result)/np.count_nonzero(patch[...,0] != pre_config['pad_val']))))
             else:
-                write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,res], [0,res], 5, res//2 if dim == 3 else None)
+                write_out_particles(patch_extractor.positions*res/out_res, d, v, t, "patch_centers", [0,res], [0,res], 5, res//2 if dim == 3 else None)
 
                 result = eval_frame(punet, patch_extractor, factor_d[0], tmp_path + "result_%s" + "_%03d"%t, src_data, par_aux, None if real else ref_data, hres, z=None if dim == 2 else hres//2, verbose=3 if verbose else 1)
 
@@ -241,17 +244,17 @@ for d in range(d_start, d_end):
                                     ('info',b'\0'*256),
                                     ('timestamp',(int)(time.time()*1e6))])
 
-                writeParticlesUni(tmp_path + "result_%03d.uni"%t, hdr, result)
+                writeParticlesUni(tmp_path + "result_%03d.uni"%t, hdr, result*res/out_res)
 
                 if not real:
                     hdr['dim'] = len(ref_data)
-                    writeParticlesUni(tmp_path + "reference_%03d.uni"%t, hdr, ref_data)
+                    writeParticlesUni(tmp_path + "reference_%03d.uni"%t, hdr, ref_data*res/out_res)
 
                 hdr['dim'] = len(src_data)
                 hdr['dimX'] = res
                 hdr['dimY'] = res
                 if dim == 3: hdr['dimZ'] = res
-                writeParticlesUni(tmp_path + "source_%03d.uni"%t, hdr, src_data)
+                writeParticlesUni(tmp_path + "source_%03d.uni"%t, hdr, src_data*res/out_res)
 
                 print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))
 
