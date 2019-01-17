@@ -44,7 +44,7 @@ param['pause'] = pause
 param['sres'] = data_config['sub_res']
 
 factor_d = math.pow(pre_config['factor'], 1/data_config['dim'])
-param['bnd'] = max(int(data_config['bnd'] / factor_d),1)
+param['bnd'] = int(math.ceil((data_config['bnd'] / factor_d)))
 
 # write only every 30th frame -> 30 frames are one timestep
 param['fps'] = data_config['fps']
@@ -100,9 +100,9 @@ for i in range(data_cnt):
     basin_h = modes[m_idx]['basin']
     if basin_h > 0.0:
         if param['dim'] == 2:
-            cubes['c0'] = "0.5,%f,1.0,%f" % (basin_h/2, basin_h)
+            cubes['c0'] = "0.5,%f,0.5,%f" % (basin_h/2, basin_h)
         else:
-            cubes['c0'] = "0.5,%f,0.5,1.0,%f,1.0" % (basin_h/2, basin_h)
+            cubes['c0'] = "0.5,%f,0.5,0.5,%f,0.5" % (basin_h/2, basin_h)
 
     for c in range(random.randint(modes[m_idx]['cnt'][0],modes[m_idx]['cnt'][1])):    
         if random.random() < modes[m_idx]['cube_prob']:
