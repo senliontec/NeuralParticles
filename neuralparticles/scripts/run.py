@@ -191,7 +191,7 @@ for d in range(d_start, d_end):
                 np.random.seed(45)
                 patch = patch_extractor.get_patch(idx, False)
 
-                plot_particles(patch_extractor.positions*hres/out_res, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
+                plot_particles(patch_extractor.positions, [0,int(out_res/factor_d[0])], [0,int(out_res/factor_d[0])], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=patch_pos[2] if dim == 3 else None)
                 patch_pos = patch_extractor.positions[idx] + temp_coh_dt * par_aux['v'][patch_extractor.pos_idx[idx]] / data_config['fps']
                 if real:
                     result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, z=None if dim == 2 else 0, verbose=3 if verbose else 1)
@@ -232,7 +232,7 @@ for d in range(d_start, d_end):
 
                 print("particles: %d -> %d (fac: %.2f)" % (np.count_nonzero(patch[...,0] != pre_config['pad_val']), len(result), (len(result)/np.count_nonzero(patch[...,0] != pre_config['pad_val']))))
             else:
-                write_out_particles(patch_extractor.positions*hres/out_res, d, v, t, "patch_centers", [0,res], [0,res], 5, res//2 if dim == 3 else None)
+                write_out_particles(patch_extractor.positions, d, v, t, "patch_centers", [0,int(out_res/factor_d[0])], [0,int(out_res/factor_d[0])], 5, int(out_res/factor_d[0])//2 if dim == 3 else None)
 
                 result = eval_frame(punet, patch_extractor, factor_d[0], tmp_path + "result_%s" + "_%03d"%t, src_data, par_aux, None if real else ref_data, out_res, z=None if dim == 2 else out_res//2, verbose=3 if verbose else 1)
 

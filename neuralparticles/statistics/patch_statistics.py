@@ -18,6 +18,7 @@ if __name__ == "__main__":
     if not os.path.exists(data_path + "statistics/"):
         os.makedirs(data_path + "statistics/")
 
+    np.random.seed(34)
 
     src_path = data_path + "source/"
     ref_path = data_path + "reference/"
@@ -34,7 +35,7 @@ if __name__ == "__main__":
     with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
         train_config = json.loads(f.read())
 
-    sample_path = data_path + "statistics/%s_%s-%s_sample_patches/" % (data_config['prefix'], data_config['id'], pre_config['id'])
+    sample_path = data_path + "statistics/%s_%s-%s-%s_sample_patches/" % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'])
     if os.path.exists(sample_path):
         shutil.rmtree(sample_path)
 
@@ -121,7 +122,7 @@ if __name__ == "__main__":
             plot_particles(out_ref[i], [-1,1], [-1,1], 5, sample_path + "%06d_%06d_ref.svg"%(i,tmp_cnt), z= 0 if data_config['dim'] == 3 else None)
             if use_network:
                 plot_particles(out_res[i], [-1,1], [-1,1], 5, sample_path + "%06d_%06d_res.svg"%(i,tmp_cnt), z= 0 if data_config['dim'] == 3 else None)
-                plot_particles(out_res[i], [-1,1], [-1,1], 5, sample_path + "%06d_%06d_comp.svg"%(i,tmp_cnt), z= 0 if data_config['dim'] == 3 else None, src=out_src[i], ref=out_ref[i])
+                plot_particles(out_res[i], [-1,1], [-1,1], 5, sample_path + "%06d_%06d_comp.svg"%(i,tmp_cnt), z= 0 if data_config['dim'] == 3 else None, ref=out_ref[i])
             else:
                 plot_particles(out_ref[i], [-1,1], [-1,1], 5, sample_path + "%06d_%06d_comp.svg"%(i,tmp_cnt), z= 0 if data_config['dim'] == 3 else None, src=out_src[i])
  
@@ -129,4 +130,4 @@ if __name__ == "__main__":
     write_csv(data_path + "statistics/%s_%s-%s_ref_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']), pad_cnt_ref)
 
     if use_network:
-        write_csv(data_path + "statistics/%s_%s-%s_res_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']), pad_cnt_res)
+        write_csv(data_path + "statistics/%s_%s-%s-%s_res_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id'], train_config['id']), pad_cnt_res)

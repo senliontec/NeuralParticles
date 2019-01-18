@@ -4,7 +4,6 @@
     "dim":            2, 
     "fps":            480, 
     "frame_count":    200, 
-    "frame_count":    400, 
     "data_count":     40, 
     "test_count":     2, 
     "sub_res":        2, 

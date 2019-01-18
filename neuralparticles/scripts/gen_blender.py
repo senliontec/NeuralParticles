@@ -86,9 +86,11 @@ param = {}
 
 dim = data_config['dim']
 res = data_config['res']
+bnd = data_config['bnd']
 param['t_start'] = t_start
 param['t_end'] = t_end
 param['res'] = res
+param['bnd'] = bnd
 param['dim'] = dim
 param['gui'] = gui
 param['pause'] = pause
@@ -108,6 +110,7 @@ param['out_foam'] = prefix_foam + "reference/fluidsurface_final_%04d.bobj.gz"
 run_manta(manta_path, "scenes/blender.py", param, verbose)
 
 param['res'] = int(param['res'] / math.pow(pre_config['factor'],1/dim))
+param['bnd'] = int(math.ceil(param['bnd'] / math.pow(pre_config['factor'],1/dim)))
 if len(patch_pos) == 3:
     res = int(res * pre_config['patch_size'])
 param['in'] = data_path + "source_%03d.uni"

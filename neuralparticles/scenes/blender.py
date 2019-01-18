@@ -21,6 +21,8 @@ t = t_end - t_start
 
 dim = int(getParam("dim", 2))
 
+bnd = int(getParam("bnd", 4))
+
 surface_path = getParam("out_surface", "")
 foam_path = getParam("out_foam", "")
 
@@ -42,7 +44,7 @@ sdf.setBound(value=0., boundaryWidth=1)
 mesh = s.create(Mesh)
 
 gFlags   = s.create(FlagGrid)
-gFlags.initDomain(4)
+gFlags.initDomain(bnd)
 gFlags.fillGrid(TypeEmpty)
 
 gIdxSys  = s.create(ParticleIndexSystem)
