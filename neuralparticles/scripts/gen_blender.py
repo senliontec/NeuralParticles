@@ -87,6 +87,10 @@ param = {}
 dim = data_config['dim']
 res = data_config['res']
 bnd = data_config['bnd']
+
+if len(patch_pos) == 3:
+    bnd = 0
+    
 param['t_start'] = t_start
 param['t_end'] = t_end
 param['res'] = res
