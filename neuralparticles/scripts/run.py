@@ -43,7 +43,7 @@ patch_pos = np.fromstring(getParam("patch", ""),sep=",")
 if len(patch_pos) == 2:
     patch_pos = np.append(patch_pos, [0.5])
 
-temp_coh_dt = float(getParam("temp_coh_dt", 0))
+temp_coh_dt = float(getParam("temp_coh_dt", 1))
  
 checkpoint = int(getParam("checkpoint", -1))
 
@@ -170,7 +170,7 @@ for d in range(d_start, d_end):
 
         #patch = None
         for t in range(t_start, t_end):
-            if temp_coh_dt == 0 or src_data is None:
+            if temp_coh_dt == 1 or src_data is None:
                 if real:
                     path_src = "%sreal/%s_%s_d%03d_%03d" % (data_path, data_config['prefix'], data_config['id'], d, t)
                     src_data, sdf_data, par_aux = get_data(path_src, par_aux=train_config['features'])
@@ -184,7 +184,7 @@ for d in range(d_start, d_end):
                 positions = src_data[positions]
             patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 0 if len(patch_pos) == 3 else 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions, stride_hys=1.0, shuffle=True)
 
-            positions = patch_extractor.pos_idx if real else (patch_extractor.positions + par_aux['v'][patch_extractor.pos_idx] / data_config['fps'])
+            positions = patch_extractor.pos_idx if real else (patch_extractor.positions + temp_coh_dt * par_aux['v'][patch_extractor.pos_idx] / data_config['fps'])
 
             if len(patch_pos) == 3:
                 idx = get_nearest_idx(patch_extractor.positions, patch_pos)
@@ -192,7 +192,7 @@ for d in range(d_start, d_end):
                 patch = patch_extractor.get_patch(idx, False)
 
                 plot_particles(patch_extractor.positions*hres/out_res, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
-                patch_pos = patch_extractor.positions[idx] + par_aux['v'][patch_extractor.pos_idx[idx]] / data_config['fps']
+                patch_pos = patch_extractor.positions[idx] + temp_coh_dt * par_aux['v'][patch_extractor.pos_idx[idx]] / data_config['fps']
                 if real:
                     result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, z=None if dim == 2 else 0, verbose=3 if verbose else 1)
                 else:
