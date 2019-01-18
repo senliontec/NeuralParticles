@@ -191,7 +191,7 @@ for d in range(d_start, d_end):
                 np.random.seed(45)
                 patch = patch_extractor.get_patch(idx, False)
 
-                plot_particles(patch_extractor.positions*res/out_res, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
+                plot_particles(patch_extractor.positions*hres/out_res, [0,res], [0,res], 5, tmp_path + "patch_centers_%03d.png"%t, np.array([patch_extractor.positions[idx]]), np.array([patch_pos]), z=res//2 if dim == 3 else None)
                 patch_pos = patch_extractor.positions[idx] + par_aux['v'][patch_extractor.pos_idx[idx]] / data_config['fps']
                 if real:
                     result = eval_patch(punet, [np.array([patch])], tmp_path + "result_%s" + "_%03d"%t, z=None if dim == 2 else 0, verbose=3 if verbose else 1)

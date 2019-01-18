@@ -36,6 +36,9 @@ if __name__ == "__main__":
 
     #grouped_data/=np.max(grouped_data, axis=0, keepdims=True)+1e-10
 
+    """fig, ax = plt.subplots()
+    ax.imshow(grouped_data, cmap='hot')"""
+
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     #ax = fig.gca(projection='3d')
