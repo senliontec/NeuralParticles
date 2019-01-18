@@ -226,16 +226,16 @@ for i,item in enumerate(data):
                             ('info',b'\0'*256),
                             ('timestamp',(int)(time.time()*1e6))])
                             
-        writeParticlesUni(tmp_path + "result_%03d.uni"%i, hdr, result * res / out_res)
+        writeParticlesUni(tmp_path + "result_%03d.uni"%i, hdr, result * hres / out_res)
 
         hdr['dim'] = len(ref_data[i])
-        writeParticlesUni(tmp_path + "reference_%03d.uni"%i, hdr, ref_data[i] * res / out_res)
+        writeParticlesUni(tmp_path + "reference_%03d.uni"%i, hdr, ref_data[i] * hres / out_res)
 
         hdr['dim'] = len(src_data)
         hdr['dimX'] = res
         hdr['dimY'] = res
         if dim == 3: hdr['dimZ'] = res
-        writeParticlesUni(tmp_path + "source_%03d.uni"%i, hdr, src_data * res / out_res)
+        writeParticlesUni(tmp_path + "source_%03d.uni"%i, hdr, src_data * hres / out_res)
 
 
         print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))

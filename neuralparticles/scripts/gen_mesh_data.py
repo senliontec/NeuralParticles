@@ -91,9 +91,15 @@ for i,item in enumerate(samples):
     normals[i] = d[1]
     faces[i] = d[2]
 
-vertices -= np.min(vertices,axis=(0,1))
-vertices *= (res - 4 * bnd) / np.max(vertices)
-vertices += bnd * 2
+min_v = np.min(vertices,axis=(0,1))
+max_v = np.max(vertices,axis=(0,1))
+scale = max_v - min_v
+
+vertices -= min_v + [0.5,0,0.5] * scale 
+vertices *= (res - 4 * bnd) / np.max(scale)
+vertices += [res/2, bnd*2, res/2]
+print(np.min(vertices,axis=(0,1)))
+print(np.max(vertices,axis=(0,1)))
 
 bary_coord = np.empty((len(faces[0]),),dtype=object)
 data_cnt = 0
