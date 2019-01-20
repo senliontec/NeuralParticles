@@ -289,12 +289,11 @@ class PUNet(Network):
     def trunc_loss(self, y_true, y_pred):
         return keras.losses.mse(1, y_pred/y_true)
 
-
-    def temp_loss(self, y_true, y_pred):
+    def temp_loss_raw(self, y_true, y_pred, use_emd, acc_fac):
         import tensorflow as tf
         pred, pred_p, pred_n = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
         gt, gt_p, gt_n = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
-        if self.use_temp_emd: 
+        if use_emd: 
             pred_v0 = pred - pred_p
             pred_v1 = pred_n - pred
             gt_v0 = gt - gt_p
@@ -303,10 +302,13 @@ class PUNet(Network):
             gt_a = gt_v1 - gt_v0
 
             match = approx_match(pred, gt*zero_mask(gt, self.pad_val))
-            return ((1 - self.acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + self.acc_fac * match_cost(pred_a, gt_a, match)) / tf.cast(tf.shape(y_pred)[1], tf.float32)
+            return ((1 - acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + acc_fac * match_cost(pred_a, gt_a, match)) / tf.cast(tf.shape(y_pred)[1], tf.float32)
         else:
-            return (1 - self.acc_fac) * keras.losses.mse(pred, pred_n) + self.acc_fac * keras.losses.mse(pred-pred_p, pred_n-pred)
- 
+            return (1 - acc_fac) * keras.losses.mse(pred, pred_n) + acc_fac * keras.losses.mse(pred-pred_p, pred_n-pred)
+
+    def temp_loss(self, y_true, y_pred):
+        return self.temp_loss_raw(y_true, y_pred, self.use_temp_emd, self.acc_fac)
+
     def mingle_loss_2(self, mask, y_pred):
         if self.permutate:
             A = K.reshape(y_pred, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 1, 3))
@@ -336,7 +338,7 @@ class PUNet(Network):
             cost = K.sum((K.sum(K.square(A-B),axis=-1)*mask), axis=(1,2))/(K.sum(mask, axis=(1,2))+1e-8)
 
         return 1./(K.mean(cost, axis=-1)+1e-8)
-        
+
     def mingle_loss(self, mask, y_pred): 
         if self.permutate:
             y_pred = K.reshape(y_pred, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 3))
@@ -357,20 +359,36 @@ class PUNet(Network):
         group_cnt = K.clip(K.reshape(group_cnt, (-1, self.particle_cnt_src)) - 1, 0, self.particle_cnt_dst//self.particle_cnt_src)
         return K.sum(group_cnt/group_diff, axis=-1)/(cnt+1e-8)
 
+
     def trunc_metric(self, y_true, y_pred):
         return keras.losses.mse(K.sum(zero_mask(y_true, self.pad_val),axis=-2)/self.particle_cnt_dst,K.sum(y_pred[...,3:],axis=-2)/self.particle_cnt_dst)
+
 
     def particle_metric(self, y_true, y_pred):
         return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[...,:3])
 
+    def mse_vel_metric(self, y_true, y_pred):
+        return self.temp_loss_raw(y_true, y_pred, False, 0.0)
+
+    def mse_acc_metric(self, y_true, y_pred):
+        return self.temp_loss_raw(y_true, y_pred, False, 1.0)
+
+    def emd_vel_metric(self, y_true, y_pred):
+        return self.temp_loss_raw(y_true, y_pred, True, 0.0)
+
+    def emd_acc_metric(self, y_true, y_pred):
+        return self.temp_loss_raw(y_true, y_pred, True, 1.0)
+
     def mingle_metric(self, y_true, y_pred):
         return self.mingle_loss(y_pred[...,3:], y_pred[...,:3])
+
 
     def compile_model(self):
         loss = [self.mask_loss]
         metrics = {'out_m':[self.trunc_metric, self.particle_metric, self.mingle_metric]}
         if self.temp_coh:
             loss.append(self.temp_loss)
+            metrics['temp'] = [self.mse_vel_metric, self.mse_acc_metric, self.emd_vel_metric, self.emd_acc_metric]
 
         if self.truncate:
             if self.pretrain:
@@ -418,21 +436,20 @@ class PUNet(Network):
     def predict(self, x, batch_size=32):
         return self.model.predict(x, batch_size=batch_size)
 
+    def eval(self, generator):
+        return self.train_model.evaluate_generator(generator=generator, use_multiprocessing=False, workers=1, verbose=1)
+
     def save_model(self, path):
         self.model.save(path)
+        
+
+    def load_checkpoint(self, path):
+        self.train_model.load_weights(path)
 
     def load_model(self, path):
         if self.model:
-            self.model.load_weights(path)
-            self.train_model.load_weights(path)
+            self.model.load_weights(path)           
         else:
             self.model = load_model(path, custom_objects={'mask_loss': self.mask_loss, 'trunc_loss': self.trunc_loss, 'temp_loss': self.temp_loss, 
                                                           'particle_metric': self.particle_metric, 'trunc_metric': self.trunc_metric,
                                                           'Interpolate': Interpolate, 'SampleAndGroup': SampleAndGroup, 'MultConst': MultConst, 'AddConst': AddConst})
-        '''if self.truncate:
-            out, trunc = self.model.outputs
-            trunc_exp = stack([trunc, trunc, trunc], 2)
-            out = concatenate([out, trunc_exp], 1, name='points')
-            self.train_model = Model(inputs=self.model.inputs, outputs=[out, trunc])
-        else:
-            self.train_model = Model(self.model.inputs, self.model.outputs)'''

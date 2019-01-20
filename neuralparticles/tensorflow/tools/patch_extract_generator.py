@@ -49,7 +49,7 @@ class Chunk:
 
 class PatchGenerator(keras.utils.Sequence):
     def __init__(self, data_path, config_path, chunk_size,
-                 d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None, trunc=False):
+                 d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None, trunc=False, eval=False):
         np.random.seed(45)
         random.seed(45)
         with open(config_path, 'r') as f:
@@ -67,8 +67,8 @@ class PatchGenerator(keras.utils.Sequence):
         self.data_path = data_path
         self.config_path = config_path
 
-        self.d_start = 0 if d_start < 0 else d_start
-        self.d_end = int(data_config['data_count']) if d_end < 0 else d_end
+        self.d_start = (data_config['data_count'] if eval else 0) if d_start < 0 else d_start
+        self.d_end = (data_config['data_count'] + (data_config['test_count'] if eval else 0)) if d_end < 0 else d_end
         self.t_start = min(train_config['t_start'], data_config['frame_count']-1) if t_start < 0 else t_start
         self.t_end = min(train_config['t_end'], data_config['frame_count']) if t_end < 0 else t_end
 
@@ -91,7 +91,7 @@ class PatchGenerator(keras.utils.Sequence):
         self.batch_cnt = 0
 
         tmp_w = train_config['loss_weights']
-        self.temp_coh = tmp_w[1] > 0.0
+        self.temp_coh = tmp_w[1] > 0.0 or eval
         self.trunc = tmp_w[2] > 0.0 and not train_config['pretrain']
         self.trunc_only = trunc
         self.fac = train_config['sub_fac']
@@ -112,6 +112,8 @@ class PatchGenerator(keras.utils.Sequence):
         self.chunked_idx = np.empty((self.chunk_cnt,), dtype=object)
         self.chunked_idx_val = np.empty((self.chunk_cnt,), dtype=object)
 
+        val_split = 0 if eval else train_config['val_split']
+
         path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
 
         if chunked_idx is None:
@@ -127,7 +129,7 @@ class PatchGenerator(keras.utils.Sequence):
                     src_data, sdf_data, _ = get_data(path_src % (chunk.frames[j][0], 0, chunk.frames[j][1]))
                     position_idx = PatchExtractor(src_data, sdf_data, self.patch_size, self.par_cnt, self.surface, self.stride, self.bnd, self.pad_val).pos_idx
 
-                    val_choice = random.sample(range(len(position_idx)), int(np.ceil(train_config['val_split'] * len(position_idx))))
+                    val_choice = random.sample(range(len(position_idx)), int(np.ceil(val_split * len(position_idx))))
                     chunk_val.position_idx[j] = position_idx[val_choice]
                     chunk.position_idx[j] = np.delete(position_idx, val_choice)      
 
