@@ -8,7 +8,6 @@
     "test_count":     2, 
     "sub_res":        2, 
     "res":            150, 
-    "res":            180, 
     "seed":           5234244, 
     "bnd":            4, 
  
