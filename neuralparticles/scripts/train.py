@@ -191,18 +191,8 @@ for i in range(len(eval_dataset)):
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])
 
 punet.build_model()
-w = punet.model.get_weights()
 #keras.utils.plot_model(punet.model, tmp_model_path + '.pdf', show_shapes=False, show_layer_names=True) 
 punet.save_model(tmp_model_path+".h5")
-
-def comp_weights(w0, w1):
-    v = 0
-    if type(w0) is list:
-        for i in range(len(w0)):
-            v = max(v, comp_weights(w0[i], w1[i]))
-    else:
-        v = np.max(np.square(w0-w1))
-    return v  
 
 if verbose:
     punet.model.summary()
@@ -234,13 +224,8 @@ config_dict['trunc_callbacks'] = [NthLogger(plot_intervall)]
 history = punet.train(**config_dict, build_model=False)
 print(history.history)
 
-print(comp_weights(w,punet.model.get_weights()))
-w = punet.model.get_weights()
-
 m_p = "%s_trained.h5" % tmp_model_path
 punet.save_model(m_p)
-punet.load_model(m_p)
-print(comp_weights(w,punet.model.get_weights()))
 
 print("Saved Model: %s" % m_p)
 
@@ -255,25 +240,6 @@ plt.legend(legend, loc='upper left')
 
 plt.savefig(fig_path+".png")
 plt.savefig(fig_path+".svg")
-
-config_dict = {**data_config, **pre_config, **train_config}
-config_dict['norm_factor'] = get_norm_factor(data_path, config_path)
-tmp_w = train_config["loss_weights"]
-if tmp_w[1] <= 0.0:
-    tmp_w[1] = 1.0
-punet = PUNet(**config_dict)
-punet.build_model()
-punet.load_model(m_p)
-
-print(comp_weights(w,punet.model.get_weights()))
-
-patch_generator = PatchGenerator(data_path, config_path, 100, eval=True)
-
-metrics_names = punet.train_model.metrics_names
-metrics_values = punet.eval(patch_generator)
-
-for i in range(len(metrics_names)):
-    print("%s: %f" % (metrics_names[i], metrics_values[i]))
 
 while(True):
     char = input("\nTrained Model only saved temporarily, do you want to save it? [y/n]\n")
