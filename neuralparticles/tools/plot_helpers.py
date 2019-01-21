@@ -8,6 +8,12 @@ import csv
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+def write_dict_csv(path, data):
+	with open(path, "w") as csvfile:
+		csvwriter = csv.writer(csvfile)
+		csvwriter.writerow(data.keys())
+		csvwriter.writerows(zip(*data.values()))
+
 def write_csv(path, data):
 	with open(path, 'w') as csvfile:
 		csvwriter = csv.writer(csvfile)

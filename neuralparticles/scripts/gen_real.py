@@ -57,7 +57,7 @@ param['res'] = int(data_config['res'] / factor_d)
 param['dim'] = int(data_config['dim'])
 
 # run random training setups
-random.seed(data_config['seed'])
+random.seed(data_config['seed']+45)
 
 if 'transform' in data_config:
     output_path = "%s%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "_d%03d_id"

@@ -179,6 +179,7 @@ for d in range(d_start, d_end):
             else:
                 src_data = src_data + par_aux['v'] * temp_coh_dt / data_config['fps']
 
+            #TODO: fix temp coh dt (sdf is not moving with the particles!!!)
             #src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
             if real and positions is not None:
                 positions = src_data[positions]
