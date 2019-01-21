@@ -269,7 +269,7 @@ class PUNet(Network):
                 out1 = concatenate([out0, self.model(inputs[1]), self.model(inputs[2])], axis=1, name='temp')
             outputs.append(out1)
         
-        if self.truncate:
+        if self.truncate and not self.pretrain:
             outputs.append(trunc)
             
         self.train_model = Model(inputs=inputs, outputs=outputs)
