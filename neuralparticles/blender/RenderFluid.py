@@ -48,6 +48,8 @@ parser.add_argument("-t", "--type", choices=["reference", "network", "source"], 
 parser.add_argument("-ot", "--output_type", choices=["PNG", "AVI_JPEG", "AVI_RAW"], default="PNG")
 parser.add_argument("--cinematic", action="store_true", help="Cinematic camera settings.") # optimized for 1024x576
 parser.add_argument("--zoom", action="store_true", help="Zoom camera settings.")
+parser.add_argument("--uzoom", action="store_true", help="Zoom camera settings.")
+parser.add_argument("--front", action="store_true", help="Front view camera settings.")
 
 
 args = parser.parse_args(argv)  # In this example we wont use the args
@@ -217,6 +219,23 @@ def main():
         bpy.data.objects["Empty"].location[0] = -0.1
         bpy.data.objects["Empty"].location[1] = 0.0
         bpy.data.objects["Empty"].location[2] = 0.25
+    elif args.uzoom:
+        bpy.data.cameras["Camera"].lens = 40.0
+        bpy.data.objects["Camera"].location[0] = -0.35
+        bpy.data.objects["Camera"].location[1] = -0.15
+        bpy.data.objects["Camera"].location[2] = 0.6
+        bpy.data.objects["Empty"].location[0] = 0.2
+        bpy.data.objects["Empty"].location[1] = 0.05
+        bpy.data.objects["Empty"].location[2] = 0.25
+    elif args.front:
+        bpy.data.cameras["Camera"].lens = 40.0
+        bpy.data.objects["Camera"].location[0] = -0.3
+        bpy.data.objects["Camera"].location[1] = -0.4
+        bpy.data.objects["Camera"].location[2] = 0.15
+        bpy.data.objects["Empty"].location[0] = -0.18
+        bpy.data.objects["Empty"].location[1] = 0.0
+        bpy.data.objects["Empty"].location[2] = 0.08
+
 
     # Render
     start = time.time()
