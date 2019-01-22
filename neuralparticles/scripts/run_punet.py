@@ -35,6 +35,8 @@ test_path = getParam("test", "test/")
 verbose = int(getParam("verbose", 0)) != 0
 gpu = getParam("gpu", "")
 
+t_int = int(getParam("t_int", 1))
+
 temp_coh_dt = float(getParam("temp_coh_dt", 0))
 out_res = int(getParam("res", -1))
 
@@ -156,6 +158,9 @@ min_v = np.min(ref_data[...,:3],axis=(0,1))
 max_v = np.max(ref_data[...,:3])
 """
 for i,item in enumerate(data):
+    if not i % t_int:
+        continue
+    print("Frame: %d" % i)
     src_data = item[...,:3]
     par_aux = {}
     if i+1 < len(data):

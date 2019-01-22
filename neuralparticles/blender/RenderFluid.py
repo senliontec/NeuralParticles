@@ -228,7 +228,7 @@ def main():
         bpy.data.objects["Empty"].location[1] = 0.05
         bpy.data.objects["Empty"].location[2] = 0.25
     elif args.front:
-        bpy.data.cameras["Camera"].lens = 40.0
+        bpy.data.cameras["Camera"].lens = 50
         bpy.data.objects["Camera"].location[0] = -0.3
         bpy.data.objects["Camera"].location[1] = -0.4
         bpy.data.objects["Camera"].location[2] = 0.15

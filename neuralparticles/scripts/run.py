@@ -28,6 +28,7 @@ import numpy as np
 t_start = int(getParam("t_start", 0))
 t_end = int(getParam("t_end", -1))
 dst_path = getParam("dst", "")
+t_int = int(getParam("t_int", 1))
 
 data_path = getParam("data", "data/")
 config_path = getParam("config", "config/version_00.txt")
@@ -169,7 +170,8 @@ for d in range(d_start, d_end):
         positions = None    
 
         #patch = None
-        for t in range(t_start, t_end):
+        for t in range(t_start, t_end, t_int):
+            print("Dataset: %d, Frame: %d" % (d,t))
             if temp_coh_dt == 1 or src_data is None:
                 if real:
                     path_src = "%sreal/%s_%s_d%03d_%03d" % (data_path, data_config['prefix'], data_config['id'], d, t)
