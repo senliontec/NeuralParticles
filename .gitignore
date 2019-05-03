@@ -5,29 +5,12 @@ build
 *.so
 *.o
 doc
-2D_data
 
 neuralparticles/\.vscode/
 
-3D_data/
-
-sanity_check/
-
-sanity_check_3D/
-
 \.ipynb_checkpoints/
 
-test_data/
-
-mesh_data/
-
-test/
-
 rendering/
-
-sept_data/
-
-sept2_data/
 
 spider/
 
@@ -39,4 +22,8 @@ walking_man/
 
 running_man/
 
-_3D_data/
+rendering_eevee/
+
+/data/
+
+tempogantest/

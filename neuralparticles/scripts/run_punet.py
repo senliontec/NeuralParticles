@@ -76,7 +76,7 @@ if verbose:
     print(pre_config)
     print(train_config)
 
-dst_path += "%s_%s/" % (test_path[:-1], config['id'])
+dst_path += "%s_%s/" % (test_path.split("/")[-2], config['id'])
 
 if verbose:
     print(dst_path)
@@ -158,7 +158,7 @@ min_v = np.min(ref_data[...,:3],axis=(0,1))
 max_v = np.max(ref_data[...,:3])
 """
 for i,item in enumerate(data):
-    if not i % t_int:
+    if i % t_int:
         continue
     print("Frame: %d" % i)
     src_data = item[...,:3]
@@ -171,6 +171,9 @@ for i,item in enumerate(data):
         par_aux['v'] = (src_data - src_data_p) * data_config['fps']
     par_aux['d'] = np.ones((item.shape[0],1))*1000
     par_aux['p'] = np.ones((item.shape[0],1))*1000
+
+    print(np.mean(np.linalg.norm(par_aux['v'],axis=-1)))
+    print(np.max(np.linalg.norm(par_aux['v'],axis=-1)))
 
     patch_extractor = PatchExtractor(src_data, np.zeros((1 if dim == 2 else int(out_res/factor_d[0]), int(out_res/factor_d[0]), int(out_res/factor_d[0]),1)), patch_size, par_cnt, pre_config['surf'], 0 if len(patch_pos) == 3 else 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions, stride_hys=1.0)
 

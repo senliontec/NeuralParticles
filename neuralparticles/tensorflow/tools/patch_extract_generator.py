@@ -215,28 +215,41 @@ class PatchGenerator(keras.utils.Sequence):
                 ref[0][i] = ref_patch[...,:3]
 
                 if self.temp_coh:
-                    vel = src[0][i][...,3:6]
-                    idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
-                    vel = vel - np.expand_dims(vel[idx],axis=0)
+                    if np.random.random() < self.neg_examples:
+                        rnd_c_idx = np.random.randint(len(self.chunk))
+                        rnd_p_idx = np.random.randint(len(self.chunk[rnd_c_idx][0].positions))
+                        src[1][i] = self.chunk[rnd_c_idx][0].get_patch(rnd_p_idx, remove_data=False)
+                        ref1 = self.chunk[rnd_c_idx][1].get_patch(rnd_p_idx, remove_data=False)
 
-                    adv_src = src[0][i][...,:3] - vel / (self.fps * self.patch_size)
-                    src[1][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
+                        rnd_c_idx = np.random.randint(len(self.chunk))
+                        rnd_p_idx = np.random.randint(len(self.chunk[rnd_c_idx][0].positions))
+                        src[2][i] = self.chunk[rnd_c_idx][0].get_patch(rnd_p_idx, remove_data=False)
+                        ref2 = self.chunk[rnd_c_idx][1].get_patch(rnd_p_idx, remove_data=False)
 
-                    adv_src = src[0][i][...,:3] + vel / (self.fps * self.patch_size)
-                    src[2][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
+                        ref[1][i] = np.concatenate((ref_patch[...,:3], ref1[...,:3], ref2[...,:3]))
+                    else:
+                        vel = src[0][i][...,3:6]
+                        idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
+                        vel = vel - np.expand_dims(vel[idx],axis=0)
 
-                    vel = ref_patch[...,3:]
-                    idx = np.argmin(np.linalg.norm(ref_patch[...,:3], axis=-1), axis=0)
-                    vel = vel - np.expand_dims(vel[idx],axis=0)
+                        adv_src = src[0][i][...,:3] - vel / (self.fps * self.patch_size)
+                        src[1][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
 
-                    ref[1][i] = np.concatenate((
-                            ref_patch[...,:3],
-                            ref_patch[...,:3] - vel / (self.fps * self.patch_size_ref),
-                            ref_patch[...,:3] + vel / (self.fps * self.patch_size_ref))
+                        adv_src = src[0][i][...,:3] + vel / (self.fps * self.patch_size)
+                        src[2][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
+
+                        vel = ref_patch[...,3:]
+                        idx = np.argmin(np.linalg.norm(ref_patch[...,:3], axis=-1), axis=0)
+                        vel = vel - np.expand_dims(vel[idx],axis=0)
+
+                        ref[1][i] = np.concatenate((
+                                ref_patch[...,:3],
+                                ref_patch[...,:3] - vel / (self.fps * self.patch_size_ref),
+                                ref_patch[...,:3] + vel / (self.fps * self.patch_size_ref))
                         )
 
             """if self.temp_coh:
-                if index % 2 == 0 or not self.neg_examples or (self.chunk[c_idx][1].positions is None and len(self.chunk) == 1):
+                if index % 2 == 0 or not self.neg_examples or (self.chunk[c_idx][1].stack_empty() and len(self.chunk) == 1):
                     src[1][i] = self.chunk[c_idx][2].pop_patch(remove_data=False)
                     ref[1][i] = np.concatenate((ref[0][i],self.chunk[c_idx][3].pop_patch(remove_data=False)))
                 else:
@@ -245,7 +258,7 @@ class PatchGenerator(keras.utils.Sequence):
                     src[1][i] = self.chunk[neg_idx][2].get_patch(neg_patch, remove_data=False)
                     ref[1][i] = np.concatenate((ref[0][i],self.chunk[neg_idx][3].get_patch(neg_patch, remove_data=False)))"""
 
-            if self.chunk[c_idx][1].positions is None:
+            if self.chunk[c_idx][1].stack_empty():
                 self.chunk = np.delete(self.chunk, c_idx, 0)
 
         if self.trunc and not self.trunc_only: 

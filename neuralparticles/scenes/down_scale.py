@@ -5,6 +5,7 @@ from manta import *
 import math
 import tools.global_tools
 from param_helpers import *
+import numpy as np
 
 guion = int(getParam("gui", 1)) != 0
 pause = int(getParam("pause", 0)) != 0
@@ -83,11 +84,8 @@ if out_path != "":
 	out['vel'] = s.create(Vec3Grid)
 	out['pres'] = s.create(RealGrid)
 
-	#if upres:
-	#	out['h_levelset'] = high_s.create(LevelsetGrid)
-	#	out['h_dens'] = high_s.create(RealGrid)
-	#	out['h_vel'] = high_s.create(Vec3Grid)
-	#	out['h_pres'] = high_s.create(RealGrid)
+	sm_arR = np.zeros((res if dim==3 else 1,res,res,1))
+	sm_arV = np.zeros((res if dim==3 else 1,res,res,3))
 
 if guion:
 	gui = Gui()
@@ -111,10 +109,6 @@ for i in range(t):
 
 	hcnt = cntPts(t=pT, itype=FlagFluid)
 
-	#reduceParticlesRandom(pp, factor, seed)
-	#reduceParticlesNeighbors(pp, high_neighbor,minN,seed)
-	#reduceParticlesPoisson(pp, high_neighbor,factor,seed)
-	#reduceParticlesDens(pp, pD, factor, seed)
 	reduceParticlesNeighborsDens(pp, high_neighbor, pD, search_r, 1.0, minN, seed)
 	print(pD.getMin())
 	print(pD.getMax())
@@ -135,8 +129,6 @@ for i in range(t):
 	extrapolateLsSimple(phi=levelset, distance=4, inside=True)
 	extrapolateLsSimple(phi=levelset, distance=4)
 
-	#blurRealGrid(levelset, levelset, blur_sigma)
-
 	hcnt = cntPts(t=pT, itype=FlagFluid)
 	maskParticles(pp, levelset)
 	lcnt = cntPts(t=pT, itype=FlagFluid)
@@ -156,27 +148,22 @@ for i in range(t):
 		mapPartsToGrid(flags=gFlags, target=out['dens'], parts=pp, source=pD)
 		mapPartsToGrid(flags=gFlags, target=out['pres'], parts=pp, source=pP)
 
-		if False:#upres:
-			interpolateGrid(out['h_levelset'], levelset );
-			extrapolateLsSimple(phi=out['h_levelset'], distance=4, inside=True)
-			out['h_levelset'].multConst(high_res/res)
-			out['h_levelset'].save(path + "_sdf.uni")
+		#out['levelset'].multConst(high_res/res)
+		levelset.save(path + "_sdf.uni")
+		copyGridToArrayLevelset(target=sm_arR, source=levelset)
+		np.savez_compressed(path + "_sdf.npz", sm_arR)
 
-			# TODO: multiplicate by multConst(high_res/res)?
-			interpolateGridVec3(out['h_vel'], out['vel'] );
-			out['h_vel'].save(path + "_vel.uni")
+		out['vel'].save(path + "_vel.uni")
+		copyGridToArrayVec3(target=sm_arV, source=out['vel'])
+		np.savez_compressed(path + "_vel.npz", sm_arV)
 
-			interpolateGrid(out['h_dens'], out['dens'] );
-			out['h_dens'].save(path + "_dens.uni")
+		out['dens'].save(path + "_dens.uni")
+		copyGridToArrayReal(target=sm_arR, source=out['dens'])
+		np.savez_compressed(path + "_dens.npz", sm_arR)
 
-			interpolateGrid(out['h_pres'], out['pres'] );
-			out['h_pres'].save(path + "_pres.uni")
-		else:
-			#out['levelset'].multConst(high_res/res)
-			levelset.save(path + "_sdf.uni")
-			out['vel'].save(path + "_vel.uni")
-			out['dens'].save(path + "_dens.uni")
-			out['pres'].save(path + "_pres.uni")
+		out['pres'].save(path + "_pres.uni")
+		copyGridToArrayReal(target=sm_arR, source=out['pres'])
+		np.savez_compressed(path + "_pres.npz", sm_arR)
 		
 	if dim==3 and guion:
 		high_levelset.createMesh(h_mesh)

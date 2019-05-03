@@ -391,7 +391,7 @@ def cluster_analysis(src, res, res_cnt, permute):
     if permute:
         fac = res.shape[0]//src.shape[0]
 
-        pnt_cnt = min(pnt_cnt, res_cnt//fac)
+        pnt_cnt = min(pnt_cnt, max(res_cnt//fac, 1))
 
         r_mean = np.zeros((pnt_cnt, src.shape[-1]))
         res = res[:res_cnt]
@@ -509,6 +509,7 @@ class PatchExtractor:
         self.reset()
     
     def reset(self):
+        self.positions_head = 0
         self.data = self.src_data.copy()
         self.positions = self.pos_backup.copy()
         self.last_idx = -1
@@ -533,12 +534,12 @@ class PatchExtractor:
         return self.get_patch_pos(self.positions[idx], remove_data)
     
     def pop_patch(self, remove_data=True):
-        p = self.positions[:1]
-        if len(self.positions) == 1:
-            self.positions = None
-        else:
-            self.positions = self.positions[1:]
-        return self.get_patch_pos(p, remove_data)
+        p = self.get_patch(self.positions_head, remove_data)
+        self.positions_head += 1
+        return p
+
+    def stack_empty(self):
+        return self.positions_head >= len(self.positions)
         
     def set_patch(self, patch, idx):
         self.data = np.concatenate((self.data, self.transform_patch(patch, self.positions[idx])))

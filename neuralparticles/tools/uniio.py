@@ -359,7 +359,7 @@ def readGrid(filename):
     if os.path.isfile(filename + ".uni"):
         return readUni(filename+".uni")[1]
     else:
-        return readNumpyRaw(filename)
+        return readNumpy(filename)
 
 def readParticles(filename, data_type=None):
 	if os.path.isfile(filename + ".uni"):
@@ -367,4 +367,4 @@ def readParticles(filename, data_type=None):
 	elif os.path.isfile(filename + ".obj"):
 		return readNumpyOBJ(filename+".obj")
 	else:
-		return readNumpyRaw(filename)
+		return readNumpy(filename)
