@@ -158,7 +158,7 @@ min_v = np.min(ref_data[...,:3],axis=(0,1))
 max_v = np.max(ref_data[...,:3])
 """
 for i,item in enumerate(data):
-    if not i % t_int:
+    if i % t_int != 0:
         continue
     print("Frame: %d" % i)
     src_data = item[...,:3]
