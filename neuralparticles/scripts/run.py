@@ -183,6 +183,10 @@ for d in range(d_start, d_end):
 
             #TODO: fix temp coh dt (sdf is not moving with the particles!!!)
             #src_data = src_data[in_bound(src_data[:,:dim], bnd, res - bnd)]
+            
+            print(np.mean(np.linalg.norm(par_aux['v'],axis=-1)))
+            print(np.max(np.linalg.norm(par_aux['v'],axis=-1)))
+
             if real and positions is not None:
                 positions = src_data[positions]
             patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 0 if len(patch_pos) == 3 else 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions, stride_hys=1.0, shuffle=True)

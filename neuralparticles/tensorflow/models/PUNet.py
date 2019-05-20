@@ -15,6 +15,7 @@ from neuralparticles.tools.data_augmentation import *
 from neuralparticles.tools.data_helpers import get_data
 
 from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss, approx_match, match_cost
+from neuralparticles.tensorflow.losses.tf_nndistance import nn_index, batch_gather
 #from neuralparticles.tensorflow.losses.tf_auctionmatch import emd_loss as emd_loss
 from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
 from neuralparticles.tensorflow.layers.add_const_layer import AddConst
@@ -75,6 +76,8 @@ class PUNet(Network):
         self.acc_fac = kwargs.get("acc_fac")
         self.mingle = kwargs.get("mingle")
         self.repulsion = kwargs.get("repulsion")
+
+        self.neg_examples = kwargs.get("neg_examples")
 
         if self.temp_coh:
             self.loss_weights.append(tmp_w[1])
@@ -264,7 +267,11 @@ class PUNet(Network):
                 Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),
                 Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))])
             if self.truncate:
-                out1 = concatenate([out0, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
+                out1 = self.model(inputs[1])
+                out2 = self.model(inputs[2])
+                #out_mask = multiply([Flatten()(out_mask), soft_trunc_mask(out1[1], self.particle_cnt_dst), soft_trunc_mask(out2[1], self.particle_cnt_dst)])
+                #out_mask = Reshape((self.particle_cnt_dst, 1))(out_mask)
+                out1 = concatenate([out0, out1, out2], axis=1, name='temp')
             else:
                 out1 = concatenate([out0, self.model(inputs[1]), self.model(inputs[2])], axis=1, name='temp')
             outputs.append(out1)
@@ -289,20 +296,30 @@ class PUNet(Network):
     def trunc_loss(self, y_true, y_pred):
         return keras.losses.mse(1, y_pred/y_true)
 
-    def temp_loss_raw(self, y_true, y_pred, use_emd, acc_fac):
+    def temp_loss_raw(self, y_true, y_pred, use_emd, acc_fac, old=True):
         import tensorflow as tf
         pred, pred_p, pred_n = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
         gt, gt_p, gt_n = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
         if use_emd: 
             pred_v0 = pred - pred_p
             pred_v1 = pred_n - pred
+            pred_a = pred_v1 - pred_v0
+
+            if not old:
+                match = nn_index(gt, pred)
+                gt = batch_gather(gt, match)
+                gt_p = batch_gather(gt_p, match)
+                gt_n = batch_gather(gt_n, match)
+
             gt_v0 = gt - gt_p
             gt_v1 = gt_n - gt
-            pred_a = pred_v1 - pred_v0
             gt_a = gt_v1 - gt_v0
 
-            match = approx_match(pred, gt*zero_mask(gt, self.pad_val))
-            return ((1 - acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + acc_fac * match_cost(pred_a, gt_a, match)) / tf.cast(tf.shape(y_pred)[1], tf.float32)
+            if not old:
+                return (1 - acc_fac) * (K.mean(K.sqrt(K.sum(K.square(pred_v0 - gt_v0), axis=-1)), axis=-1) + K.mean(K.sqrt(K.sum(K.square(pred_v1 - gt_v1), axis=-1)), axis=-1)) / 2 + acc_fac * K.mean(K.sqrt(K.sum(K.square(pred_a - gt_a), axis=-1)), axis=-1)
+            else:
+                match = approx_match(pred, gt*zero_mask(gt, self.pad_val))
+                return ((1 - acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + acc_fac * match_cost(pred_a, gt_a, match)) / tf.cast(tf.shape(gt)[1], tf.float32)
         else:
             return (1 - acc_fac) * keras.losses.mse(pred, pred_n) + acc_fac * keras.losses.mse(pred-pred_p, pred_n-pred)
 
@@ -368,16 +385,16 @@ class PUNet(Network):
         return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[...,:3])
 
     def mse_vel_metric(self, y_true, y_pred):
-        return self.temp_loss_raw(y_true, y_pred, False, 0.0)
+        return self.temp_loss_raw(y_true, y_pred, False, 0.0, True)
 
     def mse_acc_metric(self, y_true, y_pred):
-        return self.temp_loss_raw(y_true, y_pred, False, 1.0)
+        return self.temp_loss_raw(y_true, y_pred, False, 1.0, True)
 
     def emd_vel_metric(self, y_true, y_pred):
-        return self.temp_loss_raw(y_true, y_pred, True, 0.0)
+        return self.temp_loss_raw(y_true, y_pred, True, 0.0, True)
 
     def emd_acc_metric(self, y_true, y_pred):
-        return self.temp_loss_raw(y_true, y_pred, True, 1.0)
+        return self.temp_loss_raw(y_true, y_pred, True, 1.0, True)
 
     def mingle_metric(self, y_true, y_pred):
         return self.mingle_loss(y_pred[...,3:], y_pred[...,:3])

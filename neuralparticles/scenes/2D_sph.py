@@ -45,6 +45,9 @@ circular_vel = float(getParam("circ", 0.))
 wltstrength = float(getParam("wlt", 0.))
 seed = int(getParam("seed", 235))
 
+sm_arR = np.zeros((res if dim==3 else 1,res,res,1))
+sm_arV = np.zeros((res if dim==3 else 1,res,res,3))
+
 np.random.seed(seed)
 
 if sdt <= 0:
@@ -183,15 +186,27 @@ while (iisph.s.timeTotal*fps < t): # main loop
 		unionParticleLevelset(parts=iisph.pp, indexSys=iisph.gIdxSys, flags=iisph.gFlags, index=iisph.gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=iisph.pT, exclude=FlagObstacle)
 		extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
 		out['levelset'].save(path + "_sdf.uni")
+		
+		copyGridToArrayLevelset(target=sm_arR, source=out['levelset'])
+		np.savez_compressed(path + "_sdf.npz", sm_arR)
 
 		mapPartsToGridVec3(flags=iisph.gFlags, target=out['vel'], parts=iisph.pp, source=iisph.pV)
 		out['vel'].save(path + "_vel.uni")
 
+		copyGridToArrayVec3(target=sm_arV, source=out['vel'])
+		np.savez_compressed(path + "_vel.npz", sm_arV)
+
 		mapPartsToGrid(flags=iisph.gFlags, target=out['dens'], parts=iisph.pp, source=iisph.pD)
 		out['dens'].save(path + "_dens.uni")
 
+		copyGridToArrayReal(target=sm_arR, source=out['dens'])
+		np.savez_compressed(path + "_dens.npz", sm_arR)
+
 		mapPartsToGrid(flags=iisph.gFlags, target=out['pres'], parts=iisph.pp, source=iisph.pP)
 		out['pres'].save(path + "_pres.uni")
+
+		copyGridToArrayReal(target=sm_arR, source=out['pres'])
+		np.savez_compressed(path + "_pres.npz", sm_arR)
 
 		out['frame']+=1
 

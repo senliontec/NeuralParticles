@@ -55,7 +55,7 @@ if t_end < 0:
     t_end = data_config['frame_count']
 
 if test_path != "":
-    data_path += "result/%s_%s/" % (test_path[:-1], config['id'])
+    data_path += "result/%s_%s/" % (test_path.split("/")[-2], config['id'])
 else:   
     data_path += ("result/%s_%s-%s_%s_d%03d_var%02d" + ("_real/" if real else "/")) % (data_config['prefix'], data_config['id'], pre_config['id'], train_config['id'], dataset, var)
 

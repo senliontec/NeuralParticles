@@ -7,6 +7,7 @@
 #include <random>
 #include <algorithm>
 #include <iterator>
+#include <unordered_set>
 
 #include <cmath>
 
@@ -28,6 +29,13 @@ namespace Manta
 		std::cout << res << std::endl;
 		return res;
 	}
+
+	struct Vec3iHash {
+	public:
+		size_t operator()(const Vec3i& v) const {
+			return std::hash<std::string>()(v.toString());
+		}
+	};	
 
 
 	//
@@ -124,6 +132,43 @@ namespace Manta
 			if(rs.getFloat() > poisson(factor, cnt))
 			{
 				x.kill(idx);
+			}
+		}
+		x.doCompress();
+	}
+
+	PYTHON()
+	void reduceParticles(BasicParticleSystem &x, const float radius, const int seed=232345234)
+	{
+		Vec3i gSize = x.getParent()->getGridSize();
+
+		std::unordered_set<Vec3i, Vec3iHash> used_cells = std::unordered_set<Vec3i, Vec3iHash>();
+		gSize.x = int(gSize.x/radius);
+		gSize.y = int(gSize.y/radius);
+		gSize.z = int(gSize.z/radius);
+
+		std::vector<int> idx = std::vector<int>(x.size());
+
+		for(int i = 0; i < x.size(); i++)
+		{
+			idx[i] = i;
+		}
+
+		std::random_device rd;
+		std::mt19937 g(rd());
+		g.seed(seed);
+	
+		std::shuffle(idx.begin(), idx.end(), g);
+
+		for(const auto i : idx)
+		{
+			if(x.isActive(i))
+			{
+				Vec3i ci = Vec3i(x[i].pos.x/radius, x[i].pos.y/radius, x[i].pos.z/radius);
+				if(!used_cells.insert(ci).second)
+				{
+					x.kill(i);
+				}
 			}
 		}
 		x.doCompress();

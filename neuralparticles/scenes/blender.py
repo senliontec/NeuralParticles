@@ -26,6 +26,8 @@ bnd = int(getParam("bnd", 4))
 surface_path = getParam("out_surface", "")
 foam_path = getParam("out_foam", "")
 
+eps = float(getParam("eps", 0.01))
+
 checkUnusedParams()
 
 gs = vec3(res, res, 3 if dim == 2 else res)
@@ -50,6 +52,7 @@ gFlags.fillGrid(TypeEmpty)
 gIdxSys  = s.create(ParticleIndexSystem)
 gIdx     = s.create(IntGrid)
 gCnt     = s.create(IntGrid)
+neighbor = s.create(ParticleNeighbors)
 
 if guion:
     gui = Gui()
@@ -59,6 +62,14 @@ if guion:
 for i in range(t_start,t_end):
     pp.load(in_path % i)
     pp.killRegion(gFlags, TypeObstacle) 
+
+    #gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
+    #neighbor.update(pts=pp, indexSys=gIdxSys, index=gIdx, radius=eps, notiming=True)
+
+    print("Particle Cnt: %d" % pp.pySize())
+    reduceParticles(pp, eps)
+    #reduceParticlesNeighbors(pp, neighbor, 0)
+    print("Particle Cnt Reduced: %d" % pp.pySize())
     
     if sdf_path != "":
         if dim == 2:
@@ -67,7 +78,6 @@ for i in range(t_start,t_end):
         else:
             sdf.load(sdf_path % i)
     else:
-        gridParticleIndex(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, counter=gCnt)
         unionParticleLevelset(parts=pp, indexSys=gIdxSys, flags=gFlags, index=gIdx, phi=sdf, radiusFactor=1.0, exclude=FlagObstacle)
         extrapolateLsSimple(phi=sdf, distance=4, inside=True)
         sdf.setBound(value=5., boundaryWidth=4)
