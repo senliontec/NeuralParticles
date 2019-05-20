@@ -98,7 +98,7 @@ def main():
         # Set the remaining settings, depending on device type
         devt = sysp.compute_device_type
         dev = sysp.compute_device
-    else:
+    elif bpy.app.version < (2, 80, 0):
         sysp = bpy.context.user_preferences.addons['cycles'].preferences
         if args.gpu >= 0:
             for i in range(len(sysp.get_device_types(0))):
@@ -110,6 +110,25 @@ def main():
         devt = sysp.compute_device_type
         dev = scene.cycles.device
 
+        # Cycle Settings
+        scene.render.engine = 'CYCLES'
+        scene.cycles.min_bounces = 1
+        scene.cycles.max_bounces = 8
+        if dev == "CPU":
+            scene.render.tile_x = 16
+            scene.render.tile_y = 16
+        else:
+            scene.render.tile_x = 256
+            scene.render.tile_y = 256
+        print("Cycles")
+        print("\tDevice: {}".format(dev))
+        print("\tDevice Type: {}".format(devt))
+        print("\tBounces: {}-{}".format(scene.cycles.min_bounces, scene.cycles.max_bounces))
+        print("\tTiles: {}x{}".format(scene.render.tile_x, scene.render.tile_y))
+    else:
+        print("USING EEVEE")
+        scene.render.engine = 'BLENDER_EEVEE'
+
     # Render Settings
     scene.render.image_settings.file_format = args.output_type
     scene.render.filepath = args.output_path
@@ -118,22 +137,6 @@ def main():
     scene.frame_step = args.frame_step
 
     scene.frame_set(start_frame)
-
-    # Cycle Settings
-    scene.render.engine = 'CYCLES'
-    scene.cycles.min_bounces = 1
-    scene.cycles.max_bounces = 8
-    if dev == "CPU":
-        scene.render.tile_x = 16
-        scene.render.tile_y = 16
-    else:
-        scene.render.tile_x = 256
-        scene.render.tile_y = 256
-    print("Cycles")
-    print("\tDevice: {}".format(dev))
-    print("\tDevice Type: {}".format(devt))
-    print("\tBounces: {}-{}".format(scene.cycles.min_bounces, scene.cycles.max_bounces))
-    print("\tTiles: {}x{}".format(scene.render.tile_x, scene.render.tile_y))
 
     # Quality Settings
     scene.render.resolution_x = args.x_resolution

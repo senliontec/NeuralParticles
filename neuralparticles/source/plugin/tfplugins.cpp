@@ -206,17 +206,5 @@ PYTHON() void extendRegion(FlagGrid &flags, const int region, const int exclude,
 	}
 }
 
-KERNEL(idx)
-void knMarkSmallRegions(FlagGrid &flags, const Grid<int> &rcnt, const int mark, const int exclude, const int th)
-{
-	if(flags[idx] & exclude) return;
-	if(rcnt[idx] <= th) flags[idx] = mark;
-}
-
-PYTHON()
-void markSmallRegions(FlagGrid &flags, const Grid<int> &rcnt, const int mark, const int exclude, const int th=1)
-{
-	knMarkSmallRegions(flags, rcnt, mark, exclude, th);
-}
 
 } //namespace

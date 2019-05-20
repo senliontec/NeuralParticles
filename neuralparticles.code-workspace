@@ -6,6 +6,7 @@
 	],
 	"settings": {
 		"files.associations": {
+			"*.glsl": "c",
 			"*.tcc": "cpp",
 			"cmath": "cpp",
 			"complex": "cpp",
@@ -54,7 +55,8 @@
 			"cinttypes": "cpp",
 			"type_traits": "cpp",
 			"tuple": "cpp",
-			"typeinfo": "cpp"
+			"typeinfo": "cpp",
+			"unordered_set": "cpp"
 		}
 	}
 }

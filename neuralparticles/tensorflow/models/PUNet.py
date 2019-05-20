@@ -77,6 +77,8 @@ class PUNet(Network):
         self.mingle = kwargs.get("mingle")
         self.repulsion = kwargs.get("repulsion")
 
+        self.neg_examples = kwargs.get("neg_examples")
+
         if self.temp_coh:
             self.loss_weights.append(tmp_w[1])
         
