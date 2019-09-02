@@ -126,8 +126,8 @@ for i in range(t):
 	interpolateGrid(levelset, tmp_levelset)
 	levelset.multConst(res/high_res)
 
-	extrapolateLsSimple(phi=levelset, distance=4, inside=True)
-	extrapolateLsSimple(phi=levelset, distance=4)
+	extrapolateLsSimple(phi=levelset, distance=8, inside=True)
+	extrapolateLsSimple(phi=levelset, distance=8)
 
 	hcnt = cntPts(t=pT, itype=FlagFluid)
 	maskParticles(pp, levelset)
@@ -153,6 +153,7 @@ for i in range(t):
 		copyGridToArrayLevelset(target=sm_arR, source=levelset)
 		np.savez_compressed(path + "_sdf.npz", sm_arR)
 
+		extrapolateVec3Simple(out['vel'], levelset, 8)
 		out['vel'].save(path + "_vel.uni")
 		copyGridToArrayVec3(target=sm_arV, source=out['vel'])
 		np.savez_compressed(path + "_vel.npz", sm_arV)

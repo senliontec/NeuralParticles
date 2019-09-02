@@ -50,6 +50,7 @@ parser.add_argument("--cinematic", action="store_true", help="Cinematic camera s
 parser.add_argument("--zoom", action="store_true", help="Zoom camera settings.")
 parser.add_argument("--uzoom", action="store_true", help="Zoom camera settings.")
 parser.add_argument("--front", action="store_true", help="Front view camera settings.")
+parser.add_argument("--higher", action="store_true", help="Higher view camera settings.")
 
 
 args = parser.parse_args(argv)  # In this example we wont use the args
@@ -182,7 +183,7 @@ def main():
 
         bpy.data.objects["ParticleSrc"].scale *= args.particle_scale
 
-    # Background Material
+    """# Background Material
     if args.type == "network":
         color = [0.6,0.7,0.8] # blueish
     if args.type == "reference":
@@ -202,12 +203,12 @@ def main():
             plane_diffuse.inputs[0].default_value[i] = color[i]
 
     change_material_color("Material.002")
-    change_material_color("Material.004")
+    change_material_color("Material.004")"""
 
     # Setup Camera
     if args.cinematic:
         bpy.data.cameras["Camera"].lens = 30.0
-        bpy.data.objects["Camera"].location[0] = -0.67
+        bpy.data.objects["Camera"].location[0] = -0.3
         bpy.data.objects["Camera"].location[1] = -1.5
         bpy.data.objects["Camera"].location[2] = 1.17
         bpy.data.objects["Empty"].location[0] = 0.05
@@ -231,13 +232,17 @@ def main():
         bpy.data.objects["Empty"].location[1] = 0.05
         bpy.data.objects["Empty"].location[2] = 0.25
     elif args.front:
-        bpy.data.cameras["Camera"].lens = 50
-        bpy.data.objects["Camera"].location[0] = -0.3
-        bpy.data.objects["Camera"].location[1] = -0.4
-        bpy.data.objects["Camera"].location[2] = 0.15
-        bpy.data.objects["Empty"].location[0] = -0.18
+        bpy.data.cameras["Camera"].lens = 40
+        bpy.data.objects["Camera"].location[0] = 0.0
+        bpy.data.objects["Camera"].location[1] = -1.0
+        bpy.data.objects["Camera"].location[2] = 0.3
+        bpy.data.objects["Empty"].location[0] = 0.0
         bpy.data.objects["Empty"].location[1] = 0.0
-        bpy.data.objects["Empty"].location[2] = 0.08
+        bpy.data.objects["Empty"].location[2] = 0.29
+    elif args.higher:
+        bpy.data.objects["Empty"].location[0] = 0.05
+        bpy.data.objects["Empty"].location[1] = 0.0
+        bpy.data.objects["Empty"].location[2] = 1.0
 
 
     # Render

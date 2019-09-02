@@ -185,12 +185,14 @@ while (iisph.s.timeTotal*fps < t): # main loop
 
 		unionParticleLevelset(parts=iisph.pp, indexSys=iisph.gIdxSys, flags=iisph.gFlags, index=iisph.gIdx, phi=out['levelset'], radiusFactor=1.0, ptype=iisph.pT, exclude=FlagObstacle)
 		extrapolateLsSimple(phi=out['levelset'], distance=4, inside=True)
+		extrapolateLsSimple(phi=out['levelset'], distance=4, inside=False)
 		out['levelset'].save(path + "_sdf.uni")
 		
 		copyGridToArrayLevelset(target=sm_arR, source=out['levelset'])
 		np.savez_compressed(path + "_sdf.npz", sm_arR)
 
 		mapPartsToGridVec3(flags=iisph.gFlags, target=out['vel'], parts=iisph.pp, source=iisph.pV)
+		extrapolateVec3Simple(out['vel'], out['levelset'], 8)
 		out['vel'].save(path + "_vel.uni")
 
 		copyGridToArrayVec3(target=sm_arV, source=out['vel'])

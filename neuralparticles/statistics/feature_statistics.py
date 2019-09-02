@@ -104,27 +104,26 @@ if __name__ == "__main__":
                 path_src = "%sreal/%s_%s_d%03d_%03d" % (data_path, data_config['prefix'], data_config['id'], dataset, t)
                 src_data, sdf_data, par_aux = get_data(path_src, par_aux=train_config['features'])
 
-                patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 0, aux_data=par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/fac_d, last_pos=patch_pos, stride_hys=1.0, shuffle=True)
+                patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 0, aux_data=par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/fac_d, last_pos=patch_pos, temp_coh=True, stride_hys=1.0, shuffle=True)
                 patch_pos = patch_extractor.positions
-                patch = patch_extractor.pop_patch()
-                print(t)
+                patches = patch_extractor.get_patches()[0]
 
-                ci = np.argmin(np.linalg.norm(patch[...,:3], axis=-1))
-                cv = np.copy(patch[0])
-                patch[0] = patch[ci]
-                patch[ci] = cv
+                ci = np.argmin(np.linalg.norm(patches[...,:3], axis=-1), axis=-1)
+                cv = np.copy(patches[:,0])
+                patches[:,0] = patches[np.arange(cnt), ci]
+                patches[np.arange(cnt), ci] = cv
 
-                plot_particles(patch_extractor.positions, [0,int(data_config['res']/fac_d)], [0,int(data_config['res']/fac_d)], 5, patch_path%t, src=patch_pos, z=patch_pos[0][2] if data_config['dim'] == 3 else None)
+                #plot_particles(patch_extractor.positions, [0,int(data_config['res']/fac_d)], [0,int(data_config['res']/fac_d)], 5, patch_path%t, src=patch_pos, z=patch_pos[0][2] if data_config['dim'] == 3 else None)"""
                 patch_pos += par_aux['v'][patch_extractor.pos_idx] / data_config['fps']
-                input_points[p_idx] = patch
+                input_points[p_idx] = patches
                 p_idx += 1
 
             if mode == 11:
                 np.random.seed(563)
                 np.random.shuffle(input_points)
-            output = features.predict(np.reshape(input_points, (-1, par_cnt, punet.model.inputs[0].get_shape()[-1])))[:,0,:-8]
+            output = features.predict(np.reshape(input_points, (-1, par_cnt, punet.model.inputs[0].get_shape()[-1])))[:,:,:-8]
             print(output.shape)
-            output = np.mean(np.reshape(output, (t_end-t_start, cnt, -1)), axis=(1,2))
+            output = np.mean(np.reshape(output, (t_end-t_start, cnt, par_cnt, -1)), axis=(1,2,3))
             output = np.expand_dims(output, axis=-1)
             print(output.shape)
             output -= np.mean(output, axis=0)

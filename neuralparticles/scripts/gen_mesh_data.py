@@ -4,12 +4,15 @@ import json
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.data_helpers import particle_radius
 from neuralparticles.tools.shell_script import *
-from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw, readNumpyOBJ, writeNumpyOBJ, readParticlesUni
+from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw, readNumpyOBJ, writeNumpyOBJ, readParticlesUni, writeUni
 from neuralparticles.tools.particle_grid import ParticleIdxGrid
+import keras.backend as K
+from neuralparticles.tensorflow.losses.tf_approxmatch import approx_match
 import random
 import math
 from collections import OrderedDict
 import time
+from PIL import Image
 
 def project(n, v):
     return v - np.dot(n,v) * n
@@ -17,6 +20,25 @@ def project(n, v):
 def deviation(n, v0, v1):
     t = project(n, v0)
     return t/np.dot(t,v0)
+
+def viewWorldM(rot, pos):
+    m = np.zeros((3,4))
+
+    m[0,0] = 1 - 2*rot[2]**2 - 2*rot[3]**2
+    m[0,1] = 2*rot[1]*rot[2] - 2*rot[3]*rot[0]
+    m[0,2] = 2*rot[1]*rot[3] + 2*rot[2]*rot[0]
+
+    m[1,0] = 2*rot[1]*rot[2] + 2*rot[3]*rot[0]
+    m[1,1] = 1 - 2*rot[1]**2 - 2*rot[3]**2
+    m[1,2] = 2*rot[2]*rot[3] - 2*rot[1]*rot[0]
+    
+    m[2,0] = 2*rot[1]*rot[3] - 2*rot[2]*rot[0]
+    m[2,1] = 2*rot[2]*rot[3] + 2*rot[1]*rot[0]
+    m[2,2] = 1 - 2*rot[1]**2 - 2*rot[2]**2
+
+    m[0:3,3] = -pos
+
+    return m
 
 A_l = np.array([
     [+1.,+0.,+0.,+0.],
@@ -33,6 +55,7 @@ A_r = np.array([
 
 mesh_path = getParam("mesh", "mesh/")
 config_path = getParam("config", "config/version_00.txt")
+scan = int(getParam("scan", 0)) != 0
 res = int(getParam("res", -1))
 
 checkUnusedParams()
@@ -66,8 +89,8 @@ search_r = res/lres * (1/sub_res) * 0.77 if factor > 1 else 0
 random.seed(data_config['seed'])
 np.random.seed(data_config['seed'])
 
-ref_path = "%sreference/%s_%s_" % (mesh_path, data_config['prefix'], data_config['id']) + "%03d"
-src_path = "%ssource/%s_%s_" % (mesh_path, data_config['prefix'], data_config['id']) + "%03d"
+ref_path = "%sreference/%s_%s_" % (mesh_path, data_config['prefix'], data_config['id']) + "d%03d_%03d"
+src_path = "%ssource/%s_%s-%s_" % (mesh_path, data_config['prefix'], data_config['id'], pre_config['id']) + "d%03d_var00_%03d"
 
 if not os.path.exists(mesh_path + "reference/"):
     os.makedirs(mesh_path + "reference/")
@@ -75,97 +98,63 @@ if not os.path.exists(mesh_path + "reference/"):
 if not os.path.exists(mesh_path + "source/"):
     os.makedirs(mesh_path + "source/")
 
-samples = glob(mesh_path + "*.obj")
-samples.sort()
+frame_cnt = data_config['frame_count']
+obj_cnt = len(glob(mesh_path + "objs/*"))
 
-vertices = None
-normals = None
-faces = None
-for i,item in enumerate(samples):
-    d = readNumpyOBJ(item)
-    if i == 0:
-        vertices = np.empty((len(samples), d[0].shape[0], 3))
-        normals = np.empty((len(samples),), dtype=object)
-        faces = np.empty((len(samples), d[2].shape[0], 2, 4),dtype=int)
-    vertices[i] = d[0]
-    normals[i] = d[1]
-    faces[i] = d[2]
+for d in range(obj_cnt):
+    print("Load dataset %d/%d" % (d+1, obj_cnt))
+    obj_path = mesh_path + "objs/%04d/" % d + "%04d.obj"
+    
+    cam_cnt = 1
+    if scan:
+        scan_path = mesh_path + "scans/%04d/" % d 
+        with open(scan_path + "cam_data.json") as f:
+            cam_data = json.loads(f.read())
+            cam_cnt = len(cam_data['transform'])
+        scan_path += "%04d.npz"
 
-min_v = np.min(vertices,axis=(0,1))
-max_v = np.max(vertices,axis=(0,1))
-scale = max_v - min_v
+    vertices = None
+    normals = None
+    faces = None
+    for t in range(frame_cnt):
+        obj = readNumpyOBJ(obj_path%t)
+        if t == 0:
+            vertices = np.empty((frame_cnt, obj[0].shape[0], 3))
+            normals = np.empty((frame_cnt,), dtype=object)
+            faces = np.empty((frame_cnt, obj[2].shape[0], 2, 4),dtype=int)
+        vertices[t] = obj[0]
+        normals[t] = obj[1]
+        faces[t] = obj[2]
 
-vertices -= min_v + [0.5,0,0.5] * scale 
-vertices *= (res - 4 * bnd) / np.max(scale)
-vertices += [res/2, bnd*2, res/2]
-print(np.min(vertices,axis=(0,1)))
-print(np.max(vertices,axis=(0,1)))
+    min_v = np.min(vertices,axis=(0,1))
+    max_v = np.max(vertices,axis=(0,1))
+    scale = max_v - min_v
 
-bary_coord = np.empty((len(faces[0]),),dtype=object)
-data_cnt = 0
-d_idx = None
-for i in range(len(samples)):
-    print("Load mesh: %d/%d" % (i+1, len(samples)))
-    if i == 0:
-        for fi, f in enumerate(faces[i]):
-            v = vertices[i,f[0]]
+    vertices -= min_v + [0.5,0,0.5] * scale 
+    vertices *= (res - 4 * bnd) / np.max(scale)
+    vertices += [res/2, bnd*2, res/2]
+    print(np.min(vertices,axis=(0,1)))
+    print(np.max(vertices,axis=(0,1)))
 
-            area = np.linalg.norm(np.cross(v[1]-v[0], v[2]-v[0]))/2
-            area += np.linalg.norm(np.cross(v[2]-v[0], v[3]-v[0]))/2
+    bary_coord = np.empty((len(faces[0]),),dtype=object)
+    data_cnt = 0
+    d_idx = None
 
-            par_cnt = vert_area_ratio * area
-            par_cnt = int(par_cnt) + int(np.random.random() < par_cnt % 1)
-            bary_coord[fi] = np.random.random((par_cnt, 2))
-            data_cnt += par_cnt
+    prev_ref = None
+    prev_src = None
 
-    data = np.empty((data_cnt, 3))
-    di = 0
-    for fi, f in enumerate(faces[i]):
-        v = vertices[i,f[0]]
-        n = normals[i][f[1]]
 
-        x01 = (v[1] - v[0])
-        x01 /= np.linalg.norm(x01,axis=-1,keepdims=True)
-        x32 = (v[2] - v[3])
-        x32 /= np.linalg.norm(x32,axis=-1,keepdims=True)
-        y12 = (v[2] - v[1])
-        y12 /= np.linalg.norm(y12,axis=-1,keepdims=True)
-        y03 = (v[3] - v[0])
-        y03 /= np.linalg.norm(y03,axis=-1,keepdims=True)
-
-        A_f = np.zeros((4,4,3))
-
-        A_f[0,0] = v[0]
-        A_f[0,1] = v[3]
-        A_f[1,0] = v[1]
-        A_f[1,1] = v[2]
-
-        A_f[0,2] = deviation(n[0], y03, x01)
-        A_f[0,3] = deviation(n[3], y03, x32)
-        A_f[1,2] = deviation(n[1], y12, x01)
-        A_f[1,3] = deviation(n[2], y12, x32)
-
-        A_f[2,0] = deviation(n[0], x01, -y03)
-        A_f[2,1] = deviation(n[3], x32, -y03)
-        A_f[3,0] = deviation(n[1], x01, -y12)
-        A_f[3,1] = deviation(n[2], x32, -y12)
-
-        A_f[2,2] = (A_f[2,1] - A_f[2,0])/np.linalg.norm(y03)
-        A_f[2,3] = (A_f[2,1] - A_f[2,0])/np.linalg.norm(y03)
-        A_f[3,2] = (A_f[3,1] - A_f[3,0])/np.linalg.norm(y12)
-        A_f[3,3] = (A_f[3,1] - A_f[3,0])/np.linalg.norm(y12)
-
-        param = np.zeros((4,4,3))
-
-        for j in range(3):
-            param[...,j] = np.matmul(np.matmul(A_l, A_f[...,j]), A_r)
-
-        for (a1,a2) in bary_coord[fi]:
-            for j in range(3):
-                data[di,j] = np.matmul(np.matmul(np.array([1,a1,a1**2,a1**3]), param[...,j]), np.array([1,a2,a2**2,a2**3]))
-            di += 1
-
-    hdr = OrderedDict([ ('dim',len(data)),
+    hdrsdf = OrderedDict([  ('dimX',lres),
+                            ('dimY',lres),
+                            ('dimZ',1 if dim == 2 else lres),
+                            ('gridType', 16),
+                            ('elementType',1),
+                            ('bytesPerElement',4),
+                            ('info',b'\0'*252),
+                            ('dimT',1),
+                            ('timestamp',(int)(time.time()*1e6))])
+                                    
+    hdr = OrderedDict([ ('dim',0),
                         ('dimX',res),
                         ('dimY',res),
                         ('dimZ',1 if dim == 2 else res),
@@ -173,38 +162,188 @@ for i in range(len(samples)):
                         ('bytesPerElement',16),
                         ('info',b'\0'*256),
                         ('timestamp',(int)(time.time()*1e6))])
-
-    writeParticlesUni(ref_path%i +"_ps.uni", hdr, data)
-    writeNumpyRaw(ref_path%i, data)
-    writeNumpyOBJ(ref_path%i +".obj", data)
-
-    if i == 0:
-        d_idx = np.arange(data_cnt)
-        mask = np.ones(data_cnt, dtype=bool)
-        np.random.shuffle(d_idx)
-
-        idx_grid = ParticleIdxGrid(data, (1 if dim == 2 else res, res, res))
-
-        for j in range(data_cnt):
-            p_idx = d_idx[j]
-            if mask[p_idx]:
-                idx = np.array(idx_grid.get_range(data[p_idx], 2*search_r))
-                idx = idx[particle_radius(data[idx], data[p_idx], search_r)]
-                if len(idx) < min_n:
-                    mask[p_idx] = False
-                else:
-                    mask[idx] = False
-                    mask[p_idx] = True
-        d_idx = np.where(mask)[0]
-        print("particles reduced: %d -> %d (%.1f)" % (data_cnt, len(d_idx), data_cnt/len(d_idx)))
+    hdrv = hdr.copy()
+    hdrv['elementType'] = 1
+    hdrv['bytesPerElement'] = 12
     
-    low_res_data = data[d_idx]/factor_d
+    for t in range(frame_cnt):
+        print("Load mesh: %d/%d" % (t+1, frame_cnt))
+        if t == 0:
+            for fi, f in enumerate(faces[t]):
+                v = vertices[t,f[0]]
 
-    hdr['dim'] = len(low_res_data)
-    hdr['dimX'] = lres
-    hdr['dimY'] = lres
-    hdr['dimZ'] = 1 if dim == 2 else lres
+                area = np.linalg.norm(np.cross(v[1]-v[0], v[2]-v[0]))/2
+                area += np.linalg.norm(np.cross(v[2]-v[0], v[3]-v[0]))/2
 
-    writeParticlesUni(src_path%i +"_ps.uni", hdr, low_res_data)
-    writeNumpyRaw(src_path%i, low_res_data)
-    writeNumpyOBJ(src_path%i +".obj", low_res_data)
+                par_cnt = vert_area_ratio * area
+                par_cnt = int(par_cnt) + int(np.random.random() < par_cnt % 1)
+                bary_coord[fi] = np.random.random((par_cnt, 2))
+                data_cnt += par_cnt
+
+        data = np.empty((data_cnt, 3))
+        di = 0
+        for fi, f in enumerate(faces[t]):
+            v = vertices[t,f[0]]
+            n = normals[t][f[1]]
+
+            x01 = (v[1] - v[0])
+            x01 /= np.linalg.norm(x01,axis=-1,keepdims=True)
+            x32 = (v[2] - v[3])
+            x32 /= np.linalg.norm(x32,axis=-1,keepdims=True)
+            y12 = (v[2] - v[1])
+            y12 /= np.linalg.norm(y12,axis=-1,keepdims=True)
+            y03 = (v[3] - v[0])
+            y03 /= np.linalg.norm(y03,axis=-1,keepdims=True)
+
+            A_f = np.zeros((4,4,3))
+
+            A_f[0,0] = v[0]
+            A_f[0,1] = v[3]
+            A_f[1,0] = v[1]
+            A_f[1,1] = v[2]
+
+            A_f[0,2] = deviation(n[0], y03, x01)
+            A_f[0,3] = deviation(n[3], y03, x32)
+            A_f[1,2] = deviation(n[1], y12, x01)
+            A_f[1,3] = deviation(n[2], y12, x32)
+
+            A_f[2,0] = deviation(n[0], x01, -y03)
+            A_f[2,1] = deviation(n[3], x32, -y03)
+            A_f[3,0] = deviation(n[1], x01, -y12)
+            A_f[3,1] = deviation(n[2], x32, -y12)
+
+            A_f[2,2] = (A_f[2,1] - A_f[2,0])/np.linalg.norm(y03)
+            A_f[2,3] = (A_f[2,1] - A_f[2,0])/np.linalg.norm(y03)
+            A_f[3,2] = (A_f[3,1] - A_f[3,0])/np.linalg.norm(y12)
+            A_f[3,3] = (A_f[3,1] - A_f[3,0])/np.linalg.norm(y12)
+
+            param = np.zeros((4,4,3))
+
+            for j in range(3):
+                param[...,j] = np.matmul(np.matmul(A_l, A_f[...,j]), A_r)
+
+            for (a1,a2) in bary_coord[fi]:
+                for j in range(3):
+                    data[di,j] = np.matmul(np.matmul(np.array([1,a1,a1**2,a1**3]), param[...,j]), np.array([1,a2,a2**2,a2**3]))
+                di += 1
+
+        hdr['dim'] = len(data)
+        hdr['dimX'] = res
+        hdr['dimY'] = res
+        hdr['dimZ'] = 1 if dim == 2 else res
+
+        hdrv['dim'] = len(data)
+        hdrv['dimX'] = res
+        hdrv['dimY'] = res
+        hdrv['dimZ'] = 1 if dim == 2 else res
+
+        for ci in range(cam_cnt):
+            writeParticlesUni(ref_path%(ci + d*cam_cnt,t) +"_ps.uni", hdr, data)
+            #writeNumpyRaw(ref_path%(ci + d*cam_cnt,t), data)
+            #writeNumpyOBJ(ref_path%(ci + d*cam_cnt,t) +".obj", data)
+            if t > 0:
+                vel = (data - prev_ref) * data_config['fps']
+                writeParticlesUni(ref_path%(ci + d*cam_cnt,t-1) +"_pv.uni", hdrv, vel)
+                #writeNumpyOBJ("test_ref.obj", data)
+                #writeNumpyOBJ("test_ref_prev.obj", prev_ref)
+                #writeNumpyOBJ("test_ref_adv.obj", prev_ref+vel/data_config['fps'])
+                
+        prev_ref = data
+
+        if not scan:
+            if t == 0:
+                d_idx = np.arange(data_cnt)
+                mask = np.ones(data_cnt, dtype=bool)
+                np.random.shuffle(d_idx)
+
+                idx_grid = ParticleIdxGrid(data, (1 if dim == 2 else res, res, res))
+
+                for j in range(data_cnt):
+                    p_idx = d_idx[j]
+                    if mask[p_idx]:
+                        idx = np.array(idx_grid.get_range(data[p_idx], 2*search_r))
+                        idx = idx[particle_radius(data[idx], data[p_idx], search_r)]
+                        if len(idx) < min_n:
+                            mask[p_idx] = False
+                        else:
+                            mask[idx] = False
+                            mask[p_idx] = True
+                d_idx = np.where(mask)[0]
+                print("particles reduced: %d -> %d (%.1f)" % (data_cnt, len(d_idx), data_cnt/len(d_idx)))
+            low_res_data = data[d_idx]/factor_d
+
+            hdr['dim'] = len(low_res_data)
+            hdr['dimX'] = lres
+            hdr['dimY'] = lres
+            hdr['dimZ'] = 1 if dim == 2 else lres
+
+            for ci in range(cam_cnt):
+                writeParticlesUni(src_path%(ci + d*cam_cnt,t) +"_ps.uni", hdr, low_res_data)
+                writeUni(src_path%(ci + d*cam_cnt,t) +"_sdf.uni", hdrsdf, np.zeros((lres, lres, lres, 1)))
+                #writeNumpyRaw(src_path%(ci + d*cam_cnt,t-1), low_res_data)
+                #writeNumpyOBJ(src_path%(ci + d*cam_cnt,t-1) +".obj", low_res_data)
+                if t > 0:
+                    hdrv['dim'] = len(prev_src)
+                    hdrv['dimX'] = lres
+                    hdrv['dimY'] = lres
+                    hdrv['dimZ'] = 1 if dim == 2 else lres
+
+                    writeParticlesUni(src_path%(ci + d*cam_cnt,t-1) +"_pv.uni", hdrv, (prev_src - low_res_data) * data_config['fps'])
+                   
+            prev_src = low_res_data
+            
+    if scan:
+        near, width, height = cam_data['near'], cam_data['width'], cam_data['height']
+
+        for ci in range(cam_cnt):
+            print("Load cam: %d/%d" % (ci+1, len(cam_data['transform'])))
+            scan_data = np.load(scan_path%ci)['arr_0']
+            viewWorld = np.array(cam_data['transform'][ci])   
+            print(viewWorld)
+
+            for t in range(frame_cnt):
+                a = scan_data[t]         
+                o = []
+                for j in range(a.shape[0]):
+                    for i in range(a.shape[1]):
+                        if a[j,i,0] < 100.0:
+                            z = -a[j,i,0]
+                            x = (0.5 - i/a.shape[0]) * width * z / near
+                            y = (0.5 - j/a.shape[1]) * height * z / near
+                            o.append([x,y,z])
+                npo = np.dot(np.concatenate((np.asarray(o), np.ones((len(o),1))), axis=-1), viewWorld.T)[...,:3]
+                npo = np.dot(npo, np.array([[1,0,0],[0,0,1],[0,-1,0]]).T)
+
+                npo -= min_v + [0.5,0,0.5] * scale 
+                npo *= (res - 4 * bnd) / np.max(scale)
+                npo += [res/2, bnd*2, res/2]
+                npo /= factor_d
+                print(np.min(npo,axis=0))
+                print(np.max(npo,axis=0))
+
+                hdr['dim'] = len(npo)
+                hdr['dimX'] = lres
+                hdr['dimY'] = lres
+                hdr['dimZ'] = 1 if dim == 2 else lres
+
+                writeParticlesUni(src_path%(ci + d*cam_cnt,t) +"_ps.uni", hdr, npo)
+                writeUni(src_path%(ci + d*cam_cnt,t) +"_sdf.uni", hdrsdf, np.zeros((lres, lres, lres, 1)))
+                #writeNumpyRaw(src_path%(ci + d*cam_cnt,t), npo)
+                #writeNumpyOBJ(src_path%(ci + d*cam_cnt,t) +".obj", npo)
+                if t > 0:
+                    hdrv['dim'] = len(prev_src)
+                    hdrv['dimX'] = lres
+                    hdrv['dimY'] = lres
+                    hdrv['dimZ'] = 1 if dim == 2 else lres
+                    
+                    vel = np.expand_dims(npo, axis=0) - np.expand_dims(prev_src, axis=1)
+                    match = K.eval(approx_match(K.constant(np.expand_dims(npo, 0)), K.constant(np.expand_dims(prev_src, 0))))[0]
+                    vel = np.sum(np.expand_dims(match, -1) * vel, axis=1) * data_config['fps']
+                    writeParticlesUni(src_path%(ci + d*cam_cnt,t-1) +"_pv.uni", hdrv, vel)
+                    #writeNumpyOBJ("test_src.obj", npo)
+                    #writeNumpyOBJ("test_src_prev.obj", prev_src)
+                    #writeNumpyOBJ("test_src_adv.obj", prev_src+vel/data_config['fps'])
+
+                prev_src = npo
+
+                print("particles reduced: %d -> %d (%.1f)" % (data_cnt, len(npo), data_cnt/len(npo)))

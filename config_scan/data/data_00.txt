@@ -1,0 +1,13 @@
+{
+    "id":             "dat00",
+    "prefix":         "scan_3D",
+    "dim":            3,
+    "fps":            6,
+    "frame_count":    14,
+    "data_count":     8,
+    "test_count":     1,
+    "sub_res":        2,
+    "res":            120,
+    "seed":           523244,
+    "bnd":            4
+}

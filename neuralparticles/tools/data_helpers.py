@@ -114,8 +114,10 @@ def get_data(prefix, par_aux=[]):
 
     for v in par_aux:
         par_aux_data[v] = readParticles((prefix+"_p%s")%v, "float32")
+
+    sdf = readGrid(prefix + "_sdf") if os.path.exists(prefix + "_sdf.uni") else np.ones((1,1,1,1))
         
-    return readParticles(prefix + "_ps"), readGrid(prefix + "_sdf"), par_aux_data
+    return readParticles(prefix + "_ps"), sdf, par_aux_data
 
 def load_patches_from_file(data_path, config_path):
     with open(config_path, 'r') as f:

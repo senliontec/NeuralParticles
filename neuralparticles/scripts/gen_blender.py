@@ -69,16 +69,17 @@ if not os.path.exists(prefix_surface):
     os.makedirs(prefix_surface)
 if not os.path.exists(prefix_foam):
     os.makedirs(prefix_foam)
+if not real:
+    if not os.path.exists(prefix_surface + "reference/"):
+        os.makedirs(prefix_surface + "reference/")
+    if not os.path.exists(prefix_foam + "reference/"):
+        os.makedirs(prefix_foam + "reference/")
 if not os.path.exists(prefix_surface + "source/"):
     os.makedirs(prefix_surface + "source/")
-if not os.path.exists(prefix_surface + "reference/"):
-    os.makedirs(prefix_surface + "reference/")
-if not os.path.exists(prefix_surface + "result/"):
-    os.makedirs(prefix_surface + "result/")
 if not os.path.exists(prefix_foam + "source/"):
     os.makedirs(prefix_foam + "source/")
-if not os.path.exists(prefix_foam + "reference/"):
-    os.makedirs(prefix_foam + "reference/")
+if not os.path.exists(prefix_surface + "result/"):
+    os.makedirs(prefix_surface + "result/")
 if not os.path.exists(prefix_foam + "result/"):
     os.makedirs(prefix_foam + "result/")
 
@@ -108,10 +109,11 @@ param['out_surface'] = prefix_surface + "result/fluidsurface_final_%04d.bobj.gz"
 param['out_foam'] = prefix_foam + "result/fluidsurface_final_%04d.bobj.gz"
 run_manta(manta_path, "scenes/blender.py", param, verbose)
 
-param['in'] = data_path + "reference_%03d.uni"
-param['out_surface'] = prefix_surface + "reference/fluidsurface_final_%04d.bobj.gz"
-param['out_foam'] = prefix_foam + "reference/fluidsurface_final_%04d.bobj.gz"
-run_manta(manta_path, "scenes/blender.py", param, verbose)
+if not real:
+    param['in'] = data_path + "reference_%03d.uni"
+    param['out_surface'] = prefix_surface + "reference/fluidsurface_final_%04d.bobj.gz"
+    param['out_foam'] = prefix_foam + "reference/fluidsurface_final_%04d.bobj.gz"
+    run_manta(manta_path, "scenes/blender.py", param, verbose)
 
 param['res'] = int(param['res'] / math.pow(pre_config['factor'],1/dim))
 param['bnd'] = int(math.ceil(param['bnd'] / math.pow(pre_config['factor'],1/dim)))

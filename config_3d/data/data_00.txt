@@ -2,7 +2,7 @@
     "id":             "dat00",
     "prefix":         "sph_3D",
     "dim":            3,
-    "fps":            480,
+    "fps":            60,
     "frame_count":    200,
     "data_count":     10,
     "test_count":     2,

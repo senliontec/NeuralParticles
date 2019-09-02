@@ -14,6 +14,9 @@ config_path = getParam("config", "config/version_00.txt")
 real = getParam("real", 0) != 0
 checkUnusedParams()
 
+if not os.path.isdir(dest_path):
+    os.mkdir(dest_path)
+
 with open(config_path, 'r') as f:
     config = json.loads(f.read())
 
@@ -24,7 +27,7 @@ with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
     pre_config = json.loads(f.read())
 
 
-sim_path = dest_path + "sim_2%03d/" if real else "sim_1%03d/"
+sim_path = dest_path + ("sim_2%03d/" if real else "sim_1%03d/")
 
 dens_path = sim_path+"density_%s_%04d"
 sdf_path = sim_path+"levelset_%s_%04d"
