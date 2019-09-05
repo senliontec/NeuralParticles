@@ -55,6 +55,8 @@ A_r = np.array([
 
 mesh_path = getParam("mesh", "mesh/")
 config_path = getParam("config", "config/version_00.txt")
+debug = int(getParam("debug", 0)) != 0
+# 0: no scan, 1: only src scan, 2: gt scan, src downsampled
 scan = int(getParam("scan", 0)) != 0
 res = int(getParam("res", -1))
 
@@ -100,6 +102,19 @@ if not os.path.exists(mesh_path + "source/"):
 
 frame_cnt = data_config['frame_count']
 obj_cnt = len(glob(mesh_path + "objs/*"))
+
+if debug:
+    ref_path = mesh_path + "debug/ref/d%03d_%03d"
+    src_path = mesh_path + "debug/src/d%03d_%03d"
+
+    if not os.path.exists(mesh_path + "debug/ref/"):
+        os.makedirs(mesh_path + "debug/ref/")
+
+    if not os.path.exists(mesh_path + "debug/src/"):
+        os.makedirs(mesh_path + "debug/src/")
+
+    obj_cnt = 1
+    frame_cnt = 3
 
 for d in range(obj_cnt):
     print("Load dataset %d/%d" % (d+1, obj_cnt))
@@ -240,7 +255,8 @@ for d in range(obj_cnt):
         for ci in range(cam_cnt):
             writeParticlesUni(ref_path%(ci + d*cam_cnt,t) +"_ps.uni", hdr, data)
             #writeNumpyRaw(ref_path%(ci + d*cam_cnt,t), data)
-            #writeNumpyOBJ(ref_path%(ci + d*cam_cnt,t) +".obj", data)
+            if debug:
+                writeNumpyOBJ(ref_path%(ci + d*cam_cnt,t) +".obj", data)
             if t > 0:
                 vel = (data - prev_ref) * data_config['fps']
                 writeParticlesUni(ref_path%(ci + d*cam_cnt,t-1) +"_pv.uni", hdrv, vel)
@@ -281,7 +297,8 @@ for d in range(obj_cnt):
                 writeParticlesUni(src_path%(ci + d*cam_cnt,t) +"_ps.uni", hdr, low_res_data)
                 writeUni(src_path%(ci + d*cam_cnt,t) +"_sdf.uni", hdrsdf, np.zeros((lres, lres, lres, 1)))
                 #writeNumpyRaw(src_path%(ci + d*cam_cnt,t-1), low_res_data)
-                #writeNumpyOBJ(src_path%(ci + d*cam_cnt,t-1) +".obj", low_res_data)
+                if debug:
+                    writeNumpyOBJ(src_path%(ci + d*cam_cnt,t-1) +".obj", low_res_data)
                 if t > 0:
                     hdrv['dim'] = len(prev_src)
                     hdrv['dimX'] = lres
@@ -328,8 +345,9 @@ for d in range(obj_cnt):
 
                 writeParticlesUni(src_path%(ci + d*cam_cnt,t) +"_ps.uni", hdr, npo)
                 writeUni(src_path%(ci + d*cam_cnt,t) +"_sdf.uni", hdrsdf, np.zeros((lres, lres, lres, 1)))
+                if debug:
+                    writeNumpyOBJ(src_path%(ci + d*cam_cnt,t) +".obj", npo)
                 #writeNumpyRaw(src_path%(ci + d*cam_cnt,t), npo)
-                #writeNumpyOBJ(src_path%(ci + d*cam_cnt,t) +".obj", npo)
                 if t > 0:
                     hdrv['dim'] = len(prev_src)
                     hdrv['dimX'] = lres

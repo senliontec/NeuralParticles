@@ -266,14 +266,8 @@ class PUNet(Network):
             inputs.extend([
                 Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),
                 Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))])
-            if self.truncate:
-                out1 = self.model(inputs[1])
-                out2 = self.model(inputs[2])
-                #out_mask = multiply([Flatten()(out_mask), soft_trunc_mask(out1[1], self.particle_cnt_dst), soft_trunc_mask(out2[1], self.particle_cnt_dst)])
-                #out_mask = Reshape((self.particle_cnt_dst, 1))(out_mask)
-                out1 = concatenate([out0, out1, out2], axis=1, name='temp')
-            else:
-                out1 = concatenate([out0, self.model(inputs[1]), self.model(inputs[2])], axis=1, name='temp')
+
+            out1 = concatenate([out0, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
             outputs.append(out1)
         
         if self.truncate and not self.pretrain:
@@ -296,32 +290,39 @@ class PUNet(Network):
     def trunc_loss(self, y_true, y_pred):
         return keras.losses.mse(1, y_pred/y_true)
 
-    def temp_loss_raw(self, y_true, y_pred, use_emd, acc_fac, old=True):
+    def temp_loss_raw(self, y_true, y_pred, use_emd, acc_fac, old=False):
         import tensorflow as tf
         pred, pred_p, pred_n = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
         gt, gt_p, gt_n = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
+        if not old:
+            dist = K.sum(K.square(K.expand_dims(gt*zero_mask(gt, self.pad_val), axis=1) - K.expand_dims(pred, axis=2)), axis=-1)
+            h = 0.5
+            dist = K.exp(-dist/(h**2))
+            pred_v0 = (pred - pred_p) 
+            pred_v1 = (pred_n - pred) 
+            pred_a = (pred_v1 - pred_v0) 
+
+            w = K.clip(K.sum(dist, axis=2, keepdims=True), 1, 10000)
+
+            gt_v0 = K.batch_dot(dist, (gt - gt_p) )/w
+            gt_v1 = K.batch_dot(dist, (gt_n - gt) )/w
+            gt_a = K.batch_dot(dist, (gt_v1 - gt_v0) )/w
+
+            return (1 - acc_fac) * (K.mean(K.abs(pred_v0 - gt_v0), axis=-1) + K.mean(K.abs(pred_v1 - gt_v1), axis=-1)) / 2 + acc_fac * K.mean(K.abs(pred_a - gt_a), axis=-1)
+            
         if use_emd: 
-            pred_v0 = pred - pred_p
-            pred_v1 = pred_n - pred
-            pred_a = pred_v1 - pred_v0
+            pred_v0 = (pred - pred_p) 
+            pred_v1 = (pred_n - pred) 
+            pred_a = (pred_v1 - pred_v0) 
 
-            if not old:
-                match = nn_index(gt, pred)
-                gt = batch_gather(gt, match)
-                gt_p = batch_gather(gt_p, match)
-                gt_n = batch_gather(gt_n, match)
+            gt_v0 = (gt - gt_p) 
+            gt_v1 = (gt_n - gt) 
+            gt_a = (gt_v1 - gt_v0) 
 
-            gt_v0 = gt - gt_p
-            gt_v1 = gt_n - gt
-            gt_a = gt_v1 - gt_v0
-
-            if not old:
-                return (1 - acc_fac) * (K.mean(K.sqrt(K.sum(K.square(pred_v0 - gt_v0), axis=-1)), axis=-1) + K.mean(K.sqrt(K.sum(K.square(pred_v1 - gt_v1), axis=-1)), axis=-1)) / 2 + acc_fac * K.mean(K.sqrt(K.sum(K.square(pred_a - gt_a), axis=-1)), axis=-1)
-            else:
-                match = approx_match(pred, gt*zero_mask(gt, self.pad_val))
-                return ((1 - acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + acc_fac * match_cost(pred_a, gt_a, match)) / tf.cast(tf.shape(gt)[1], tf.float32)
+            match = approx_match(pred, gt*zero_mask(gt, self.pad_val))
+            return ((1 - acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + acc_fac * match_cost(pred_a, gt_a, match)) / tf.cast(tf.shape(gt)[1], tf.float32)
         else:
-            return (1 - acc_fac) * keras.losses.mse(pred, pred_n) + acc_fac * keras.losses.mse(pred-pred_p, pred_n-pred)
+            return (1 - acc_fac) * K.mean(K.abs((pred-pred_n) ), axis=-1) + acc_fac * keras.losses.mae((pred-pred_p) , (pred_n-pred) )
 
     def temp_loss(self, y_true, y_pred):
         return self.temp_loss_raw(y_true, y_pred, self.use_temp_emd, self.acc_fac)
@@ -438,7 +439,7 @@ class PUNet(Network):
                 idx = np.argmin(np.linalg.norm(src_data[...,:3], axis=-1), axis=1)
                 vel = vel - np.expand_dims(vel[np.arange(len(idx)), idx],axis=1)
 
-                adv_src = src_data[...,:3] + vel / (self.patch_size * self.fps)
+                adv_src = src_data[...,:3] + vel / (self.patch_size )
                 src_data = [src_data, np.concatenate((adv_src, src_data[...,3:]), axis=-1)]
 
                 ref_data.append(np.concatenate((ref_data[0], ref_data[0]), axis=1))
