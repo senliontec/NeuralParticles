@@ -11,7 +11,7 @@
     "fac":                16,
     "epochs":             10,
     "dropout":            0.0,
-    "loss_weights":       [1.0,0.01,1.0],
+    "loss_weights":       [1.0,1.0,1.0],
     "pretrain":           false,
     "mingle":             0.01,
     "repulsion":          0.0,
