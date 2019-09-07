@@ -98,7 +98,6 @@ if __name__ == "__main__":
                 cnt = np.expand_dims(np.count_nonzero(src[...,0] != pre_config['pad_val'],axis=1), axis=-1) * (res.shape[1]//src.shape[1])
             else:
                 cnt = np.zeros((res.shape[0], 1)) * res.shape[1]
-            res = res[0]
             pad_cnt_res[idx:idx+len(cnt)] = cnt
 
         cnt = np.expand_dims(np.count_nonzero(src[...,0] != pre_config['pad_val'],axis=1), axis=-1)

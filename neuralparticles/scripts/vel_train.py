@@ -4,13 +4,14 @@ import keras
 import keras.backend as K 
 from keras.layers import Input, Conv1D, concatenate
 from keras.models import Model
-from neuralparticles.tensorflow.losses.tf_approxmatch import approx_match, match_cost
+from neuralparticles.tensorflow.losses.tf_approxmatch import approx_match, match_cost, emd_loss
 import matplotlib.pyplot as plt
+import os
 
-emd = True
+emd = False
 learn = True
 inp = 100
-
+#os.environ["CUDA_VISIBLE_DEVICES"] = ""
 def plot(data, c, r, idx):
     plt.subplot(c,r,idx)
     sx, sy = data[:,0], data[:,1]
@@ -42,8 +43,7 @@ def approx_vel(gt_pos, gt_vel, pred_pos, h=0.2):
         gt_pos = concatenate([gt_pos, K.zeros_like(gt_pos)[...,:1]])
         pred_pos = concatenate([pred_pos, K.zeros_like(pred_pos)[...,:1]])
         match = approx_match(gt_pos, pred_pos)
-        
-        return K.batch_dot(match, gt_vel)
+        return K.batch_dot(match, gt_vel,[2,1])
 
 def vel_loss(y_true, y_pred):
     """gt_pos = concatenate([y_true[...,:2], K.zeros_like(y_true[...,:2])[...,:1]])
@@ -77,15 +77,43 @@ gt[...,2:] = gt[...,:2]
 src = (np.random.random((10000,inp,2)) - 0.5) * 2
 
 test = (np.random.random((10,inp,4)) - 0.5) * 2
+test[...,2:] = test[...,:2]
 
+"""bl = (np.random.random((10,4)) - 0.5) * 2
+bl[:] = gt[0]
+np.random.shuffle(bl)
+bl = np.expand_dims(bl, axis=0)
+
+gt_pos = K.constant(np.concatenate([gt[:1,:,:2], np.zeros_like(gt[:1,:,:2])[...,:1]], axis=-1))
+pred_pos = K.constant(np.concatenate([bl[:,:,:2], np.zeros_like(bl[:,:,:2])[...,:1]], axis=-1))
+#print(K.eval(approx_match(gt_pos, pred_pos)))
+input2 = Input((10,3))
+
+x = Conv1D(8, 1, activation="relu")(input2)
+x = Conv1D(16, 1, activation="relu")(x)
+x = Conv1D(32, 1, activation="relu")(x)
+x = Conv1D(16, 1, activation="relu")(x)
+x = Conv1D(8, 1, activation="relu")(x)
+x = Conv1D(3, 1, activation="tanh")(x)
+
+m2 = Model(input2, x)
+
+m2.compile(keras.optimizers.adam(lr=0.001), loss=emd_loss)
+
+gt = np.concatenate((gt[...,:2], np.zeros_like(gt[...,:1])), axis=-1)
+m2.fit(gt, gt, batch_size=32, epochs=10)
+
+print(K.eval(K.mean(emd_loss(gt_pos, pred_pos))))
+print(K.eval(K.mean(emd_loss(pred_pos, gt_pos))))
+print(m2.evaluate(x=np.concatenate([gt[:1,:,:2], np.zeros_like(gt[:1,:,:2])[...,:1]], axis=-1), y=np.concatenate([bl[:,:,:2], np.zeros_like(bl[:,:,:2])[...,:1]], axis=-1)))
+#print(K.eval(K.mean(emd_loss(gt_pos, pred_pos, tf.tile(K.constant([10],dtype=tf.int32), tf.shape(gt_pos)[:1]), tf.tile(K.constant([10],dtype=tf.int32), tf.shape(pred_pos)[:1])))))
+exit()"""
 if not learn:
-    test[...,2:] = test[...,:2]
     predicted = np.empty_like(test)
     predicted[:] = test[:]
     predicted[...,2:] = K.eval(approx_vel(K.constant(gt[:10,:,:2]), K.constant(gt[:10,:,2:]), K.constant(test[...,:2])))
 else:
     m.fit(x=src, y=gt, batch_size=32, epochs=10)
-    test[...,2:] = test[...,:2]
     predicted = m.predict(test[...,:2])
 
 print(np.mean(np.linalg.norm(test[:,2:] - predicted[:,2:], axis=-1)))
