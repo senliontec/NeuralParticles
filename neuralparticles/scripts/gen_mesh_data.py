@@ -7,7 +7,7 @@ from neuralparticles.tools.shell_script import *
 from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw, readNumpyOBJ, writeNumpyOBJ, readParticlesUni, writeUni
 from neuralparticles.tools.particle_grid import ParticleIdxGrid
 import keras.backend as K
-from neuralparticles.tensorflow.losses.tf_approxmatch import approx_match
+from neuralparticles.tensorflow.losses.tf_approxmatch import approx_vel
 import random
 import math
 from collections import OrderedDict
@@ -111,9 +111,9 @@ if not os.path.exists(data_path + "source/"):
 frame_cnt = data_config['frame_count']
 obj_cnt = len(glob(mesh_path + "objs/*"))
 
-if (eval and obj_cnt != data_config['test_count']) or (not eval and obj_cnt != data_config['data_count']):
-    print("Mismatch between obj count and 'data_count'/'test_count' in config file!")
-    exit()
+#if (eval and obj_cnt != data_config['test_count']) or (not eval and obj_cnt != data_config['data_count']):
+#    print("Mismatch between obj count and 'data_count'/'test_count' in config file!")
+#    exit()
 
 if debug:
     ref_path = data_path + "debug/ref/d%03d_%03d"
@@ -289,9 +289,9 @@ for d in range(obj_cnt):
 
                 vel = (data - prev_ref) * data_config['fps']
                 writeParticlesUni(ref_path%(ci + d*cam_cnt + off,t-1) +"_pv.uni", hdrv, vel[prev_idx])
-                #writeNumpyOBJ("test_ref.obj", data)
-                #writeNumpyOBJ("test_ref_prev.obj", prev_ref)
-                #writeNumpyOBJ("test_ref_adv.obj", prev_ref+vel/data_config['fps'])
+                if debug:
+                    writeNumpyOBJ(ref_path%(ci + d*cam_cnt + off,t) +"_prev.obj", prev_ref[prev_idx])
+                    writeNumpyOBJ(ref_path%(ci + d*cam_cnt + off,t) +"_adv.obj", prev_ref[prev_idx]+vel[prev_idx]/data_config['fps'])
                 
             prev_idx = fltr_idx
             prev_ref = data
@@ -377,13 +377,11 @@ for d in range(obj_cnt):
                     hdrv['dimY'] = lres
                     hdrv['dimZ'] = 1 if dim == 2 else lres
                     
-                    vel = np.expand_dims(npo, axis=0) - np.expand_dims(prev_src, axis=1)
-                    match = K.eval(approx_match(K.constant(np.expand_dims(npo, 0)), K.constant(np.expand_dims(prev_src, 0))))[0]
-                    vel = np.sum(np.expand_dims(match, -1) * vel, axis=1) * data_config['fps']
+                    vel = K.eval(approx_vel(K.constant(np.expand_dims(prev_src, 0)), K.constant(np.expand_dims(npo, 0))))[0] * data_config['fps']
                     writeParticlesUni(src_path%(ci + d*cam_cnt + off,t-1) +"_pv.uni", hdrv, vel)
-                    #writeNumpyOBJ("test_src.obj", npo)
-                    #writeNumpyOBJ("test_src_prev.obj", prev_src)
-                    #writeNumpyOBJ("test_src_adv.obj", prev_src+vel/data_config['fps'])
+                    if debug:
+                        writeNumpyOBJ(src_path%(ci + d*cam_cnt + off,t) +"_prev.obj", prev_src)
+                        writeNumpyOBJ(src_path%(ci + d*cam_cnt + off,t) +"_adv.obj", prev_src+vel/data_config['fps'])
 
                 prev_src = npo
 

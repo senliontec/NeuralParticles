@@ -1,5 +1,10 @@
 import json
 import os
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.data_helpers import PatchExtractor, get_data, get_data_pair
 import numpy as np
@@ -118,6 +123,12 @@ if __name__ == "__main__":
     pad_cnt_ref = pad_cnt_ref[:idx] 
     if use_network: 
         pad_cnt_res = pad_cnt_res[:idx] 
+ 
+    write_csv(data_path + "statistics/%s_%s-%s_src_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']), pad_cnt_src)
+    write_csv(data_path + "statistics/%s_%s-%s_ref_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']), pad_cnt_ref)
+
+    if use_network:
+        write_csv(data_path + "statistics/%s_%s-%s-%s_res_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id'], train_config['id']), pad_cnt_res)
 
     for i in range(par_cnt):
         tmp_cnt = np.count_nonzero(out_ref[i,:,0] != pre_config['pad_val'])
@@ -129,9 +140,3 @@ if __name__ == "__main__":
                 plot_particles(out_res[i], [-1,1], [-1,1], 5, sample_path + "%06d_%06d_comp.svg"%(i,tmp_cnt), z= 0 if data_config['dim'] == 3 else None, ref=out_ref[i])
             else:
                 plot_particles(out_ref[i], [-1,1], [-1,1], 5, sample_path + "%06d_%06d_comp.svg"%(i,tmp_cnt), z= 0 if data_config['dim'] == 3 else None, src=out_src[i])
- 
-    write_csv(data_path + "statistics/%s_%s-%s_src_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']), pad_cnt_src)
-    write_csv(data_path + "statistics/%s_%s-%s_ref_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id']), pad_cnt_ref)
-
-    if use_network:
-        write_csv(data_path + "statistics/%s_%s-%s-%s_res_patch_cnt.csv"%(data_config['prefix'], data_config['id'], pre_config['id'], train_config['id']), pad_cnt_res)

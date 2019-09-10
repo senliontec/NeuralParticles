@@ -46,6 +46,12 @@ def emd_loss(gt, pred):
     emd_loss = tf.reduce_mean(dist)
     return emd_loss
 
+def approx_vel(pos_0, pos_1):
+    ml = auction_match(pos_0, pos_1)[0]
+    matched_out = gather_point(pos_1, ml)
+    return matched_out - pos_0
+    
+
 if __name__=='__main__':
     from tf_ops.grouping import tf_grouping
     from tf_ops.sampling import tf_sampling

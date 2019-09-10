@@ -4,7 +4,7 @@ import numpy as np
 import math
 
 import keras
-from keras.layers import Input, multiply, concatenate, Conv1D, Lambda, add, Dropout, Dense, Reshape, RepeatVector, Flatten, Permute
+from keras.layers import Input, multiply, concatenate, Conv1D, Lambda, add, Dropout, Dense, Reshape, RepeatVector, Flatten, Permute, average
 from keras.models import Model, load_model
 import keras.backend as K
 
@@ -14,7 +14,7 @@ from neuralparticles.tools.data_augmentation import *
 
 from neuralparticles.tools.data_helpers import get_data
 
-from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss, approx_match, match_cost
+from neuralparticles.tensorflow.losses.tf_approxmatch import emd_loss, approx_match, match_cost, approx_vel
 from neuralparticles.tensorflow.losses.tf_nndistance import nn_index, batch_gather
 #from neuralparticles.tensorflow.losses.tf_auctionmatch import emd_loss as emd_loss
 from neuralparticles.tensorflow.layers.mult_const_layer import MultConst
@@ -192,8 +192,8 @@ class PUNet(Network):
                 input_points_t = multiply([input_points_t, mask_t])
                 input_xyz_t = multiply([input_xyz_t, mask_t])
                 
-            x_t = Conv1D(self.fac*8, 1)(input_points_t)
-            x_t = Conv1D(self.fac*8, 1)(x_t)
+            x_t = Conv1D(self.fac*8, 1, activation="relu")(input_points_t)
+            x_t = Conv1D(self.fac*8, 1, activation="relu")(x_t)
             
             x_t = unstack(x_t, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
@@ -207,7 +207,9 @@ class PUNet(Network):
             trunc = AddConst((self.particle_cnt_dst+1)/self.particle_cnt_dst, name="truncation")(x_t)
 
             """
-            x_t = Dense(self.fac*4, activation='tanh')(x_t)
+            x_t = Dropout(0.2)(x_t)
+            x_t = Dense(self.fac*4, activation='relu')(x_t)
+            x_t = Dropout(0.2)(x_t)
             b = np.zeros(1, dtype='float32')
             W = np.zeros((self.fac*4, 1), dtype='float32')
             
@@ -221,13 +223,15 @@ class PUNet(Network):
             trunc = self.trunc_model(inputs)
 
 
+            """00
             out_mask = soft_trunc_mask(trunc, self.particle_cnt_dst)
 
             out_mask = Reshape((self.particle_cnt_dst, 1), name="truncation_mask")(out_mask)
 
-            out = multiply([out, out_mask], name="masked_coords")
+            out = multiply([out, out_mask], name="masked_coords")"""
             self.model = Model(inputs=inputs, outputs=[out, trunc])
         else:
+            """01
             if self.mask:# or True:
                 out_mask = RepeatVector(self.particle_cnt_dst//self.particle_cnt_src)(Flatten()(mask))
 
@@ -235,15 +239,38 @@ class PUNet(Network):
                 out_mask = Permute((2,1))(out_mask)
                 out_mask = Reshape((self.particle_cnt_dst, 1), name="truncation_mask")(out_mask)
 
-                out = multiply([out, out_mask])
+                out = multiply([out, out_mask])"""
             self.model = Model(inputs=inputs, outputs=[out])
 
 
         # gen train model
         inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))]
         
-        out0 = self.model(inputs[0])
+        def append_trunc(inputs, out, name=None):
+            if self.truncate:
+                trunc = RepeatVector(self.particle_cnt_dst)(out[1])
+                out = Lambda(lambda x: x)(out[0])
+                trunc = Reshape((self.particle_cnt_dst, 1))(trunc)
+            else:
+                if self.mask:
+                    trunc = zero_mask(inputs, self.pad_val)
+                    trunc = average(unstack(trunc, 1))
+                    trunc = RepeatVector(self.particle_cnt_dst)(trunc)
+                    trunc = Reshape((self.particle_cnt_dst, 1))(trunc)
+                else:
+                    trunc = Lambda(lambda x: K.ones((K.shape(x)[0], 1)))(out)
+            
+            trunc = Lambda(lambda x: K.minimum(1.0, x))(trunc)
+            trunc = MultConst(self.particle_cnt_dst)(trunc)
+            trunc = Lambda(lambda x: K.maximum(1.0, x))(trunc)
+            #trunc = Lambda(lambda x: K.minimum(float(self.particle_cnt_dst), x))(trunc)
+            #trunc = Lambda(lambda x: K.clip(x, 1, self.particle_cnt_dst))(trunc)
+            return concatenate([out, trunc], axis=-1, name=name)
 
+        out_m = self.model(inputs[0])
+        out0 = append_trunc(inputs[0], out_m, "out_m")
+        
+        """02
         if self.truncate:
             trunc = Lambda(lambda x: x, name="trunc")(out0[1])
             out0 = Lambda(lambda x: x)(out0[0])
@@ -259,32 +286,33 @@ class PUNet(Network):
             else:
                 out_mask = Lambda(lambda x: K.ones_like(x)[...,:1])(out0)
 
-        out_m = concatenate([out0, out_mask], axis=-1, name="out_m")
+        out_m = concatenate([out0, out_mask], axis=-1, name="out_m")"""
 
-        outputs = [out_m]
+        outputs = [out0]
         if self.temp_coh:
             inputs.extend([
                 Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),
                 Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))])
-
-            out1 = concatenate([out0, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
-            outputs.append(out1)
+            out1 = append_trunc(inputs[1], self.model(inputs[1]))
+            out2 = append_trunc(inputs[2], self.model(inputs[2]))
+            
+            outputs.append(concatenate([out0, out1, out2], axis=1, name='temp'))
         
         if self.truncate and not self.pretrain:
-            outputs.append(trunc)
+            outputs.append(Lambda(lambda x: x, name="trunc")(out_m[1]))
             
         self.train_model = Model(inputs=inputs, outputs=outputs)
 
-
     def mask_loss(self, y_true, y_pred):
         loss = 0
-        mask = y_pred[...,3:]
+        trunc = y_pred[:,0,3:]
         y_pred = y_pred[...,:3]
         if self.mingle > 0:
-            loss += self.mingle_loss(mask, y_pred) * self.mingle
+            loss += self.mingle_loss(trunc, y_pred) * self.mingle
         if self.repulsion > 0:
             loss += get_repulsion_loss4(y_pred) * self.repulsion
-        return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
+        #return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
+        return loss + emd_loss(y_true, y_pred, K.cast(K.sum(zero_mask(y_true, self.pad_val),axis=-2), "int32"), K.cast(trunc, "int32"))
 
 
     def trunc_loss(self, y_true, y_pred):
@@ -293,13 +321,17 @@ class PUNet(Network):
     def temp_loss_raw(self, y_true, y_pred, use_emd, acc_fac, old=False):
         import tensorflow as tf
         pred, pred_p, pred_n = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
+        pred, trunc = pred[...,:3], K.cast(pred[:,0,3:], "int32")
+        pred_p, trunc_p = pred_p[...,:3], K.cast(pred_p[:,0,3:], "int32")
+        pred_n, trunc_n = pred_n[...,:3], K.cast(pred_n[:,0,3:], "int32")
+        
         gt, gt_p, gt_n = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
         if not old:
-            dist = K.sum(K.square(K.expand_dims(gt*zero_mask(gt, self.pad_val), axis=1) - K.expand_dims(pred, axis=2)), axis=-1)
+            dist = K.sum(K.square(K.expand_dims(gt, axis=1) - K.expand_dims(pred, axis=2)), axis=-1)
             h = 0.5
             dist = K.exp(-dist/(h**2))
-            pred_v0 = (pred - pred_p) 
-            pred_v1 = (pred_n - pred) 
+            pred_v0 = -approx_vel(pred, pred_p, trunc, trunc_p) 
+            pred_v1 = approx_vel(pred, pred_n, trunc, trunc_n) 
             pred_a = (pred_v1 - pred_v0) 
 
             w = K.clip(K.sum(dist, axis=2, keepdims=True), 1, 10000)
@@ -327,7 +359,7 @@ class PUNet(Network):
     def temp_loss(self, y_true, y_pred):
         return self.temp_loss_raw(y_true, y_pred, self.use_temp_emd, self.acc_fac)
 
-    def mingle_loss_2(self, mask, y_pred):
+    """def mingle_loss_2(self, mask, y_pred):
         if self.permutate:
             A = K.reshape(y_pred, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 1, 3))
             B = K.reshape(y_pred, (-1, self.particle_cnt_src, 1, self.particle_cnt_dst//self.particle_cnt_src, 3))
@@ -355,9 +387,10 @@ class PUNet(Network):
 
             cost = K.sum((K.sum(K.square(A-B),axis=-1)*mask), axis=(1,2))/(K.sum(mask, axis=(1,2))+1e-8)
 
-        return 1./(K.mean(cost, axis=-1)+1e-8)
+        return 1./(K.mean(cost, axis=-1)+1e-8)"""
 
-    def mingle_loss(self, mask, y_pred): 
+    def mingle_loss(self, trunc, y_pred): 
+        mask = soft_trunc_mask(trunc/self.particle_cnt_dst, self.particle_cnt_dst)
         if self.permutate:
             y_pred = K.reshape(y_pred, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 3))
             mask = K.reshape(mask, (-1, self.particle_cnt_src, self.particle_cnt_dst//self.particle_cnt_src, 1))
@@ -379,11 +412,11 @@ class PUNet(Network):
 
 
     def trunc_metric(self, y_true, y_pred):
-        return keras.losses.mse(K.sum(zero_mask(y_true, self.pad_val),axis=-2)/self.particle_cnt_dst,K.sum(y_pred[...,3:],axis=-2)/self.particle_cnt_dst)
-
+        return keras.losses.mse(K.sum(zero_mask(y_true, self.pad_val),axis=-2)/self.particle_cnt_dst,y_pred[:,0,3:]/self.particle_cnt_dst)
 
     def particle_metric(self, y_true, y_pred):
-        return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[...,:3])
+        mask = K.reshape(soft_trunc_mask(y_pred[:,0,3:]/self.particle_cnt_dst, self.particle_cnt_dst), (-1, self.particle_cnt_dst, 1))
+        return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[...,:3] * mask)
 
     def mse_vel_metric(self, y_true, y_pred):
         return self.temp_loss_raw(y_true, y_pred, False, 0.0, True)
@@ -398,7 +431,7 @@ class PUNet(Network):
         return self.temp_loss_raw(y_true, y_pred, True, 1.0, True)
 
     def mingle_metric(self, y_true, y_pred):
-        return self.mingle_loss(y_pred[...,3:], y_pred[...,:3])
+        return self.mingle_loss(y_pred[:,0,3:], y_pred[...,:3])
 
 
     def compile_model(self):
