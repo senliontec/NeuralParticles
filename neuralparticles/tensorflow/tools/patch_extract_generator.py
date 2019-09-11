@@ -170,7 +170,10 @@ class PatchGenerator(keras.utils.Sequence):
             (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep, 0, features=self.features, ref_features=['v'])
             patch_ex_src = PatchExtractor(src_data, sdf_data, self.patch_size, self.par_cnt, pad_val=self.pad_val, positions=src_data[idx], aux_data=par_aux, features=self.features)
             patch_ex_ref = PatchExtractor(ref_data, ref_sdf_data, self.patch_size_ref, self.par_cnt_ref, pad_val=self.pad_val, positions=src_data[idx]*self.fac_d, aux_data=ref_aux, features=['v'])
-
+            
+            #v = par_aux['v']
+            #(src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep-1, 0, features=self.features, ref_features=['v'])
+            #patch_src_1 = PatchExtractor(src_data, sdf_data, self.patch_size, self.par_cnt, pad_val=self.pad_val, positions=patch_ex_src.positions - v[patch_ex_src.pos_idx] / self.fps, aux_data=par_aux, features=self.features)
             '''patch_ex_ref_n = None
             patch_ex_src_n = None
             if self.temp_coh:
@@ -229,9 +232,11 @@ class PatchGenerator(keras.utils.Sequence):
                         ref[1][i] = np.concatenate((ref_patch[...,:3], ref1[...,:3], ref2[...,:3]))
                     else:
                         vel = src[0][i][...,3:6]
+                        mask = vel != self.pad_val
                         idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
                         vel = vel - np.expand_dims(vel[idx],axis=0)
-
+                        vel = vel * mask
+                        
                         adv_src = src[0][i][...,:3] - vel / (self.fps * self.patch_size)
                         src[1][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
 
@@ -239,8 +244,10 @@ class PatchGenerator(keras.utils.Sequence):
                         src[2][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
 
                         vel = ref_patch[...,3:]
+                        mask = vel != self.pad_val
                         idx = np.argmin(np.linalg.norm(ref_patch[...,:3], axis=-1), axis=0)
                         vel = vel - np.expand_dims(vel[idx],axis=0)
+                        vel = vel * mask
 
                         ref[1][i] = np.concatenate((
                                 ref_patch[...,:3],

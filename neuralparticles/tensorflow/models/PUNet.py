@@ -215,8 +215,9 @@ class PUNet(Network):
             
             x_t = Dense(1, weights=[W,b], activation='tanh', name="cnt")(x_t)
 
-            trunc = MultConst(1/self.particle_cnt_src)(add(unstack(mask_t, 1)))
+            trunc = average(unstack(mask_t, 1))
             trunc = add([trunc, x_t], name="truncation")
+            trunc = Lambda(lambda x: K.clip(x, 0.0, 1.0))(trunc)
             
             self.trunc_model = Model(inputs=trunc_input, outputs=trunc, name="truncation")
 
@@ -247,6 +248,7 @@ class PUNet(Network):
         inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))]
         
         def append_trunc(inputs, out, name=None):
+            
             if self.truncate:
                 trunc = RepeatVector(self.particle_cnt_dst)(out[1])
                 out = Lambda(lambda x: x)(out[0])
@@ -260,7 +262,6 @@ class PUNet(Network):
                 else:
                     trunc = Lambda(lambda x: K.ones((K.shape(x)[0], 1)))(out)
             
-            trunc = Lambda(lambda x: K.minimum(1.0, x))(trunc)
             trunc = MultConst(self.particle_cnt_dst)(trunc)
             trunc = Lambda(lambda x: K.maximum(1.0, x))(trunc)
             #trunc = Lambda(lambda x: K.minimum(float(self.particle_cnt_dst), x))(trunc)
@@ -303,6 +304,9 @@ class PUNet(Network):
             
         self.train_model = Model(inputs=inputs, outputs=outputs)
 
+    def mask_from_trunc(self, trunc):
+        return K.reshape(soft_trunc_mask(trunc/self.particle_cnt_dst, self.particle_cnt_dst), (-1, self.particle_cnt_dst, 1))
+
     def mask_loss(self, y_true, y_pred):
         loss = 0
         trunc = y_pred[:,0,3:]
@@ -311,7 +315,7 @@ class PUNet(Network):
             loss += self.mingle_loss(trunc, y_pred) * self.mingle
         if self.repulsion > 0:
             loss += get_repulsion_loss4(y_pred) * self.repulsion
-        #return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred)
+        #return loss + emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred * self.mask_from_trunc(trunc))
         return loss + emd_loss(y_true, y_pred, K.cast(K.sum(zero_mask(y_true, self.pad_val),axis=-2), "int32"), K.cast(trunc, "int32"))
 
 
@@ -320,19 +324,29 @@ class PUNet(Network):
 
     def temp_loss_raw(self, y_true, y_pred, use_emd, acc_fac, old=False):
         import tensorflow as tf
-        pred, pred_p, pred_n = tf.split(y_pred, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
-        pred, trunc = pred[...,:3], K.cast(pred[:,0,3:], "int32")
-        pred_p, trunc_p = pred_p[...,:3], K.cast(pred_p[:,0,3:], "int32")
-        pred_n, trunc_n = pred_n[...,:3], K.cast(pred_n[:,0,3:], "int32")
-        
-        gt, gt_p, gt_n = tf.split(y_true, [self.particle_cnt_dst, self.particle_cnt_dst, self.particle_cnt_dst], 1)
+        pred, pred_p, pred_n = tf.split(y_pred, 3, 1)
+        pred, trunc = pred[...,:3], pred[:,0,3:]
+        pred_p, trunc_p = pred_p[...,:3], pred_p[:,0,3:]
+        pred_n, trunc_n = pred_n[...,:3], pred_n[:,0,3:]
+
+        #pred = pred * self.mask_from_trunc(trunc) 
+        #pred_p = pred_p * self.mask_from_trunc(trunc_p)
+        #pred_n = pred_n * self.mask_from_trunc(trunc_n)
+
+        trunc = K.cast(trunc, "int32")
+        trunc_p = K.cast(trunc_p, "int32")
+        trunc_n = K.cast(trunc_n, "int32")
+
+        gt, gt_p, gt_n = tf.split(y_true, 3, 1)
+
         if not old:
-            dist = K.sum(K.square(K.expand_dims(gt, axis=1) - K.expand_dims(pred, axis=2)), axis=-1)
-            h = 0.5
-            dist = K.exp(-dist/(h**2))
             pred_v0 = -approx_vel(pred, pred_p, trunc, trunc_p) 
             pred_v1 = approx_vel(pred, pred_n, trunc, trunc_n) 
             pred_a = (pred_v1 - pred_v0) 
+
+            dist = K.sum(K.square(K.expand_dims(gt, axis=1) - K.expand_dims(pred, axis=2)), axis=-1)
+            h = 0.5
+            dist = K.exp(-dist/(h**2))
 
             w = K.clip(K.sum(dist, axis=2, keepdims=True), 1, 10000)
 
@@ -351,7 +365,7 @@ class PUNet(Network):
             gt_v1 = (gt_n - gt) 
             gt_a = (gt_v1 - gt_v0) 
 
-            match = approx_match(pred, gt*zero_mask(gt, self.pad_val))
+            match = approx_match(pred, gt, trunc, K.cast(K.sum(zero_mask(gt, self.pad_val),axis=-2), "int32"))
             return ((1 - acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + acc_fac * match_cost(pred_a, gt_a, match)) / tf.cast(tf.shape(gt)[1], tf.float32)
         else:
             return (1 - acc_fac) * K.mean(K.abs((pred-pred_n) ), axis=-1) + acc_fac * keras.losses.mae((pred-pred_p) , (pred_n-pred) )
@@ -415,8 +429,7 @@ class PUNet(Network):
         return keras.losses.mse(K.sum(zero_mask(y_true, self.pad_val),axis=-2)/self.particle_cnt_dst,y_pred[:,0,3:]/self.particle_cnt_dst)
 
     def particle_metric(self, y_true, y_pred):
-        mask = K.reshape(soft_trunc_mask(y_pred[:,0,3:]/self.particle_cnt_dst, self.particle_cnt_dst), (-1, self.particle_cnt_dst, 1))
-        return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[...,:3] * mask)
+        return emd_loss(y_true * zero_mask(y_true, self.pad_val), y_pred[...,:3] * self.mask_from_trunc(y_pred[:,0,3:]))
 
     def mse_vel_metric(self, y_true, y_pred):
         return self.temp_loss_raw(y_true, y_pred, False, 0.0, True)

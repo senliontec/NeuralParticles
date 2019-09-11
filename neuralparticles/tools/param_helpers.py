@@ -63,7 +63,7 @@ def backupSources(data_path, config_path):
 
 	print("temporary folder: %s" % tmp_path)
 
-	shutil.copytree(config_path, tmp_path + "config")
+	shutil.copytree(os.path.dirname(config_path), tmp_path + "config")
 	shutil.copytree(os.path.dirname(sys.argv[0]), tmp_path + "scripts")
 
 	shutil.copy(sys.argv[0], tmp_path)
