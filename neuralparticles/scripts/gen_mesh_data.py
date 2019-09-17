@@ -217,11 +217,12 @@ for d in range(obj_cnt):
                 scan_data = np.load(scan_path%ci + ".npz")['arr_0']
             else:
                 scan_img_path = scan_path%ci + "/%04d.png"
-                tmp = imageio.imread(scan_img_path%0)[...,:1]
-                scan_data = np.empty((frame_cnt, tmp.shape[0], tmp.shape[1], 1)) 
+                tmp = 10 - imageio.imread(scan_img_path%0)[::-1,:,:1]/256 * 10
+                
+                scan_data = np.empty((frame_cnt, tmp.shape[0], tmp.shape[1], 1))
                 scan_data[0] = tmp
                 for t in range(1, frame_cnt):
-                    scan_data[i] = imageio.imread(scan_img_path%t)[...,:1]
+                    scan_data[t] = 10 - imageio.imread(scan_img_path%t)[...,:1]/256 * 10
             viewV = np.dot(viewWorld[:3,:3], np.array([0,0,-1]))
             viewV = np.dot(np.array([[1,0,0],[0,0,1],[0,-1,0]]), viewV)
 
@@ -365,18 +366,25 @@ for d in range(obj_cnt):
                 prev_src = low_res_data
                 
             else:
-                a = scan_data[t]         
+                a = scan_data[t]    
                 o = []
                 for j in range(a.shape[0]):
                     for i in range(a.shape[1]):
-                        if a[j,i,0] < 100.0:
+                        if a[j,i,0] < 10.0:
                             z = -a[j,i,0]
                             x = (0.5 - i/a.shape[0]) * width * z / near
                             y = (0.5 - j/a.shape[1]) * height * z / near
                             o.append([x,y,z])
+                
+                if test:
+                    min_v = np.array([-2,-2,-2])
+                    max_v = np.array([2,2,2])
+
+                    scale = max_v - min_v
+
                 npo = np.dot(np.concatenate((np.asarray(o), np.ones((len(o),1))), axis=-1), viewWorld.T)[...,:3]
                 npo = np.dot(npo, np.array([[1,0,0],[0,0,1],[0,-1,0]]).T)
-
+                
                 npo -= min_v + [0.5,0,0.5] * scale 
                 npo *= (res - 4 * bnd) / np.max(scale)
                 npo += [res/2, bnd*2, res/2]
@@ -408,4 +416,5 @@ for d in range(obj_cnt):
 
                 prev_src = npo
 
-                print("particles reduced: %d -> %d (%.1f)" % (fltr_i, len(npo), fltr_i/len(npo)))
+                if not test:
+                    print("particles reduced: %d -> %d (%.1f)" % (fltr_i, len(npo), fltr_i/len(npo)))
