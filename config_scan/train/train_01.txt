@@ -16,6 +16,7 @@
     "mingle":             0.0,
     "repulsion":          0.01,
     "acc_fac":            0.0,
+    "avg_fac":            10.0,
     "mask":               false,
     "residual":           false,
     "permutate":          false,

@@ -102,7 +102,7 @@ random.seed(data_config['seed'])
 np.random.seed(data_config['seed'])
 
 if test:
-    src_path = "%sreal/%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "d%03d_%03d"
+    src_path = "%sreal/%s_%s_" % (data_path, data_config['prefix'], data_config['id']) + "d%03d_%03d"
 
     if not os.path.exists(data_path + "real/"):
         os.makedirs(data_path + "real/")

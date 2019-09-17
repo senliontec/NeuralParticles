@@ -305,7 +305,7 @@ class PUNet(Network):
             gt_v1 = K.batch_dot(dist, (gt_n - gt) )/w
             gt_a = K.batch_dot(dist, (gt_v1 - gt_v0) )/w
 
-            return (1 - acc_fac) * (K.mean(K.abs(pred_v0 - gt_v0), axis=-1) + K.mean(K.abs(pred_v1 - gt_v1), axis=-1)) / 2 + acc_fac * K.mean(K.abs(pred_a - gt_a), axis=-1) + self.avg_fac * K.mean(K.abs(pred_v0 - K.expand_dims(K.mean(pred_v0, axis=1), axis=1)), axis=-1)
+            return (1 - acc_fac) * (K.mean(K.abs(pred_v0 - gt_v0), axis=-1) + K.mean(K.abs(pred_v1 - gt_v1), axis=-1)) / 2 + acc_fac * K.mean(K.abs(pred_a - gt_a), axis=-1) + self.avg_fac * K.mean(K.abs(pred_v0 - K.mean(pred_v0, axis=1, keepdims=True)), axis=-1)
             
         if use_emd: 
             pred_v0 = (pred - pred_p) 
@@ -322,7 +322,7 @@ class PUNet(Network):
             gt_a = (gt_v1 - gt_v0) 
 
             match = approx_match(pred, gt, trunc, K.cast(K.sum(zero_mask(gt, self.pad_val),axis=-2), "int32"))#*zero_mask(gt, self.pad_val))
-            return ((1 - acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + acc_fac * match_cost(pred_a, gt_a, match)) / tf.cast(tf.shape(gt)[1], tf.float32) + self.avg_fac * K.mean(K.abs(pred_v0 - K.expand_dims(K.mean(pred_v0, axis=1), axis=1)), axis=-1)
+            return ((1 - acc_fac) * (match_cost(pred_v0, gt_v0, match) + match_cost(pred_v1, gt_v1, match)) / 2 + acc_fac * match_cost(pred_a, gt_a, match)) / tf.cast(tf.shape(gt)[1], tf.float32) + self.avg_fac * K.mean(K.abs(pred_v0 - K.mean(pred_v0, axis=1, keepdims=True)), axis=(1,2))
         else:
             return (1 - acc_fac) * K.mean(K.abs((pred-pred_n) ), axis=-1) + acc_fac * keras.losses.mae((pred-pred_p) , (pred_n-pred) )
 
