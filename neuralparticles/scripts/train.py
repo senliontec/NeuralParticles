@@ -154,6 +154,7 @@ for i in range(eval_cnt):
                 (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data, eval_ref_aux) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i]+j, eval_var[i])
             else:
                 eval_src_data = eval_src_data + eval_par_aux['v'] / data_config['fps']
+                eval_ref_data = eval_ref_data + eval_ref_aux['v'] / data_config['fps']
 
         patch_ex_src = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, pre_config['par_cnt'], pad_val=pre_config['pad_val'], last_pos=pos, aux_data=eval_par_aux, features=train_config['features'], shuffle=False)
         patch_ex_ref = PatchExtractor(eval_ref_data, eval_ref_sdf_data, patch_size_ref, pre_config['par_cnt_ref'], pad_val=pre_config['pad_val'], positions=patch_ex_src.positions*factor_d, aux_data=eval_ref_aux, features=['v'], shuffle=False)
