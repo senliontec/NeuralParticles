@@ -221,7 +221,7 @@ for d in range(obj_cnt):
                 scan_data = np.empty((frame_cnt, tmp.shape[0], tmp.shape[1], 1))
                 scan_data[0] = tmp
                 for t in range(1, frame_cnt):
-                    scan_data[t] = 10 - imageio.imread(scan_img_path%t)[...,:1]/256 * 10
+                    scan_data[t] = 10 - imageio.imread(scan_img_path%t)[::-1,:,:1]/256 * 10
             viewV = np.dot(viewWorld[:3,:3], np.array([0,0,-1]))
             viewV = np.dot(np.array([[1,0,0],[0,0,1],[0,-1,0]]), viewV)
 
