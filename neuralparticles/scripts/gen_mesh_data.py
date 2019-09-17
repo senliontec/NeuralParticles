@@ -63,8 +63,7 @@ res = int(getParam("res", -1))
 culling = int(getParam("cull", 0)) != 0
 eval = int(getParam("eval", 0)) != 0
 test = int(getParam("test", 0)) != 0
-cam_pos = np.array(getParam("cam", "0,0,5").split(","))
-fovy = float(getParam("fovy", 60))
+t_end = int(getParam("t_end", -1))
 
 checkUnusedParams()
 
@@ -121,7 +120,7 @@ else:
 
     obj_cnt = len(glob(mesh_path + "objs/*"))
 
-frame_cnt = data_config['frame_count']
+frame_cnt = data_config['frame_count'] if t_end < 0 else t_end
 
 #if (eval and obj_cnt != data_config['test_count']) or (not eval and obj_cnt != data_config['data_count']):
 #    print("Mismatch between obj count and 'data_count'/'test_count' in config file!")
