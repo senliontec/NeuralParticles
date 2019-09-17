@@ -12,7 +12,7 @@ from neuralparticles.tensorflow.models.PUNet import PUNet
 
 from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles, in_bound, get_data, get_nearest_idx
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw
+from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw, writeNumpyOBJ
 
 from neuralparticles.tools.plot_helpers import plot_particles, write_csv
 
@@ -254,15 +254,19 @@ for d in range(d_start, d_end):
 
                 writeParticlesUni(tmp_path + "result_%03d.uni"%t, hdr, result*hres/out_res)
 
+                writeNumpyOBJ(tmp_path + "result_%03d.obj"%t, result*hres/out_res)
+
                 if not real:
                     hdr['dim'] = len(ref_data)
                     writeParticlesUni(tmp_path + "reference_%03d.uni"%t, hdr, ref_data*hres/out_res)
+                    writeNumpyOBJ(tmp_path + "reference_%03d.obj"%t, ref_data*hres/out_res)
 
                 hdr['dim'] = len(src_data)
                 hdr['dimX'] = res
                 hdr['dimY'] = res
                 if dim == 3: hdr['dimZ'] = res
                 writeParticlesUni(tmp_path + "source_%03d.uni"%t, hdr, src_data*hres/out_res)
+                writeNumpyOBJ(tmp_path + "source_%03d.obj"%t, src_data*hres/out_res)
 
                 print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))
 

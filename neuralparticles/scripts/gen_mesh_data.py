@@ -12,7 +12,7 @@ import random
 import math
 from collections import OrderedDict
 import time
-from PIL import Image
+import imageio
 
 def project(n, v):
     return v - np.dot(n,v) * n
@@ -62,6 +62,9 @@ scan = int(getParam("scan", 0)) != 0
 res = int(getParam("res", -1))
 culling = int(getParam("cull", 0)) != 0
 eval = int(getParam("eval", 0)) != 0
+test = int(getParam("test", 0)) != 0
+cam_pos = np.array(getParam("cam", "0,0,5").split(","))
+fovy = float(getParam("fovy", 60))
 
 checkUnusedParams()
 
@@ -99,17 +102,26 @@ off = data_config['data_count'] if eval else 0
 random.seed(data_config['seed'])
 np.random.seed(data_config['seed'])
 
-ref_path = "%sreference/%s_%s_" % (data_path, data_config['prefix'], data_config['id']) + "d%03d_%03d"
-src_path = "%ssource/%s_%s-%s_" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "d%03d_var00_%03d"
+if test:
+    src_path = "%sreal/%s_%s" % (data_path, data_config['prefix'], data_config['id']) + "d%03d_%03d"
 
-if not os.path.exists(data_path + "reference/"):
-    os.makedirs(data_path + "reference/")
+    if not os.path.exists(data_path + "real/"):
+        os.makedirs(data_path + "real/")
+    
+    obj_cnt = len(glob(mesh_path + "*"))
+else:
+    ref_path = "%sreference/%s_%s_" % (data_path, data_config['prefix'], data_config['id']) + "d%03d_%03d"
+    src_path = "%ssource/%s_%s-%s_" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "d%03d_var00_%03d"
 
-if not os.path.exists(data_path + "source/"):
-    os.makedirs(data_path + "source/")
+    if not os.path.exists(data_path + "reference/"):
+        os.makedirs(data_path + "reference/")
+
+    if not os.path.exists(data_path + "source/"):
+        os.makedirs(data_path + "source/")
+
+    obj_cnt = len(glob(mesh_path + "objs/*"))
 
 frame_cnt = data_config['frame_count']
-obj_cnt = len(glob(mesh_path + "objs/*"))
 
 #if (eval and obj_cnt != data_config['test_count']) or (not eval and obj_cnt != data_config['data_count']):
 #    print("Mismatch between obj count and 'data_count'/'test_count' in config file!")
@@ -130,8 +142,7 @@ if debug:
 
 for d in range(obj_cnt):
     print("Load dataset %d/%d" % (d+1, obj_cnt))
-    obj_path = mesh_path + "objs/%04d/" % d + "%04d.obj"
-    
+
     cam_cnt = 1
     if scan:
         scan_path = mesh_path + "scans/%04d/" % d 
@@ -139,33 +150,36 @@ for d in range(obj_cnt):
             cam_data = json.loads(f.read())
             cam_cnt = len(cam_data['transform'])
             near, width, height = cam_data['near'], cam_data['width'], cam_data['height']
-        scan_path += "%04d.npz"
+        scan_path += "%04d"
+    
+    if not test:
+        obj_path = mesh_path + "objs/%04d/" % d + "%04d.obj"
+        vertices = None
+        normals = None
+        faces = None
+        for t in range(frame_cnt):
+            obj = readNumpyOBJ(obj_path%t)
+            if t == 0:
+                vertices = np.empty((frame_cnt, obj[0].shape[0], 3))
+                normals = np.empty((frame_cnt,), dtype=object)
+                faces = np.empty((frame_cnt, obj[2].shape[0], 2, 4),dtype=int)
+            vertices[t] = obj[0]
+            normals[t] = obj[1]
+            faces[t] = obj[2]
 
-    vertices = None
-    normals = None
-    faces = None
-    for t in range(frame_cnt):
-        obj = readNumpyOBJ(obj_path%t)
-        if t == 0:
-            vertices = np.empty((frame_cnt, obj[0].shape[0], 3))
-            normals = np.empty((frame_cnt,), dtype=object)
-            faces = np.empty((frame_cnt, obj[2].shape[0], 2, 4),dtype=int)
-        vertices[t] = obj[0]
-        normals[t] = obj[1]
-        faces[t] = obj[2]
+        min_v = np.min(vertices,axis=(0,1))
+        max_v = np.max(vertices,axis=(0,1))
+        scale = max_v - min_v
 
-    min_v = np.min(vertices,axis=(0,1))
-    max_v = np.max(vertices,axis=(0,1))
-    scale = max_v - min_v
+        vertices -= min_v + [0.5,0,0.5] * scale 
+        vertices *= (res - 4 * bnd) / np.max(scale)
+        vertices += [res/2, bnd*2, res/2]
+        print(np.min(vertices,axis=(0,1)))
+        print(np.max(vertices,axis=(0,1)))
 
-    vertices -= min_v + [0.5,0,0.5] * scale 
-    vertices *= (res - 4 * bnd) / np.max(scale)
-    vertices += [res/2, bnd*2, res/2]
-    print(np.min(vertices,axis=(0,1)))
-    print(np.max(vertices,axis=(0,1)))
+        bary_coord = np.empty((len(faces[0]),),dtype=object)
+        data_cnt = 0
 
-    bary_coord = np.empty((len(faces[0]),),dtype=object)
-    data_cnt = 0
     d_idx = None
 
     prev_ref = None
@@ -196,107 +210,116 @@ for d in range(obj_cnt):
     hdrv['bytesPerElement'] = 12
     
     for ci in range(cam_cnt):
-        print("Load cam: %d/%d" % (ci+1, len(cam_data['transform'])))
+        print("Load cam: %d/%d" % (ci+1, cam_cnt))
         if scan:
             viewWorld = np.array(cam_data['transform'][ci])   
-            scan_data = np.load(scan_path%ci)['arr_0']
+            if os.path.isfile(scan_path%ci + ".npz"):
+                scan_data = np.load(scan_path%ci + ".npz")['arr_0']
+            else:
+                scan_img_path = scan_path%ci + "/%04d.png"
+                tmp = imageio.imread(scan_img_path%0)[...,:1]
+                scan_data = np.empty((frame_cnt, tmp.shape[0], tmp.shape[1], 1)) 
+                scan_data[0] = tmp
+                for t in range(1, frame_cnt):
+                    scan_data[i] = imageio.imread(scan_img_path%t)[...,:1]
             viewV = np.dot(viewWorld[:3,:3], np.array([0,0,-1]))
             viewV = np.dot(np.array([[1,0,0],[0,0,1],[0,-1,0]]), viewV)
-            print(viewV)
 
         for t in range(frame_cnt):
-            print("Load mesh: %d/%d" % (t+1, frame_cnt))
-            if t == 0:
+            if not test:
+                print("Load mesh: %d/%d" % (t+1, frame_cnt))
+                if t == 0:
+                    data_cnt = 0
+                    for fi, f in enumerate(faces[t]):
+                        v = vertices[t,f[0]]
+
+                        area = np.linalg.norm(np.cross(v[1]-v[0], v[2]-v[0]))/2
+                        area += np.linalg.norm(np.cross(v[2]-v[0], v[3]-v[0]))/2
+
+                        par_cnt = vert_area_ratio * area
+                        par_cnt = int(par_cnt) + int(np.random.random() < par_cnt % 1)
+                        bary_coord[fi] = np.random.random((par_cnt, 2))
+                        data_cnt += par_cnt
+
+                data = np.empty((data_cnt, 3))
+                di = 0
+                fltr_idx = np.zeros((data_cnt,), dtype="int32")
+                fltr_i = 0
                 for fi, f in enumerate(faces[t]):
                     v = vertices[t,f[0]]
+                    n = normals[t][f[1]]
 
-                    area = np.linalg.norm(np.cross(v[1]-v[0], v[2]-v[0]))/2
-                    area += np.linalg.norm(np.cross(v[2]-v[0], v[3]-v[0]))/2
+                    x01 = (v[1] - v[0])
+                    x01 /= np.linalg.norm(x01,axis=-1,keepdims=True)
+                    x32 = (v[2] - v[3])
+                    x32 /= np.linalg.norm(x32,axis=-1,keepdims=True)
+                    y12 = (v[2] - v[1])
+                    y12 /= np.linalg.norm(y12,axis=-1,keepdims=True)
+                    y03 = (v[3] - v[0])
+                    y03 /= np.linalg.norm(y03,axis=-1,keepdims=True)
 
-                    par_cnt = vert_area_ratio * area
-                    par_cnt = int(par_cnt) + int(np.random.random() < par_cnt % 1)
-                    bary_coord[fi] = np.random.random((par_cnt, 2))
-                    data_cnt += par_cnt
+                    A_f = np.zeros((4,4,3))
 
-            data = np.empty((data_cnt, 3))
-            di = 0
-            fltr_idx = np.zeros((data_cnt,), dtype="int32")
-            fltr_i = 0
-            for fi, f in enumerate(faces[t]):
-                v = vertices[t,f[0]]
-                n = normals[t][f[1]]
+                    A_f[0,0] = v[0]
+                    A_f[0,1] = v[3]
+                    A_f[1,0] = v[1]
+                    A_f[1,1] = v[2]
 
-                x01 = (v[1] - v[0])
-                x01 /= np.linalg.norm(x01,axis=-1,keepdims=True)
-                x32 = (v[2] - v[3])
-                x32 /= np.linalg.norm(x32,axis=-1,keepdims=True)
-                y12 = (v[2] - v[1])
-                y12 /= np.linalg.norm(y12,axis=-1,keepdims=True)
-                y03 = (v[3] - v[0])
-                y03 /= np.linalg.norm(y03,axis=-1,keepdims=True)
+                    A_f[0,2] = deviation(n[0], y03, x01)
+                    A_f[0,3] = deviation(n[3], y03, x32)
+                    A_f[1,2] = deviation(n[1], y12, x01)
+                    A_f[1,3] = deviation(n[2], y12, x32)
 
-                A_f = np.zeros((4,4,3))
+                    A_f[2,0] = deviation(n[0], x01, -y03)
+                    A_f[2,1] = deviation(n[3], x32, -y03)
+                    A_f[3,0] = deviation(n[1], x01, -y12)
+                    A_f[3,1] = deviation(n[2], x32, -y12)
 
-                A_f[0,0] = v[0]
-                A_f[0,1] = v[3]
-                A_f[1,0] = v[1]
-                A_f[1,1] = v[2]
+                    A_f[2,2] = (A_f[2,1] - A_f[2,0])/np.linalg.norm(y03)
+                    A_f[2,3] = (A_f[2,1] - A_f[2,0])/np.linalg.norm(y03)
+                    A_f[3,2] = (A_f[3,1] - A_f[3,0])/np.linalg.norm(y12)
+                    A_f[3,3] = (A_f[3,1] - A_f[3,0])/np.linalg.norm(y12)
 
-                A_f[0,2] = deviation(n[0], y03, x01)
-                A_f[0,3] = deviation(n[3], y03, x32)
-                A_f[1,2] = deviation(n[1], y12, x01)
-                A_f[1,3] = deviation(n[2], y12, x32)
+                    param = np.zeros((4,4,3))
 
-                A_f[2,0] = deviation(n[0], x01, -y03)
-                A_f[2,1] = deviation(n[3], x32, -y03)
-                A_f[3,0] = deviation(n[1], x01, -y12)
-                A_f[3,1] = deviation(n[2], x32, -y12)
-
-                A_f[2,2] = (A_f[2,1] - A_f[2,0])/np.linalg.norm(y03)
-                A_f[2,3] = (A_f[2,1] - A_f[2,0])/np.linalg.norm(y03)
-                A_f[3,2] = (A_f[3,1] - A_f[3,0])/np.linalg.norm(y12)
-                A_f[3,3] = (A_f[3,1] - A_f[3,0])/np.linalg.norm(y12)
-
-                param = np.zeros((4,4,3))
-
-                for j in range(3):
-                    param[...,j] = np.matmul(np.matmul(A_l, A_f[...,j]), A_r)
-
-                for (a1,a2) in bary_coord[fi]:
                     for j in range(3):
-                        data[di,j] = np.matmul(np.matmul(np.array([1,a1,a1**2,a1**3]), param[...,j]), np.array([1,a2,a2**2,a2**3]))
-                    if not culling or np.dot(np.mean(n, 0), viewV) <= 0:
-                        fltr_idx[fltr_i] = di
-                        fltr_i += 1
-                    di += 1
+                        param[...,j] = np.matmul(np.matmul(A_l, A_f[...,j]), A_r)
 
-            fltr_idx = fltr_idx[:fltr_i]
+                    for (a1,a2) in bary_coord[fi]:
+                        for j in range(3):
+                            data[di,j] = np.matmul(np.matmul(np.array([1,a1,a1**2,a1**3]), param[...,j]), np.array([1,a2,a2**2,a2**3]))
+                        if not culling or np.dot(np.mean(n, 0), viewV) <= 0:
+                            fltr_idx[fltr_i] = di
+                            fltr_i += 1
+                        di += 1
 
-            hdr['dim'] = fltr_i
-            hdr['dimX'] = res
-            hdr['dimY'] = res
-            hdr['dimZ'] = 1 if dim == 2 else res
-            
-            writeParticlesUni(ref_path%(ci + d*cam_cnt + off,t) +"_ps.uni", hdr, data[fltr_idx])
-            #writeNumpyRaw(ref_path%(ci + d*cam_cnt + off,t), data)
-            if debug:
-                writeNumpyOBJ(ref_path%(ci + d*cam_cnt + off,t) +".obj", data[fltr_idx])
-            if t > 0:
-                hdrv['dim'] = len(prev_idx)
-                hdrv['dimX'] = res
-                hdrv['dimY'] = res
-                hdrv['dimZ'] = 1 if dim == 2 else res
+                fltr_idx = fltr_idx[:fltr_i]
 
-                vel = (data - prev_ref) * data_config['fps']
-                writeParticlesUni(ref_path%(ci + d*cam_cnt + off,t-1) +"_pv.uni", hdrv, vel[prev_idx])
-                if debug:
-                    writeNumpyOBJ(ref_path%(ci + d*cam_cnt + off,t) +"_prev.obj", prev_ref[prev_idx])
-                    writeNumpyOBJ(ref_path%(ci + d*cam_cnt + off,t) +"_adv.obj", prev_ref[prev_idx]+vel[prev_idx]/data_config['fps'])
+                hdr['dim'] = fltr_i
+                hdr['dimX'] = res
+                hdr['dimY'] = res
+                hdr['dimZ'] = 1 if dim == 2 else res
                 
-            prev_idx = fltr_idx
-            prev_ref = data
-            
-            data = data[fltr_idx]
+                writeParticlesUni(ref_path%(ci + d*cam_cnt + off,t) +"_ps.uni", hdr, data[fltr_idx])
+                #writeNumpyRaw(ref_path%(ci + d*cam_cnt + off,t), data)
+                if debug:
+                    writeNumpyOBJ(ref_path%(ci + d*cam_cnt + off,t) +".obj", data[fltr_idx])
+                if t > 0:
+                    hdrv['dim'] = len(prev_idx)
+                    hdrv['dimX'] = res
+                    hdrv['dimY'] = res
+                    hdrv['dimZ'] = 1 if dim == 2 else res
+
+                    vel = (data - prev_ref) * data_config['fps']
+                    writeParticlesUni(ref_path%(ci + d*cam_cnt + off,t-1) +"_pv.uni", hdrv, vel[prev_idx])
+                    if debug:
+                        writeNumpyOBJ(ref_path%(ci + d*cam_cnt + off,t) +"_prev.obj", prev_ref[prev_idx])
+                        writeNumpyOBJ(ref_path%(ci + d*cam_cnt + off,t) +"_adv.obj", prev_ref[prev_idx]+vel[prev_idx]/data_config['fps'])
+                    
+                prev_idx = fltr_idx
+                prev_ref = data
+                
+                data = data[fltr_idx]
 
             if not scan:
                 if t == 0:

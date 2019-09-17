@@ -121,7 +121,7 @@ zf = z[z<1000] #
 print(np.min(zf),np.max(zf))
 """
 
-cam_pos = [[3,4,4]]
+cam_pos = [[-3,-4,4]]
 cam_data = {}
 cam_data['transform'] = []
 

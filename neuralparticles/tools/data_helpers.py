@@ -100,10 +100,10 @@ def get_positions(particle_data, sdf, patch_size, surface=1.0, bnd=0):
     return particle_data[get_positions_idx(particle_data, sdf, patch_size, surface, bnd)]
 
 def get_nearest_idx(data, pos):
-    return np.argmin(np.linalg.norm(pos-data, axis=-1), axis=0)
+    return np.argmin(np.linalg.norm(pos-data, axis=-1), axis=-1)
 
 def get_nearest_point(data, pos, aux_data={}):
-    idx = np.argmin(np.linalg.norm(pos-data, axis=-1), axis=0)
+    idx = get_nearest_idx(data, pos)
     aux = {}
     for k, v in aux_data.items():
         aux[k] = v[idx]

@@ -13,11 +13,13 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0, tr
     if type(result) is list:
         raw_result = result[0][0]
         cnt = int(result[1][0] * result[0].shape[1])
+        cnt = max(1,cnt)
         if verbose > 0: print("Reduce points to: " + str(cnt))
         result = result[0][0,:cnt]
     elif truncate:
         raw_result = result[0]
         cnt = int(np.count_nonzero(src[0][...,1] != -2.0)) * (result.shape[1]//src[0].shape[1])
+        cnt = max(1,cnt)
         if verbose > 0: print("Reduce points to: " + str(cnt))
         result = result[0,:cnt]
     else:
@@ -58,11 +60,11 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0, tr
             if ref is not None: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".png",  z = z)
             plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("res") + ".png", z = z)
             if verbose > 1:
-                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".svg", ref=ref, src=src[0][0], vel=vel_src, z = z)
+                """plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("comp") + ".svg", ref=ref, src=src[0][0], vel=vel_src, z = z)
                 plot_particles(result[fac:], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("detail") + ".svg", src=src[0][0], vel=vel_src, z = z, ref=result[:fac])
                 plot_particles(src[0][0], xlim=[-1,1], ylim=[-1,1], s=5, path=path%("src") + ".svg", src=src[0][0], vel=vel_src, z = z)
                 if ref is not None: plot_particles(ref, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("ref") + ".svg",  z = z)
-                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("res") + ".svg", z = z)
+                plot_particles(result, xlim=[-1,1], ylim=[-1,1], s=5, path=path%("res") + ".svg", z = z)"""
                 if verbose > 2:
                     write_csv(path%("res") + ".csv", result)
                     if ref is not None: write_csv(path%("ref") + ".csv", ref)
