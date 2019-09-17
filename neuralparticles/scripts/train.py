@@ -137,8 +137,6 @@ np.random.seed(data_config['seed'])
 
 factor_d = math.pow(pre_config['factor'], 1/data_config['dim'])
 
-eval_patch_extractors = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
-eval_ref_datas = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
 eval_src_patches = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
 eval_ref_patches = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
 
@@ -151,10 +149,11 @@ for i in range(eval_cnt):
     idx = random.sample(range(eval_src_data.shape[0]), 1)
     pos = eval_src_data[idx]    
     for j in range(eval_timesteps):
-        (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data, eval_ref_aux) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i]+j, eval_var[i])
-        #idx = get_nearest_idx(eval_src_data, np.expand_dims(pos, axis=1))
-
-        #pos = eval_src_data[idx]
+        if j > 0:
+            if not train_config['adv_src']:
+                (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data, eval_ref_aux) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i]+j, eval_var[i])
+            else:
+                eval_src_data = eval_src_data + eval_par_aux['v'] / data_config['fps']
 
         patch_ex_src = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, pre_config['par_cnt'], pad_val=pre_config['pad_val'], last_pos=pos, aux_data=eval_par_aux, features=train_config['features'], shuffle=False)
         patch_ex_ref = PatchExtractor(eval_ref_data, eval_ref_sdf_data, patch_size_ref, pre_config['par_cnt_ref'], pad_val=pre_config['pad_val'], positions=patch_ex_src.positions*factor_d, aux_data=eval_ref_aux, features=['v'], shuffle=False)

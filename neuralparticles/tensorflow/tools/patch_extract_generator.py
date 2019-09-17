@@ -88,6 +88,8 @@ class PatchGenerator(keras.utils.Sequence):
         self.surface = pre_config['surf']
         self.stride = pre_config['stride']
 
+        self.use_adv_src = train_config['adv_src']
+
         self.jitter = train_config['jitter_aug']
 
         self.batch_cnt = 0
@@ -163,7 +165,7 @@ class PatchGenerator(keras.utils.Sequence):
 
     def _load_chunk(self):
         frame_chunk = self.chunked_idx[self.chunk_idx]
-        self.chunk = np.empty((frame_chunk.size, 6 if self.temp_coh else 2), dtype=object)        
+        self.chunk = np.empty((frame_chunk.size, 6 if (self.temp_coh and not self.use_adv_src) else 2), dtype=object)        
         for i in range(frame_chunk.size):
             frame = frame_chunk[i]
             idx = frame.position_idx
@@ -174,7 +176,7 @@ class PatchGenerator(keras.utils.Sequence):
             patch_ex_src = PatchExtractor(src_data, sdf_data, self.patch_size, self.par_cnt, pad_val=self.pad_val, positions=src_data[idx], aux_data=par_aux, features=self.features)
             patch_ex_ref = PatchExtractor(ref_data, ref_sdf_data, self.patch_size_ref, self.par_cnt_ref, pad_val=self.pad_val, positions=patch_ex_src.positions*self.fac_d, aux_data=ref_aux, features=['v'])
             
-            if self.temp_coh:
+            if self.temp_coh and not self.use_adv_src:
                 pos = patch_ex_src.positions + par_aux['v'][idx] / self.fps
                 (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep+1, 0, features=self.features, ref_features=['v'])
                 p_idx = get_nearest_idx(src_data, np.expand_dims(pos, axis=1))
@@ -241,60 +243,61 @@ class PatchGenerator(keras.utils.Sequence):
 
                         ref[1][i] = np.concatenate((ref_patch[...,:3], ref1[...,:3], ref2[...,:3]))
                     else:
-                        src[1][i] = self.chunk[c_idx][2].pop_patch(remove_data=False)
-                        src[2][i] = self.chunk[c_idx][3].pop_patch(remove_data=False)
+                        if self.use_adv_src:                        
+                            vel = src[0][i][...,3:6]
+                            mask = vel != self.pad_val
+                            idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
+                            vel = vel - np.expand_dims(vel[idx],axis=0)
+                            vel = vel * mask
+                            
+                            adv_src = src[0][i][...,:3] - 2 * vel / (self.fps * self.patch_size)
+                            src[1][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
 
-                        ref[1][i] = np.concatenate((
-                                ref_patch[...,:3],
-                                self.chunk[c_idx][4].pop_patch(remove_data=False)[...,:3],
-                                self.chunk[c_idx][5].pop_patch(remove_data=False)[...,:3])
-                        )
+                            adv_src = src[0][i][...,:3] + 2 * vel / (self.fps * self.patch_size)
+                            src[2][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
 
-                        """vel = src[0][i][...,3:6]
-                        mask = vel != self.pad_val
-                        idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
-                        vel = vel - np.expand_dims(vel[idx],axis=0)
-                        vel = vel * mask
-                        src[0][i][...,3:6] = vel * 2 / (self.fps * self.patch_size)
+                            vel = ref_patch[...,3:]
+                            mask = vel != self.pad_val
+                            idx = np.argmin(np.linalg.norm(ref_patch[...,:3], axis=-1), axis=0)
+                            vel = vel - np.expand_dims(vel[idx],axis=0)
+                            vel = vel * mask
 
-                        vel = src[1][i][...,3:6]
-                        mask = vel != self.pad_val
-                        idx = np.argmin(np.linalg.norm(src[1][i][...,:3], axis=-1), axis=0)
-                        vel = vel - np.expand_dims(vel[idx],axis=0)
-                        vel = vel * mask
-                        src[1][i][...,3:6] = vel * 2 / (self.fps * self.patch_size)
+                            ref[1][i] = np.concatenate((
+                                    ref_patch[...,:3],
+                                    ref_patch[...,:3] - 2 * vel / (self.fps * self.patch_size_ref),
+                                    ref_patch[...,:3] + 2 * vel / (self.fps * self.patch_size_ref))
+                            )
+                        else:
+                            src[1][i] = self.chunk[c_idx][2].pop_patch(remove_data=False)
+                            src[2][i] = self.chunk[c_idx][3].pop_patch(remove_data=False)
 
-                        vel = src[2][i][...,3:6]
-                        mask = vel != self.pad_val
-                        idx = np.argmin(np.linalg.norm(src[2][i][...,:3], axis=-1), axis=0)
-                        vel = vel - np.expand_dims(vel[idx],axis=0)
-                        vel = vel * mask
-                        src[2][i][...,3:6] = vel * 2 / (self.fps * self.patch_size)"""
-                        """
-                        vel = src[0][i][...,3:6]
-                        mask = vel != self.pad_val
-                        idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
-                        vel = vel - np.expand_dims(vel[idx],axis=0)
-                        vel = vel * mask
+                            ref[1][i] = np.concatenate((
+                                    ref_patch[...,:3],
+                                    self.chunk[c_idx][4].pop_patch(remove_data=False)[...,:3],
+                                    self.chunk[c_idx][5].pop_patch(remove_data=False)[...,:3])
+                            )
+
+                            """vel = src[0][i][...,3:6]
+                            mask = vel != self.pad_val
+                            idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
+                            vel = vel - np.expand_dims(vel[idx],axis=0)
+                            vel = vel * mask
+                            src[0][i][...,3:6] = vel * 2 / (self.fps * self.patch_size)
+
+                            vel = src[1][i][...,3:6]
+                            mask = vel != self.pad_val
+                            idx = np.argmin(np.linalg.norm(src[1][i][...,:3], axis=-1), axis=0)
+                            vel = vel - np.expand_dims(vel[idx],axis=0)
+                            vel = vel * mask
+                            src[1][i][...,3:6] = vel * 2 / (self.fps * self.patch_size)
+
+                            vel = src[2][i][...,3:6]
+                            mask = vel != self.pad_val
+                            idx = np.argmin(np.linalg.norm(src[2][i][...,:3], axis=-1), axis=0)
+                            vel = vel - np.expand_dims(vel[idx],axis=0)
+                            vel = vel * mask
+                            src[2][i][...,3:6] = vel * 2 / (self.fps * self.patch_size)"""
                         
-                        adv_src = src[0][i][...,:3] - vel / (self.fps * self.patch_size)
-                        src[1][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
-
-                        adv_src = src[0][i][...,:3] + vel / (self.fps * self.patch_size)
-                        src[2][i] = np.concatenate((adv_src,src[0][i][...,3:]), axis=-1)
-
-                        vel = ref_patch[...,3:]
-                        mask = vel != self.pad_val
-                        idx = np.argmin(np.linalg.norm(ref_patch[...,:3], axis=-1), axis=0)
-                        vel = vel - np.expand_dims(vel[idx],axis=0)
-                        vel = vel * mask
-
-                        ref[1][i] = np.concatenate((
-                                ref_patch[...,:3],
-                                ref_patch[...,:3] - vel / (self.fps * self.patch_size_ref),
-                                ref_patch[...,:3] + vel / (self.fps * self.patch_size_ref))
-                        )
-                        """
 
             """if self.temp_coh:
                 if index % 2 == 0 or not self.neg_examples or (self.chunk[c_idx][1].stack_empty() and len(self.chunk) == 1):

@@ -21,6 +21,7 @@
     "residual":           false,
     "permutate":          false,
     "use_temp_emd":       false,
+    "adv_src":            false,
     "gen_vel":            false,
     "neg_examples":       false,
     "rot_aug":            false,
