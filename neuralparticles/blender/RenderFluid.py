@@ -237,8 +237,8 @@ def main():
         bpy.data.objects["Camera"].location[1] = -1.0
         bpy.data.objects["Camera"].location[2] = 0.3
         bpy.data.objects["Empty"].location[0] = 0.0
-        bpy.data.objects["Empty"].location[1] = 0.0
-        bpy.data.objects["Empty"].location[2] = 0.29
+        bpy.data.objects["Empty"].location[1] = 5
+        bpy.data.objects["Empty"].location[2] = 0
     elif args.higher:
         bpy.data.objects["Empty"].location[0] = 0.05
         bpy.data.objects["Empty"].location[1] = 0.0

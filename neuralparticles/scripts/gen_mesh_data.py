@@ -107,6 +107,9 @@ search_r = res/lres * (1/sub_res) * 0.77 if factor > 1 else 0
 
 off = data_config['data_count'] if eval else 0
 
+discretize = data_config['disc'] 
+max_z = data_config['max_z'] 
+
 random.seed(data_config['seed'])
 np.random.seed(data_config['seed'])
 
@@ -223,14 +226,16 @@ for d in range(obj_cnt):
             viewWorld = np.array(cam_data['transform'][ci])   
             if os.path.isfile(scan_path%ci + ".npz"):
                 scan_data = np.load(scan_path%ci + ".npz")['arr_0']
+                if discretize:
+                    scan_data = np.floor((scan_data / max_z) * 256) * max_z
             else:
                 scan_img_path = scan_path%ci + "/%04d.png"
-                tmp = 10 - imageio.imread(scan_img_path%0)[::-1,:,:1]/256 * 10
+                tmp = max_z - imageio.imread(scan_img_path%0)[::-1,:,:1]/256 * max_z
                 
                 scan_data = np.empty((frame_cnt, tmp.shape[0], tmp.shape[1], 1))
                 scan_data[0] = tmp
                 for t in range(1, frame_cnt):
-                    scan_data[t] = 10 - imageio.imread(scan_img_path%t)[::-1,:,:1]/256 * 10
+                    scan_data[t] = max_z - imageio.imread(scan_img_path%t)[::-1,:,:1]/256 * max_z
             viewV = np.dot(viewWorld[:3,:3], np.array([0,0,-1]))
             viewV = np.dot(np.array([[1,0,0],[0,0,1],[0,-1,0]]), viewV)
 
@@ -378,18 +383,12 @@ for d in range(obj_cnt):
                 o = []
                 for j in range(a.shape[0]):
                     for i in range(a.shape[1]):
-                        if a[j,i,0] < 10.0:
+                        if a[j,i,0] < max_z:
                             z = -a[j,i,0]
                             x = (0.5 - i/a.shape[0]) * width * z / near
                             y = (0.5 - j/a.shape[1]) * height * z / near
                             o.append([x,y,z])
                 
-                """if test:
-                    min_v = np.array([-2,-2,-2])
-                    max_v = np.array([2,2,2])
-
-                    scale = max_v - min_v"""
-
                 npo = np.dot(np.concatenate((np.asarray(o), np.ones((len(o),1))), axis=-1), viewWorld.T)[...,:3]
                 npo = np.dot(npo, np.array([[1,0,0],[0,0,1],[0,-1,0]]).T)
                 
