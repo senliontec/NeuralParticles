@@ -82,6 +82,8 @@ class PUNet(Network):
 
         self.neg_examples = kwargs.get("neg_examples")
 
+        self.adv_src = kwargs.get("adv_src")
+
         if self.temp_coh:
             self.loss_weights.append(tmp_w[1])
         
@@ -103,9 +105,11 @@ class PUNet(Network):
     def _init_optimizer(self, epochs=1):
         self.optimizer = keras.optimizers.adam(lr=self.learning_rate, decay=self.decay)
 
-    def _build_model(self):            
-        activation = keras.activations.tanh#lambda x: keras.activations.relu(x, alpha=0.1)
-        inputs = Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)), name="main_input")
+    def gen_feature_layer(self, activation):
+        inputs = [Input((self.particle_cnt_src, 3), name="xyz"), Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)), name="feature_input")]
+        xyz = inputs[0]
+        inputs = inputs[1]
+        
         input_xyz = extract_xyz(inputs, name="extract_pos")
         input_points = input_xyz
 
@@ -114,14 +118,11 @@ class PUNet(Network):
             input_points = MultConst(1./self.norm_factor, name="normalization")(input_points)
             input_points = concatenate([input_xyz, input_points], axis=-1, name='input_concatenation')
         
+        mask = zero_mask(input_xyz, self.pad_val, name="mask_1")
         if not self.mask:
-            mask = zero_mask(input_xyz, self.pad_val, name="mask_1")
             input_points = multiply([input_points, mask])
             input_xyz = multiply([input_xyz, mask])
-            input_xyz_m = input_xyz
-            input_points_m = input_points
-
-
+ 
         l1_xyz, l1_points = pointnet_sa_module(input_xyz, input_points, self.particle_cnt_src, 0.25, self.fac*4, 
                                                [self.fac*4, self.fac*4, self.fac*8], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
         l2_xyz, l2_points = pointnet_sa_module(l1_xyz, l1_points, self.particle_cnt_src//2, 0.5, self.fac*4, 
@@ -131,19 +132,36 @@ class PUNet(Network):
         l4_xyz, l4_points = pointnet_sa_module(l3_xyz, l3_points, self.particle_cnt_src//8, 0.7, self.fac*4, 
                                                [self.fac*32, self.fac*32, self.fac*64], activation=activation, kernel_regularizer=keras.regularizers.l2(self.l2_reg))
 
-        if self.mask:
-            mask = zero_mask(input_xyz, self.pad_val, name="mask_2")
-            input_xyz_m = multiply([input_xyz, mask])
-            input_points_m = multiply([input_points, mask])
-            #x = multiply([x, mask])
-
         # interpoliere die features in l2_points auf die Punkte in x
-        up_l2_points = pointnet_fp_module(input_xyz_m, l2_xyz, None, l2_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
-        up_l3_points = pointnet_fp_module(input_xyz_m, l3_xyz, None, l3_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
-        up_l4_points = pointnet_fp_module(input_xyz_m, l4_xyz, None, l4_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
+        up_l1_points = pointnet_fp_module(xyz, l1_xyz, None, l1_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
+        up_l2_points = pointnet_fp_module(xyz, l2_xyz, None, l2_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
+        up_l3_points = pointnet_fp_module(xyz, l3_xyz, None, l3_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
+        up_l4_points = pointnet_fp_module(xyz, l4_xyz, None, l4_points, [self.fac*8], kernel_regularizer=keras.regularizers.l2(self.l2_reg), activation=activation)
 
-        x = concatenate([up_l4_points, up_l3_points, up_l2_points, l1_points, input_points_m], axis=-1)
+        x = concatenate([up_l4_points, up_l3_points, up_l2_points, up_l1_points], axis=-1)
 
+        return Model(inputs=inputs, outputs=x)
+
+
+    def _build_model(self):            
+        activation = keras.activations.tanh#lambda x: keras.activations.relu(x, alpha=0.1)  
+        
+        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)), name="main_input")]
+        if self.temp_coh and not self.adv_src:
+            inputs.append(Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)), name="prev_input"))
+            inputs.append(Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)), name="next_input"))
+            
+        xyz = extract_xyz(inputs[0], name="extract_pos")
+        
+        mask = zero_mask(xyz, self.pad_val, name="mask_1")
+        xyz = multiply([xyz, mask])
+
+        feature_layer = self.gen_feature_layer(activation)
+        x = []
+        for inp in inputs:
+            x.append(feature_layer([xyz, inp]))
+
+        x = concatenate(x, axis=-1)
         #if self.mask:
         #    mask = zero_mask(input_xyz, self.pad_val, name="mask_2")
             #x = multiply([x, mask])
@@ -210,7 +228,7 @@ class PUNet(Network):
         out = x
 
         if self.residual:
-            x = Flatten()(input_xyz_m)
+            x = Flatten()(xyz)
             x = RepeatVector(self.particle_cnt_dst//self.particle_cnt_src)(x)
             x = Reshape((self.particle_cnt_dst, 3))(x)
 
