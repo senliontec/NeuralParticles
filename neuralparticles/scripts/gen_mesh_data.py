@@ -227,7 +227,7 @@ for d in range(obj_cnt):
             if os.path.isfile(scan_path%ci + ".npz"):
                 scan_data = np.load(scan_path%ci + ".npz")['arr_0']
                 if discretize:
-                    scan_data = np.floor((scan_data / max_z) * 256) * max_z
+                    scan_data = np.floor(np.clip(scan_data / max_z, 0, 1) * 256)/256 * max_z
             else:
                 scan_img_path = scan_path%ci + "/%04d.png"
                 tmp = max_z - imageio.imread(scan_img_path%0)[::-1,:,:1]/256 * max_z
@@ -388,7 +388,7 @@ for d in range(obj_cnt):
                             x = (0.5 - i/a.shape[0]) * width * z / near
                             y = (0.5 - j/a.shape[1]) * height * z / near
                             o.append([x,y,z])
-                
+
                 npo = np.dot(np.concatenate((np.asarray(o), np.ones((len(o),1))), axis=-1), viewWorld.T)[...,:3]
                 npo = np.dot(npo, np.array([[1,0,0],[0,0,1],[0,-1,0]]).T)
                 
@@ -409,13 +409,18 @@ for d in range(obj_cnt):
                 if debug:
                     writeNumpyOBJ(src_path%(ci + d*cam_cnt + off,t) +".obj", npo)
                 #writeNumpyRaw(src_path%(ci + d*cam_cnt + off,t), npo)
-                if t > 0:
+                
+                if t > 0:            
                     hdrv['dim'] = len(prev_src)
                     hdrv['dimX'] = lres
                     hdrv['dimY'] = lres
                     hdrv['dimZ'] = 1 if dim == 2 else lres
                     
                     vel = K.eval(approx_vel(K.constant(np.expand_dims(prev_src, 0)), K.constant(np.expand_dims(npo, 0))))[0] * data_config['fps']
+
+                    print("dist avg:" + str(np.mean(npo, axis=0) - np.mean(prev_src, axis=0)))
+                    print("avg vel:" + str(np.mean(vel/data_config['fps'], axis=0)))
+
                     writeParticlesUni(src_path%(ci + d*cam_cnt + off,t-1) +"_pv.uni", hdrv, vel)
                     if debug:
                         writeNumpyOBJ(src_path%(ci + d*cam_cnt + off,t) +"_prev.obj", prev_src)
