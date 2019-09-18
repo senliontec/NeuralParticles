@@ -215,7 +215,7 @@ class PatchGenerator(keras.utils.Sequence):
             if self.temp_coh and not self.use_adv_src:
                 patch_ex_src, patch_ex_ref = extract_series(self.data_path, self.config_path, frame.dataset, frame.timestep, 0, idx, 5)
         
-                self.chunk[i] = [patch_ex_src[1], patch_ex_ref[1], patch_ex_src[0], patch_ex_src[2], patch_ex_ref[0], patch_ex_ref[2]]
+                self.chunk[i] = [patch_ex_src[2], patch_ex_ref[2], patch_ex_src[1], patch_ex_src[3], patch_ex_src[0], patch_ex_src[4], patch_ex_ref[1], patch_ex_ref[3]]
             else:
                 (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep, 0, features=self.features, ref_features=['v'])
 
@@ -299,11 +299,13 @@ class PatchGenerator(keras.utils.Sequence):
                         else:
                             src[1][i] = self.chunk[c_idx][2].pop_patch(remove_data=False)
                             src[2][i] = self.chunk[c_idx][3].pop_patch(remove_data=False)
+                            src[3][i] = self.chunk[c_idx][4].pop_patch(remove_data=False)
+                            src[4][i] = self.chunk[c_idx][5].pop_patch(remove_data=False)
 
                             ref[1][i] = np.concatenate((
                                     ref_patch[...,:3],
-                                    self.chunk[c_idx][4].pop_patch(remove_data=False)[...,:3],
-                                    self.chunk[c_idx][5].pop_patch(remove_data=False)[...,:3])
+                                    self.chunk[c_idx][6].pop_patch(remove_data=False)[...,:3],
+                                    self.chunk[c_idx][7].pop_patch(remove_data=False)[...,:3])
                             )
 
             if self.jitter > 0.0:

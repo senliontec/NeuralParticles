@@ -73,7 +73,11 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0, tr
     return result
 
 def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, ref=None, hdim=0, z=None, verbose=0):
-    patches = patch_extractor.get_patches()
+    if type(patch_extractor) is list:
+        patches = [p.get_patches()[0] for p in patch_extractor]
+    else:
+        patches = patch_extractor.get_patches()
+        
     result = model.predict(patches)
     if patch_extractor.data.shape[0] > 0:
         if z is None:

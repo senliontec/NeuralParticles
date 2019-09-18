@@ -189,9 +189,10 @@ for d in range(d_start, d_end):
 
             if real and positions is not None and train_config['adv_src']:
                 positions = src_data[positions]
+            
             patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 0 if len(patch_pos) == 3 else 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions, stride_hys=1.0, shuffle=True)
 
-            positions = patch_extractor.pos_idx if real else (patch_extractor.positions + temp_coh_dt * par_aux['v'][patch_extractor.pos_idx] / data_config['fps'])
+            positions = patch_extractor.pos_idx if real and train_config['adv_src'] else (patch_extractor.positions + temp_coh_dt * par_aux['v'][patch_extractor.pos_idx] / data_config['fps'])
 
             if len(patch_pos) == 3:
                 idx = get_nearest_idx(patch_extractor.positions, patch_pos)
