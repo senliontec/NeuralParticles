@@ -1,5 +1,6 @@
 import numpy as np
 from glob import glob
+import os
 import json
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.data_helpers import particle_radius
@@ -64,8 +65,16 @@ culling = int(getParam("cull", 0)) != 0
 eval = int(getParam("eval", 0)) != 0
 test = int(getParam("test", 0)) != 0
 t_end = int(getParam("t_end", -1))
+gpu = getParam("gpu", "")
+
+min_v = np.asarray(getParam("min_v", "-2,-2,-2").split(","), dtype="float32")
+max_v = np.asarray(getParam("max_v", "2,2,2").split(","), dtype="float32")
+scale = max_v - min_v
 
 checkUnusedParams()
+
+if not gpu is "":
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu
 
 if mesh_path == "":
     mesh_path = data_path
@@ -375,11 +384,11 @@ for d in range(obj_cnt):
                             y = (0.5 - j/a.shape[1]) * height * z / near
                             o.append([x,y,z])
                 
-                if test:
+                """if test:
                     min_v = np.array([-2,-2,-2])
                     max_v = np.array([2,2,2])
 
-                    scale = max_v - min_v
+                    scale = max_v - min_v"""
 
                 npo = np.dot(np.concatenate((np.asarray(o), np.ones((len(o),1))), axis=-1), viewWorld.T)[...,:3]
                 npo = np.dot(npo, np.array([[1,0,0],[0,0,1],[0,-1,0]]).T)

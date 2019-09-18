@@ -175,15 +175,15 @@ class PUNet(Network):
                 input_points_t = multiply([input_points_t, mask_t])
                 input_xyz_t = multiply([input_xyz_t, mask_t])"""
                 
-            x_t = Conv1D(self.fac*8, 1, activation="relu")(x_t)
-            x_t = Conv1D(self.fac*8, 1, activation="relu")(x_t)
+            x_t = Conv1D(self.fac*8, 1, activation="tanh")(x_t)
+            x_t = Conv1D(self.fac*8, 1, activation="tanh")(x_t)
             
             x_t = unstack(x_t, 1, name='unstack')
             x_t = add(x_t, name='merge_features')
             
-            x_t = Dropout(0.2)(x_t)
-            x_t = Dense(self.fac*4, activation='relu')(x_t)
-            x_t = Dropout(0.2)(x_t)
+            #x_t = Dropout(0.2)(x_t)
+            x_t = Dense(self.fac*4, activation='tanh')(x_t)
+            #x_t = Dropout(0.2)(x_t)
             b = np.zeros(1, dtype='float32')
             W = np.zeros((self.fac*4, 1), dtype='float32')
             
@@ -305,6 +305,7 @@ class PUNet(Network):
             gt_v1 = K.batch_dot(dist, (gt_n - gt) )/w
             gt_a = K.batch_dot(dist, (gt_v1 - gt_v0) )/w
 
+            #return (1 - acc_fac) * (K.mean(K.abs(pred_v0 - K.mean(gt_v0, axis=1, keepdims=True)), axis=-1) + K.mean(K.abs(pred_v1 - K.mean(gt_v1, axis=1, keepdims=True)), axis=-1)) / 2 + acc_fac * K.mean(K.abs(pred_a - K.mean(gt_a, axis=1, keepdims=True)), axis=-1)
             return (1 - acc_fac) * (K.mean(K.abs(pred_v0 - gt_v0), axis=-1) + K.mean(K.abs(pred_v1 - gt_v1), axis=-1)) / 2 + acc_fac * K.mean(K.abs(pred_a - gt_a), axis=-1) + self.avg_fac * K.mean(K.abs(pred_v0 - K.mean(pred_v0, axis=1, keepdims=True)), axis=-1)
             
         if use_emd: 
