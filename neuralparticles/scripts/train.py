@@ -147,7 +147,7 @@ for i in range(eval_cnt):
     (eval_src_data, _, _), (_, _, _) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i])     
     
     idx = random.sample(range(eval_src_data.shape[0]), 1)
-    patch_ex_src, patch_ex_ref = extract_series(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i], idx, eval_timesteps)
+    patch_ex_src, patch_ex_ref = extract_series(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i], idx, eval_timesteps, shuffle=False)
 
     for j in range(eval_timesteps):
         eval_src_patches[i][j] = [np.expand_dims(patch_ex_src[j].pop_patch(remove_data=False), axis=0)]

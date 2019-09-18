@@ -65,7 +65,7 @@ def extract_series(data_path, config_path, d, t, v, patch_idx=None, cnt=3, shuff
 
     (src_data, src_sdf_data, src_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(data_path, config_path, d, t, v, ref_features=['v'])     
     
-    idx = range(src_data.shape[0]) if patch_idx else patch_idx
+    idx = range(src_data.shape[0]) if patch_idx is None else patch_idx
     pos = src_data[idx]    
 
     patch_ex_src = []
@@ -78,12 +78,11 @@ def extract_series(data_path, config_path, d, t, v, patch_idx=None, cnt=3, shuff
                 src_data = src_data + src_aux['v'] / data_config['fps']
                 ref_data = ref_data + ref_aux['v'] / data_config['fps']
 
-        patch_ex_src.append(PatchExtractor(src_data, src_sdf_data, patch_size, pre_config['par_cnt'], pad_val=pre_config['pad_val'], positions=pos, aux_data=src_aux, features=train_config['features'], shuffle=shuffle, temp_coh=True))
+        patch_ex_src.append(PatchExtractor(src_data, src_sdf_data, patch_size, pre_config['par_cnt'], pad_val=pre_config['pad_val'], last_pos=pos, aux_data=src_aux, features=train_config['features'], shuffle=shuffle, temp_coh=True))
         patch_ex_ref.append(PatchExtractor(ref_data, ref_sdf_data, patch_size_ref, pre_config['par_cnt_ref'], pad_val=pre_config['pad_val'], positions=patch_ex_src[i].positions*factor_d, aux_data=ref_aux, features=['v'], shuffle=shuffle))
-        
-        print(np.mean(np.abs(src_data[patch_ex_src[i].pos_idx] - patch_ex_src[i].positions)))
-
-        pos = patch_ex_src[i].positions + src_aux[patch_ex_src[i].pos_idx][idx] / data_config['fps']
+        print(idx)
+        print(patch_ex_src[i].pos_idx)
+        pos = patch_ex_src[i].positions + src_aux['v'][patch_ex_src[i].pos_idx] / data_config['fps']
     return patch_ex_src, patch_ex_ref
 
 class PatchGenerator(keras.utils.Sequence):

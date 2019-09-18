@@ -82,7 +82,7 @@ class PUNet(Network):
 
         self.neg_examples = kwargs.get("neg_examples")
 
-        self.inp_cnt = 3 if self.temp_coh and not self.adv_src else 1
+        self.inp_cnt = 3 if self.temp_coh and not kwargs.get("adv_src") else 1
 
         if self.temp_coh:
             self.loss_weights.append(tmp_w[1])
@@ -108,13 +108,12 @@ class PUNet(Network):
     def gen_feature_layer(self, activation):
         inputs = [Input((self.particle_cnt_src, 3), name="xyz"), Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)), name="feature_input")]
         xyz = inputs[0]
-        inputs = inputs[1]
         
-        input_xyz = extract_xyz(inputs, name="extract_pos")
+        input_xyz = extract_xyz(inputs[1], name="extract_pos")
         input_points = input_xyz
 
         if len(self.features) > 0:
-            input_points = extract_aux(inputs, name="extract_aux")
+            input_points = extract_aux(inputs[1], name="extract_aux")
             input_points = MultConst(1./self.norm_factor, name="normalization")(input_points)
             input_points = concatenate([input_xyz, input_points], axis=-1, name='input_concatenation')
         
@@ -154,11 +153,12 @@ class PUNet(Network):
         xyz = multiply([xyz, mask])
 
         feature_layer = self.gen_feature_layer(activation)
+
         x = []
         for inp in inputs:
             x.append(feature_layer([xyz, inp]))
 
-        x = concatenate(x, axis=-1)
+        x = concatenate(x, axis=-1) if len(inputs) > 1 else x[0]
         #if self.mask:
         #    mask = zero_mask(input_xyz, self.pad_val, name="mask_2")
             #x = multiply([x, mask])
@@ -242,7 +242,7 @@ class PUNet(Network):
             self.model = Model(inputs=inputs, outputs=[out])
 
         # gen train model
-        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))) for i in (self.inp_cnt+2)]
+        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))) for i in range(self.inp_cnt+2)]
 
         def append_trunc(inputs, out, name=None):
             if self.truncate:
@@ -270,8 +270,8 @@ class PUNet(Network):
 
         outputs = [out0]
         if self.temp_coh:
-            out1 = append_trunc(inputs[1], self.model([inputs[1],inputs[3],inputs[0]]))
-            out2 = append_trunc(inputs[2], self.model([inputs[2],inputs[0],inputs[4]]))
+            out1 = append_trunc(inputs[1], self.model([inputs[1],inputs[3],inputs[0]] if self.inp_cnt > 1 else [inputs[1]]))
+            out2 = append_trunc(inputs[2], self.model([inputs[2],inputs[0],inputs[4]] if self.inp_cnt > 1 else [inputs[2]]))
             
             outputs.append(concatenate([out0, out1, out2], axis=1, name='temp'))
         
