@@ -15,7 +15,7 @@ from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_idx, get_norm_factor
 from neuralparticles.tensorflow.tools.eval_helpers import EvalCallback, EvalCompleteCallback, NthLogger
 #from neuralparticles.tensorflow.tools.patch_generator import PatchGenerator
-from neuralparticles.tensorflow.tools.patch_extract_generator import PatchGenerator
+from neuralparticles.tensorflow.tools.patch_extract_generator import PatchGenerator, extract_series
 
 import numpy as np
 
@@ -144,23 +144,14 @@ patch_size = pre_config['patch_size'] * data_config['res'] / factor_d
 patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
 
 for i in range(eval_cnt):
-    (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data, eval_ref_aux) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i])     
+    (eval_src_data, _, _), (_, _, _) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i])     
     
     idx = random.sample(range(eval_src_data.shape[0]), 1)
-    pos = eval_src_data[idx]    
-    for j in range(eval_timesteps):
-        if j > 0:
-            if not train_config['adv_src']:
-                (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data, eval_ref_aux) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i]+j, eval_var[i])
-            else:
-                eval_src_data = eval_src_data + eval_par_aux['v'] / data_config['fps']
-                eval_ref_data = eval_ref_data + eval_ref_aux['v'] / data_config['fps']
+    patch_ex_src, patch_ex_ref = extract_series(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i], idx, eval_timesteps)
 
-        patch_ex_src = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, pre_config['par_cnt'], pad_val=pre_config['pad_val'], last_pos=pos, aux_data=eval_par_aux, features=train_config['features'], shuffle=False)
-        patch_ex_ref = PatchExtractor(eval_ref_data, eval_ref_sdf_data, patch_size_ref, pre_config['par_cnt_ref'], pad_val=pre_config['pad_val'], positions=patch_ex_src.positions*factor_d, aux_data=eval_ref_aux, features=['v'], shuffle=False)
-        
-        eval_src_patches[i][j] = [np.expand_dims(patch_ex_src.pop_patch(remove_data=False), axis=0)]
-        eval_ref_patches[i][j] = patch_ex_ref.pop_patch(remove_data=False)
+    for j in range(eval_timesteps):
+        eval_src_patches[i][j] = [np.expand_dims(patch_ex_src[j].pop_patch(remove_data=False), axis=0)]
+        eval_ref_patches[i][j] = patch_ex_ref[j].pop_patch(remove_data=False)
 
         mask = eval_src_patches[i][j][0][0,:,:1] != pre_config['pad_val']
         if train_config['jitter_aug'] > 0.0:
@@ -169,8 +160,6 @@ for i in range(eval_cnt):
         print("Eval with dataset %d, timestep %d" % (eval_dataset[i], eval_t[i]+j))
         print("Eval trunc src: %d" % (np.count_nonzero(mask)))
         print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patches[i][j][:,:1] != pre_config['pad_val'])))
-
-        pos = pos + eval_par_aux['v'][idx] / data_config['fps']
 
 
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])

@@ -45,6 +45,47 @@ class Chunk:
         return Frame(self.frames[i][0], self.frames[i][1], self.position_idx[i])
 
 
+def extract_series(data_path, config_path, d, t, v, patch_idx=None, cnt=3, shuffle=True):
+    with open(config_path, 'r') as f:
+        config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['data'], 'r') as f:
+        data_config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['preprocess'], 'r') as f:
+        pre_config = json.loads(f.read())
+
+    with open(os.path.dirname(config_path) + '/' + config['train'], 'r') as f:
+        train_config = json.loads(f.read())
+
+    factor_d = math.pow(pre_config['factor'], 1/data_config['dim'])
+
+    patch_size = pre_config['patch_size'] * data_config['res'] / factor_d
+    patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
+
+    (src_data, src_sdf_data, src_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(data_path, config_path, d, t, v, ref_features=['v'])     
+    
+    idx = range(src_data.shape[0]) if patch_idx else patch_idx
+    pos = src_data[idx]    
+
+    patch_ex_src = []
+    patch_ex_ref = []
+    for i in range(cnt):
+        if i > 0:
+            if not train_config['adv_src']:
+                (src_data, src_sdf_data, src_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(data_path, config_path, d, t+i, v, ref_features=['v'])
+            else:
+                src_data = src_data + src_aux['v'] / data_config['fps']
+                ref_data = ref_data + ref_aux['v'] / data_config['fps']
+
+        patch_ex_src.append(PatchExtractor(src_data, src_sdf_data, patch_size, pre_config['par_cnt'], pad_val=pre_config['pad_val'], positions=pos, aux_data=src_aux, features=train_config['features'], shuffle=shuffle, temp_coh=True))
+        patch_ex_ref.append(PatchExtractor(ref_data, ref_sdf_data, patch_size_ref, pre_config['par_cnt_ref'], pad_val=pre_config['pad_val'], positions=patch_ex_src[i].positions*factor_d, aux_data=ref_aux, features=['v'], shuffle=shuffle))
+        
+        print(np.mean(np.abs(src_data[patch_ex_src[i].pos_idx] - patch_ex_src[i].positions)))
+
+        pos = patch_ex_src[i].positions + src_aux[patch_ex_src[i].pos_idx][idx] / data_config['fps']
+    return patch_ex_src, patch_ex_ref
+
 class PatchGenerator(keras.utils.Sequence):
     def __init__(self, data_path, config_path, chunk_size,
                  d_start=-1, d_end=-1, t_start=-1, t_end=-1, chunked_idx=None, trunc=False, eval=False):
@@ -69,8 +110,6 @@ class PatchGenerator(keras.utils.Sequence):
         self.d_end = (data_config['data_count'] + (data_config['test_count'] if eval else 0)) if d_end < 0 else d_end
         self.t_start = min(train_config['t_start'], data_config['frame_count']-1) if t_start < 0 else t_start
         self.t_end = min(train_config['t_end'], data_config['frame_count']) if t_end < 0 else t_end
-        self.t_start += 0
-        self.t_end -= 2
 
         self.neg_examples = train_config['neg_examples']
 
@@ -109,7 +148,9 @@ class PatchGenerator(keras.utils.Sequence):
             exit()
 
         if self.temp_coh:
-            self.t_end -= 1
+            self.t_end -= 2
+            if not self.use_adv_src:
+                self.t_end -= 2
 
         self.chunk_size = chunk_size
         self.chunk_cnt = int(np.ceil((self.d_end - self.d_start) * (self.t_end - self.t_start)/self.chunk_size))
@@ -171,28 +212,17 @@ class PatchGenerator(keras.utils.Sequence):
             idx = frame.position_idx
             if self.fac < 1.0:
                 idx = idx[random.sample(range(len(idx)), int(np.ceil(self.fac * len(idx))))]
-            (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep, 0, features=self.features, ref_features=['v'])
 
-            patch_ex_src = PatchExtractor(src_data, sdf_data, self.patch_size, self.par_cnt, pad_val=self.pad_val, positions=src_data[idx], aux_data=par_aux, features=self.features)
-            patch_ex_ref = PatchExtractor(ref_data, ref_sdf_data, self.patch_size_ref, self.par_cnt_ref, pad_val=self.pad_val, positions=patch_ex_src.positions*self.fac_d, aux_data=ref_aux, features=['v'])
-            
             if self.temp_coh and not self.use_adv_src:
-                pos = patch_ex_src.positions + par_aux['v'][idx] / self.fps
-                (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep+1, 0, features=self.features, ref_features=['v'])
-                p_idx = get_nearest_idx(src_data, np.expand_dims(pos, axis=1))
-                pos = src_data[p_idx]
-                patch_src_1 = PatchExtractor(src_data, sdf_data, self.patch_size, self.par_cnt, pad_val=self.pad_val, positions=pos, aux_data=par_aux, features=self.features)
-                patch_ref_1 = PatchExtractor(ref_data, ref_sdf_data, self.patch_size_ref, self.par_cnt_ref, pad_val=self.pad_val, positions=patch_src_1.positions*self.fac_d, aux_data=ref_aux, features=['v'])
-                
-                pos = patch_src_1.positions + par_aux['v'][p_idx] / self.fps
-                (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep+2, 0, features=self.features, ref_features=['v'])
-                p_idx = get_nearest_idx(src_data, np.expand_dims(pos, axis=1))
-                pos = src_data[p_idx]
-                patch_src_2 = PatchExtractor(src_data, sdf_data, self.patch_size, self.par_cnt, pad_val=self.pad_val, positions=pos, aux_data=par_aux, features=self.features)#patch_src_1.positions + v / self.fps
-                patch_ref_2 = PatchExtractor(ref_data, ref_sdf_data, self.patch_size_ref, self.par_cnt_ref, pad_val=self.pad_val, positions=patch_src_2.positions*self.fac_d, aux_data=ref_aux, features=['v'])
-
-                self.chunk[i] = [patch_src_1, patch_ref_1, patch_ex_src, patch_src_2, patch_ex_ref, patch_ref_2]
+                patch_ex_src, patch_ex_ref = extract_series(self.data_path, self.config_path, frame.dataset, frame.timestep, 0, idx, 5)
+        
+                self.chunk[i] = [patch_ex_src[1], patch_ex_ref[1], patch_ex_src[0], patch_ex_src[2], patch_ex_ref[0], patch_ex_ref[2]]
             else:
+                (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(self.data_path, self.config_path, frame.dataset, frame.timestep, 0, features=self.features, ref_features=['v'])
+
+                patch_ex_src = PatchExtractor(src_data, sdf_data, self.patch_size, self.par_cnt, pad_val=self.pad_val, positions=src_data[idx], aux_data=par_aux, features=self.features)
+                patch_ex_ref = PatchExtractor(ref_data, ref_sdf_data, self.patch_size_ref, self.par_cnt_ref, pad_val=self.pad_val, positions=patch_ex_src.positions*self.fac_d, aux_data=ref_aux, features=['v'])
+                
                 self.chunk[i] = [patch_ex_src, patch_ex_ref] 
 
         np.random.shuffle(self.chunk)
@@ -277,37 +307,6 @@ class PatchGenerator(keras.utils.Sequence):
                                     self.chunk[c_idx][5].pop_patch(remove_data=False)[...,:3])
                             )
 
-                            """vel = src[0][i][...,3:6]
-                            mask = vel != self.pad_val
-                            idx = np.argmin(np.linalg.norm(src[0][i][...,:3], axis=-1), axis=0)
-                            vel = vel - np.expand_dims(vel[idx],axis=0)
-                            vel = vel * mask
-                            src[0][i][...,3:6] = vel * 2 / (self.fps * self.patch_size)
-
-                            vel = src[1][i][...,3:6]
-                            mask = vel != self.pad_val
-                            idx = np.argmin(np.linalg.norm(src[1][i][...,:3], axis=-1), axis=0)
-                            vel = vel - np.expand_dims(vel[idx],axis=0)
-                            vel = vel * mask
-                            src[1][i][...,3:6] = vel * 2 / (self.fps * self.patch_size)
-
-                            vel = src[2][i][...,3:6]
-                            mask = vel != self.pad_val
-                            idx = np.argmin(np.linalg.norm(src[2][i][...,:3], axis=-1), axis=0)
-                            vel = vel - np.expand_dims(vel[idx],axis=0)
-                            vel = vel * mask
-                            src[2][i][...,3:6] = vel * 2 / (self.fps * self.patch_size)"""
-                        
-
-            """if self.temp_coh:
-                if index % 2 == 0 or not self.neg_examples or (self.chunk[c_idx][1].stack_empty() and len(self.chunk) == 1):
-                    src[1][i] = self.chunk[c_idx][2].pop_patch(remove_data=False)
-                    ref[1][i] = np.concatenate((ref[0][i],self.chunk[c_idx][3].pop_patch(remove_data=False)))
-                else:
-                    neg_idx = np.random.randint(len(self.chunk))
-                    neg_patch = np.random.randint(len(self.chunk[neg_idx][3].positions))
-                    src[1][i] = self.chunk[neg_idx][2].get_patch(neg_patch, remove_data=False)
-                    ref[1][i] = np.concatenate((ref[0][i],self.chunk[neg_idx][3].get_patch(neg_patch, remove_data=False)))"""
             if self.jitter > 0.0:
                 for s in src:
                     s += np.random.normal(scale=self.jitter, size=s.shape) * (s[...,:1] != self.pad_val)

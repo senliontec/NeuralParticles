@@ -82,7 +82,7 @@ class PUNet(Network):
 
         self.neg_examples = kwargs.get("neg_examples")
 
-        self.adv_src = kwargs.get("adv_src")
+        self.inp_cnt = 3 if self.temp_coh and not self.adv_src else 1
 
         if self.temp_coh:
             self.loss_weights.append(tmp_w[1])
@@ -145,12 +145,9 @@ class PUNet(Network):
 
     def _build_model(self):            
         activation = keras.activations.tanh#lambda x: keras.activations.relu(x, alpha=0.1)  
+
+        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))) for i in range(self.inp_cnt)]
         
-        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)), name="main_input")]
-        if self.temp_coh and not self.adv_src:
-            inputs.append(Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)), name="prev_input"))
-            inputs.append(Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)), name="next_input"))
-            
         xyz = extract_xyz(inputs[0], name="extract_pos")
         
         mask = zero_mask(xyz, self.pad_val, name="mask_1")
@@ -245,8 +242,8 @@ class PUNet(Network):
             self.model = Model(inputs=inputs, outputs=[out])
 
         # gen train model
-        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))]
-        
+        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))) for i in (self.inp_cnt+2)]
+
         def append_trunc(inputs, out, name=None):
             if self.truncate:
                 trunc = RepeatVector(self.particle_cnt_dst)(out[1])
@@ -268,16 +265,13 @@ class PUNet(Network):
             #trunc = Lambda(lambda x: K.clip(x, 1, self.particle_cnt_dst))(trunc)
             return concatenate([out, trunc], axis=-1, name=name)
 
-        out_m = self.model(inputs[0])
+        out_m = self.model(inputs[:self.inp_cnt])
         out0 = append_trunc(inputs[0], out_m, "out_m")
 
         outputs = [out0]
         if self.temp_coh:
-            inputs.extend([
-                Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),
-                Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))])
-            out1 = append_trunc(inputs[1], self.model(inputs[1]))
-            out2 = append_trunc(inputs[2], self.model(inputs[2]))
+            out1 = append_trunc(inputs[1], self.model([inputs[1],inputs[3],inputs[0]]))
+            out2 = append_trunc(inputs[2], self.model([inputs[2],inputs[0],inputs[4]]))
             
             outputs.append(concatenate([out0, out1, out2], axis=1, name='temp'))
         
