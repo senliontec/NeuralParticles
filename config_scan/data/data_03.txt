@@ -1,8 +1,8 @@
 {
-    "id":             "dat02",
+    "id":             "dat03",
     "prefix":         "scan_3D",
     "dim":            3,
-    "t_int":          10,
+    "t_int":          1,
     "fps":            60,
     "disc":           true,
     "max_z":          10,

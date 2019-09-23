@@ -75,6 +75,7 @@ def eval_patch(model, src, path="", ref=None, features=[], z=None, verbose=0, tr
 def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, ref=None, hdim=0, z=None, verbose=0):
     if type(patch_extractor) is list:
         patches = [p.get_patches()[0] for p in patch_extractor]
+        patch_extractor = patch_extractor[0]
     else:
         patches = patch_extractor.get_patches()
         
