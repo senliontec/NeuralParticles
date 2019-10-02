@@ -43,20 +43,20 @@ void approxmatch_cpu(int b,int n,int m,const float * xyz1,const float * xyz2,flo
 					double x2=xyz2[l*3+0];
 					double y2=xyz2[l*3+1];
 					double z2=xyz2[l*3+2];
-					weight[k*m+l]=expf(level*((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2)))*saturatedr[l];
+					weight[l*n+k]=expf(level*((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2)))*saturatedr[l];
 				}
 			}
 			std::vector<double> ss(m,1e-9);
 			for (int k=0;k<n;k++){
 				double s=1e-9;
 				for (int l=0;l<m;l++){
-					s+=weight[k*m+l];
+					s+=weight[l*n+k];
 				}
 				for (int l=0;l<m;l++){
-					weight[k*m+l]=weight[k*m+l]/s*saturatedl[k];
+					weight[l*n+k]=weight[l*n+k]/s*saturatedl[k];
 				}
 				for (int l=0;l<m;l++)
-					ss[l]+=weight[k*m+l];
+					ss[l]+=weight[l*n+k];
 			}
 			for (int l=0;l<m;l++){
 				double s=ss[l];
@@ -67,9 +67,9 @@ void approxmatch_cpu(int b,int n,int m,const float * xyz1,const float * xyz2,flo
 			for (int k=0;k<n;k++){
 				double s=0;
 				for (int l=0;l<m;l++){
-					weight[k*m+l]*=ss[l];
-					s+=weight[k*m+l];
-					ss2[l]+=weight[k*m+l];
+					weight[l*n+k]*=ss[l];
+					s+=weight[l*n+k];
+					ss2[l]+=weight[l*n+k];
 				}
 				saturatedl[k]=std::max(saturatedl[k]-s,0.0);
 			}

@@ -3,6 +3,7 @@
     "val_split":          0.1,
     "t_start":            50,
     "t_end":              200,
+    "t_int":              1,
     "features":           ["v","d","p"],
     "batch_size":         16,
     "learning_rate":      1e-3,

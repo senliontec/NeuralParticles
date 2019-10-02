@@ -7,7 +7,9 @@ from scipy import optimize
 import keras
 from keras.layers import Input, multiply, concatenate, Conv1D, Lambda, add, Dropout, Dense, Reshape, RepeatVector, Flatten, Permute, average
 from keras.models import Model, load_model
+from keras.utils import multi_gpu_model
 import keras.backend as K
+import tensorflow as tf
 
 from neuralparticles.tensorflow.tools.pointnet_util import pointnet_sa_module, pointnet_fp_module, Interpolate, SampleAndGroup
 from neuralparticles.tensorflow.tools.zero_mask import zero_mask, soft_trunc_mask
@@ -79,6 +81,8 @@ class PUNet(Network):
         self.avg_fac = kwargs.get("avg_fac")
         self.mingle = kwargs.get("mingle")
         self.repulsion = kwargs.get("repulsion")
+
+        self.gpus = kwargs.get('gpus')
 
         self.neg_examples = kwargs.get("neg_examples")
 
@@ -152,10 +156,10 @@ class PUNet(Network):
         mask = zero_mask(xyz, self.pad_val, name="mask_1")
         xyz = multiply([xyz, mask])
 
-        feature_layer = self.gen_feature_layer(activation)
-
+        #x = self.gen_feature_layer(activation)([xyz,inputs[0]])
         x = []
         for inp in inputs:
+            feature_layer = self.gen_feature_layer(activation)
             x.append(feature_layer([xyz, inp]))
 
         x = concatenate(x, axis=-1) if len(inputs) > 1 else x[0]
@@ -242,7 +246,7 @@ class PUNet(Network):
             self.model = Model(inputs=inputs, outputs=[out])
 
         # gen train model
-        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))) for i in range(self.inp_cnt+2)]
+        inputs = [Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))) for i in range(self.inp_cnt+(2 if self.temp_coh else 0))]
 
         def append_trunc(inputs, out, name=None):
             if self.truncate:
@@ -278,7 +282,12 @@ class PUNet(Network):
         if self.truncate and not self.pretrain:
             outputs.append(Lambda(lambda x: x, name="trunc")(out_m[1]))
             
-        self.train_model = Model(inputs=inputs, outputs=outputs)
+        if len(self.gpus) > 1:
+            with tf.device('/cpu:0'):
+                self.train_model = Model(inputs=inputs, outputs=outputs)
+            self.train_model = multi_gpu_model(self.train_model)
+        else:
+            self.train_model = Model(inputs=inputs, outputs=outputs)
 
     def mask_loss(self, y_true, y_pred):
         loss = 0
@@ -471,6 +480,7 @@ class PUNet(Network):
         if "generator" in kwargs:
             if self.truncate and self.pretrain:
                 self.trunc_model.fit_generator(generator=kwargs['trunc_generator'], validation_data=kwargs.get("val_trunc_generator"), use_multiprocessing=False, workers=1, verbose=0, callbacks=kwargs.get("trunc_callbacks", []), epochs=3, shuffle=False)
+            
             return self.train_model.fit_generator(generator=kwargs['generator'], validation_data=kwargs.get('val_generator'), use_multiprocessing=False, workers=1, verbose=0, callbacks=callbacks, epochs=epochs, shuffle=False)
         else:
             src_data = kwargs.get("src")
@@ -512,7 +522,7 @@ class PUNet(Network):
         
 
     def load_checkpoint(self, path):
-        self.train_model.load_weights(path)
+        self.model.load_weights(path)
 
     def load_model(self, path):
         if self.model:
