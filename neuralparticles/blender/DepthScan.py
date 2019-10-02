@@ -30,6 +30,9 @@ parser.add_argument("-y", "--y_resolution", type=int, default=400, help="Resolut
 parser.add_argument("-fs", "--frame_step", type=int, default=1, help="Overwrite frame step of rendering.")
 parser.add_argument("-sf", "--start_frame", type=int, default=-1, help="Overwrite start frame of rendering.")
 parser.add_argument("-ef", "--end_frame", type=int, default=-1, help="Overwrite end frame of rendering.")
+parser.add_argument("-min", "--min_pos", type=int, default=6, help="Minimal distance between camera and object.")
+parser.add_argument("-max", "--max_pos", type=int, default=7, help="Maximal distance between camera and object.")
+parser.add_argument("-v", "--views", type=int, default=1, help="Amount of scan views.")
 args = parser.parse_args(argv)  # In this example we wont use the args
 
 if not argv:
@@ -121,7 +124,7 @@ zf = z[z<1000] #
 print(np.min(zf),np.max(zf))
 """
 
-cam_pos =  [[3.0, -6.0, 3.0], [-1, -3, 7], [-2, 5, 1], [-7, 0, 2]] #[[-3,-4,4]]
+#cam_pos =  [[3.0, -6.0, 3.0], [-1, -3, 7], [-2, 5, 1], [-7, 0, 2], [3.0, -6.0, 3.0], [-1, -3, 7], [-2, 5, 1], [-7, 0, 2], [3.0, -6.0, 3.0], [-1, -3, 7], [-2, 5, 1], [-7, 0, 2]] #[[-3,-4,4]]
 cam_data = {}
 cam_data['transform'] = []
 
@@ -132,11 +135,18 @@ cam_data['near'] = -vf[0][2]
 cam_data['width'] = vf[0][0] - vf[2][0]
 cam_data['height'] = vf[0][1] - vf[2][1]
 
-for i in range(len(cam_pos)):
+np.random.seed(234)
+cam_pos = np.random.random((args.views, 3))-0.5
+cam_pos /= np.linalg.norm(cam_pos, axis=-1, keepdims=True)
+cam_pos *= args.min_pos + np.random.random((args.views, 1)) * (args.max_pos - args.min_pos)
 
-    cam.location[0] = cam_pos[i][0]
-    cam.location[1] = cam_pos[i][1]
-    cam.location[2] = cam_pos[i][2]
+lookat = bpy.data.objects["lookat"]
+lookat = lookat.location
+
+for i in range(args.views):
+    cam.location[0] = cam_pos[i][0] + lookat[0]
+    cam.location[1] = cam_pos[i][1] + lookat[1]
+    cam.location[2] = cam_pos[i][2] + lookat[2]
 
     scene.update()
 
