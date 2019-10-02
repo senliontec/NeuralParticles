@@ -7,13 +7,32 @@ from neuralparticles.tools.data_helpers import particle_radius
 from neuralparticles.tools.shell_script import *
 from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw, readNumpyOBJ, writeNumpyOBJ, readParticlesUni, writeUni
 from neuralparticles.tools.particle_grid import ParticleIdxGrid
-import keras.backend as K
-from neuralparticles.tensorflow.losses.tf_approxmatch import approx_vel
+from neuralparticles.tensorflow.losses.tf_approxmatch import approx_vel, emd_loss
+from scipy import optimize
 import random
 import math
 from collections import OrderedDict
 import time
 import imageio
+
+import keras.backend as K
+
+def _approx_vel(pos, npos, h=0.5, it=1):
+    """cost = np.linalg.norm(np.expand_dims(pos, axis=1) - np.expand_dims(npos, axis=0), axis=-1)
+    idx = optimize.linear_sum_assignment(cost)
+
+    vel = np.zeros_like(pos)
+    vel[idx[0]] = npos[idx[1]] - pos[idx[0]]"""
+
+    vel = K.eval(approx_vel(K.constant(np.expand_dims(pos, 0)), K.constant(np.expand_dims(npos, 0))))[0]
+
+    dist = np.linalg.norm(np.expand_dims(pos, axis=0) - np.expand_dims(pos, axis=1), axis=-1)
+    dist = np.exp(-dist/h)
+    w = np.clip(np.sum(dist, axis=1, keepdims=True), 1, 10000)
+    for i in range(it):
+        vel = np.dot(dist, vel)/w
+
+    return vel
 
 def project(n, v):
     return v - np.dot(n,v) * n
@@ -58,12 +77,11 @@ data_path = getParam("data", "data/")
 mesh_path = getParam("mesh", "")
 config_path = getParam("config", "config/version_00.txt")
 debug = int(getParam("debug", 0)) != 0
-# 0: no scan, 1: only src scan, 2: gt scan, src downsampled
 res = int(getParam("res", -1))
 eval = int(getParam("eval", 0)) != 0
 test = int(getParam("test", 0)) != 0
 t_end = int(getParam("t_end", -1))
-gpu = getParam("gpu", "")
+gpu = getParam("gpu", "-1")
 
 min_v = np.asarray(getParam("min_v", "-2,-2,2").split(","), dtype="float32")
 max_v = np.asarray(getParam("max_v", "2,2,-2").split(","), dtype="float32")
@@ -71,7 +89,7 @@ scale = np.abs(max_v - min_v)
 
 checkUnusedParams()
 
-if not gpu is "":
+if not gpu is "-1":
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu
 
 if mesh_path == "":
@@ -151,7 +169,7 @@ if debug:
         os.makedirs(data_path + "debug/src/")
 
     obj_cnt = 1
-    frame_cnt = 1
+    frame_cnt = 3
 
 for d in range(obj_cnt):
         print("Load dataset %d/%d" % (d+1, obj_cnt))
@@ -321,10 +339,11 @@ for d in range(obj_cnt):
                         hdr['dimY'] = res
                         hdr['dimZ'] = 1 if dim == 2 else res
                         
-                        writeParticlesUni(ref_path%(d_idx,t) +"_ps.uni", hdr, data[fltr_idx])
+                        data_cull = data[fltr_idx]
+                        writeParticlesUni(ref_path%(d_idx,t) +"_ps.uni", hdr, data_cull)
                         #writeNumpyRaw(ref_path%(ci + d*cam_cnt*t_int + off,t), data)
                         if debug:
-                            writeNumpyOBJ(ref_path%(d_idx,t) +".obj", data[fltr_idx])
+                            writeNumpyOBJ(ref_path%(d_idx,t) +".obj", data_cull)
                         if t > 0:
                             hdrv['dim'] = len(prev_idx)
                             hdrv['dimX'] = res
@@ -337,24 +356,20 @@ for d in range(obj_cnt):
                                 writeNumpyOBJ(ref_path%(d_idx,t) +"_prev.obj", prev_ref[prev_idx])
                                 writeNumpyOBJ(ref_path%(d_idx,t) +"_adv.obj", prev_ref[prev_idx]+vel[prev_idx]/data_config['fps'])
                             
-                        prev_idx = fltr_idx
-                        prev_ref = data
                         
-                        data = data[fltr_idx]
-
                     if not scan:
                         if t == 0:
                             d_idx = np.arange(fltr_i)
                             mask = np.ones(fltr_i, dtype=bool)
                             np.random.shuffle(d_idx)
 
-                            idx_grid = ParticleIdxGrid(data, (1 if dim == 2 else res, res, res))
+                            idx_grid = ParticleIdxGrid(data_cull, (1 if dim == 2 else res, res, res))
 
                             for j in range(fltr_i):
                                 p_idx = d_idx[j]
                                 if mask[p_idx]:
-                                    idx = np.array(idx_grid.get_range(data[p_idx], 2*search_r))
-                                    idx = idx[particle_radius(data[idx], data[p_idx], search_r)]
+                                    idx = np.array(idx_grid.get_range(data_cull[p_idx], 2*search_r))
+                                    idx = idx[particle_radius(data_cull[idx], data_cull[p_idx], search_r)]
                                     if len(idx) < min_n:
                                         mask[p_idx] = False
                                     else:
@@ -362,7 +377,7 @@ for d in range(obj_cnt):
                                         mask[p_idx] = True
                             d_idx = np.where(mask)[0]
                             print("particles reduced: %d -> %d (%.1f)" % (fltr_i, len(d_idx), fltr_i/len(d_idx)))
-                        low_res_data = data[d_idx]/factor_d
+                        low_res_data = data_cull[d_idx]/factor_d
 
                         hdr['dim'] = len(low_res_data)
                         hdr['dimX'] = lres
@@ -423,7 +438,18 @@ for d in range(obj_cnt):
                             hdrv['dimY'] = lres
                             hdrv['dimZ'] = 1 if dim == 2 else lres
                             
-                            vel = K.eval(approx_vel(K.constant(np.expand_dims(prev_src, 0)), K.constant(np.expand_dims(npo, 0))))[0] * data_config['fps']
+                            if test:
+                                vel = _approx_vel(prev_src, npo, 0.03*lres, it=6) * data_config['fps']
+                            else:
+                                dist = np.linalg.norm(np.expand_dims(prev_ref[prev_idx]/factor_d, axis=0) - np.expand_dims(prev_src, axis=1), axis=-1)
+                                dist = np.exp(-dist/(0.01*lres))
+                                w = np.clip(np.sum(dist, axis=1, keepdims=True), 1, 10000)
+                                vel = np.dot(dist, vel[prev_idx])/w
+                                vel /= factor_d
+
+                                vel_test = _approx_vel(prev_src, npo, 0.03*lres, it=6) * data_config['fps']
+                                print(np.mean(np.linalg.norm((vel_test-vel)/data_config['fps'], axis=-1)))
+                                print("avg vel:" + str(np.mean(vel_test/data_config['fps'], axis=0)))
 
                             print("dist avg:" + str(np.mean(npo, axis=0) - np.mean(prev_src, axis=0)))
                             print("avg vel:" + str(np.mean(vel/data_config['fps'], axis=0)))
@@ -433,6 +459,12 @@ for d in range(obj_cnt):
                                 writeNumpyOBJ(src_path%(d_idx,t) +"_prev.obj", prev_src)
                                 writeNumpyOBJ(src_path%(d_idx,t) +"_adv.obj", prev_src+vel/data_config['fps'])
 
+                                print("EMD adv - npo: %f" % K.eval(emd_loss(K.constant(np.expand_dims(prev_src+vel/data_config['fps'], 0)), K.constant(np.expand_dims(npo, 0))))[0])
+
                         prev_src = npo
                         if not test:
                             print("particles reduced: %d -> %d (%.1f)" % (fltr_i, len(npo), fltr_i/len(npo)))
+
+                    if not test:
+                        prev_idx = fltr_idx
+                        prev_ref = data

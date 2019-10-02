@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import keras
 from neuralparticles.tensorflow.models.PUNet import PUNet
 
-from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles, in_bound, get_data, get_nearest_idx
+from neuralparticles.tools.data_helpers import PatchExtractor, get_data_pair, extract_particles, in_bound, get_data, get_nearest_idx, get_vel
 from neuralparticles.tools.param_helpers import *
 from neuralparticles.tools.uniio import writeParticlesUni, writeNumpyRaw, writeNumpyOBJ
 
@@ -81,7 +81,8 @@ dst_path += "%s_%s-%s_%s" % (data_config['prefix'], data_config['id'], pre_confi
 if t_end < 0:
     t_end = data_config['frame_count']
 
-t_end -= 2
+t_start = 1
+t_end -= 1
 if verbose:
     print(dst_path)
     print(t_start)
@@ -141,32 +142,30 @@ for d in range(d_start, d_end):
     
     positions = None
 
-    if real:
-        path_src = "%sreal/%s_%s_d%03d_%03d" % (data_path, data_config['prefix'], data_config['id'], d, t_start)
-        src_data, sdf_data, par_aux = get_data(path_src, par_aux=train_config['features'])
-    else:
-        (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, _) = get_data_pair(data_path, config_path, d, t_start, 0) 
-
     for t in range(t_start, t_end):        
-        print("Dataset: %d, Frame: %d" % (d,t))
-       
-        patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 2, aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, last_pos=positions, stride_hys=0.0, shuffle=True)
-        positions = patch_extractor.positions + par_aux['v'][patch_extractor.pos_idx] / data_config['fps']
-        print(len(positions))
-
-        patch_extractor = extract_series(data_path, config_path, d, t, 0, patch_extractor.pos_idx, real=real)
-        if not real: patch_extractor = patch_extractor[0]
-        patch_extractor = [patch_extractor[1], patch_extractor[0], patch_extractor[2]]
+        print("Dataset: %d, Frame: %d" % (d,t))       
 
         if real:
-            path_src = "%sreal/%s_%s_d%03d_%03d" % (data_path, data_config['prefix'], data_config['id'], d, t+1)
+            path_src = "%sreal/%s_%s_d%03d_%03d" % (data_path, data_config['prefix'], data_config['id'], d, t)
             src_data, sdf_data, par_aux = get_data(path_src, par_aux=train_config['features'])
+            src_data = src_data + [0,0,30]
         else:
-            (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, _) = get_data_pair(data_path, config_path, d, t+1, 0) 
+            (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, _) = get_data_pair(data_path, config_path, d, t, 0) 
+
+        patch_extractor = PatchExtractor(src_data, sdf_data, patch_size, par_cnt, pre_config['surf'], 2,aux_data=par_aux, features=features, pad_val=pad_val, bnd=bnd, positions=positions, shuffle=True)
+        positions = patch_extractor.positions# + par_aux['v'][patch_extractor.pos_idx] / data_config['fps']
+        vel = get_vel(src_data, par_aux['v'], positions)
+        print(len(positions))
+
+        patch_extractor = extract_series(data_path, config_path, d, t, 0, positions = positions, vel = vel, real=real)
+        if not real: patch_extractor = patch_extractor[0]
+        patch_extractor = [patch_extractor[1], patch_extractor[0], patch_extractor[2]]
 
         write_out_particles(patch_extractor[0].positions, d, 0, t, "patch_centers", [0,int(out_res/factor_d[0])], [0,int(out_res/factor_d[0])], 5, int(out_res/factor_d[0])//2 if dim == 3 else None)
 
         result = eval_frame(punet, patch_extractor, factor_d[0], tmp_path + "result_%s" + "_%03d"%t, src_data, par_aux, None if real else ref_data, out_res, z=None if dim == 2 else out_res//2, verbose=3 if verbose else 1)
+
+        positions += vel / data_config['fps']
 
         hdr = OrderedDict([ ('dim',len(result)),
                             ('dimX',hres),
