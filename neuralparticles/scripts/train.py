@@ -152,15 +152,19 @@ for i in range(eval_cnt):
     position_idx = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], data_config['bnd'], pre_config['pad_val']).pos_idx
 
     print(position_idx.shape)
+
     if not train_config['adv_src'] and train_config['loss_weights'][1] > 0.0:
-        prev_src = get_data(path_src % (eval_dataset[i], eval_var[i], eval_t[i]-1))[0]
-        next_src = get_data(path_src % (eval_dataset[i], eval_var[i], eval_t[i]+1))[0]
-        new_idx = []
-        for pi in position_idx:
-            vel = get_vel(eval_src_data, eval_aux_data['v'], eval_src_data[[pi]])
-            if np.any(np.linalg.norm(np.subtract(prev_src, eval_src_data[pi]-vel/data_config['fps']), axis=-1) <= 1.0) and np.any(np.linalg.norm(np.subtract(next_src, eval_src_data[pi]+vel/data_config['fps']), axis=-1) <= 1.0):
-                new_idx.append(pi)
-        position_idx = np.array(new_idx)
+        for ti in range(eval_t[i]-eval_cnt//2, eval_t[i]+(eval_cnt+1)//2):
+            if ti > 0:
+                (src_data, src_sdf_data, src_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(data_path, config_path, eval_dataset[i], ti, eval_var[i], ref_features=['v'])
+            
+            new_idx = []
+            for pi in position_idx:
+                vel = get_vel(eval_src_data, eval_aux_data['v'], eval_src_data[[pi]])
+                if np.any(np.linalg.norm(np.subtract(src_data, eval_src_data[pi]+vel*(ti-eval_t[i])/data_config['fps']), axis=-1) <= 1.0):
+                    new_idx.append(pi)
+            position_idx = np.array(new_idx)
+
     idx = position_idx[np.random.randint(len(position_idx))]
     print(position_idx.shape)
 

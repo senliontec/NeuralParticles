@@ -148,7 +148,6 @@ for d in range(d_start, d_end):
         if real:
             path_src = "%sreal/%s_%s_d%03d_%03d" % (data_path, data_config['prefix'], data_config['id'], d, t)
             src_data, sdf_data, par_aux = get_data(path_src, par_aux=train_config['features'])
-            src_data = src_data + [0,0,30]
         else:
             (src_data, sdf_data, par_aux), (ref_data, ref_sdf_data, _) = get_data_pair(data_path, config_path, d, t, 0) 
 

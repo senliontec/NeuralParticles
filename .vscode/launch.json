@@ -15,8 +15,24 @@
             "name": "Python: run_multi_frame.py (Integrated Terminal)",
             "type": "python",
             "request": "launch",
-            "module": "$neuralparticles/scripts/run_multi_frame",
-            "args": ["data","data/scan_big/","config","config_scan/bversion_03.txt", "real", "1", "gpu", "3", "t_end", "83"],
+            "module": "neuralparticles.scripts.run_multi_frame",
+            "args": ["data","data/scan_big/","config","config_scan/bversion_03.txt", "real", "1", "t_end", "83"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: train.py (Integrated Terminal)",
+            "type": "python",
+            "request": "launch",
+            "module": "neuralparticles.scripts.train",
+            "args": ["data","data/scan_big/","config","config_scan/bversion_03.txt"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: gen_mesh_data.py (Integrated Terminal)",
+            "type": "python",
+            "request": "launch",
+            "module": "neuralparticles.scripts.gen_mesh_data",
+            "args": ["data","data/scan_big/","config","config_scan/bversion_03.txt", "mesh", "data/scan_new/teddy/", "t_end", "87", "test", "1"],
             "console": "integratedTerminal"
         },
         {

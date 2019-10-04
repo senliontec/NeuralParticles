@@ -90,7 +90,7 @@ def extract_series(data_path, config_path, d, t, v, positions=None, pos_idx=None
                 src_data = src_data + t_int * src_aux['v'] / data_config['fps']
                 if not real: ref_data = ref_data + t_int * ref_aux['v'] / data_config['fps']
 
-        patch_ex_src.append(PatchExtractor(src_data, src_sdf_data, patch_size, pre_config['par_cnt'], pad_val=pre_config['pad_val'], positions=pos + vel * i / data_config['fps'], aux_data=src_aux, features=train_config['features'], shuffle=shuffle, temp_coh=True))
+        patch_ex_src.append(PatchExtractor(src_data, src_sdf_data, patch_size, pre_config['par_cnt'], pad_val=pre_config['pad_val'], positions=pos + vel * (i-t) / data_config['fps'], aux_data=src_aux, features=train_config['features'], shuffle=shuffle, temp_coh=True))
         if not real: patch_ex_ref.append(PatchExtractor(ref_data, ref_sdf_data, patch_size_ref, pre_config['par_cnt_ref'], pad_val=pre_config['pad_val'], positions=patch_ex_src[len(patch_ex_src)-1].positions*factor_d, aux_data=ref_aux, features=['v'], shuffle=shuffle, temp_coh=True))
 
         #pos = patch_ex_src[i].positions + t_int * src_aux['v'][patch_ex_src[i].pos_idx] / data_config['fps']

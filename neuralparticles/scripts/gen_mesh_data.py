@@ -265,8 +265,8 @@ for d in range(obj_cnt):
                 print("Dataset: %d" % d_idx)
                 for t in range(frame_cnt):
                     t_off = ti+t*t_int
+                    print("Load mesh: %d/%d (t_off: %d/%d)" % (t+1, frame_cnt, t_off, frame_cnt*t_int))
                     if not test:
-                        print("Load mesh: %d/%d (t_off: %d/%d)" % (t+1, frame_cnt, t_off, frame_cnt*t_int))
                         if t == 0:
                             data_cnt = 0
                             for fi, f in enumerate(faces[t_off]):

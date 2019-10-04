@@ -78,7 +78,7 @@ def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, re
         patch_extractor = patch_extractor[0]
     else:
         patches = patch_extractor.get_patches()
-    print(patches[0][0])
+        
     patch_extractor.data = np.empty((0,3))
 
     result = model.predict(patches)
@@ -100,7 +100,6 @@ def eval_frame(model, patch_extractor, factor_d, path="", src=None, aux=None, re
     else:
         for i in range(len(patch_extractor.positions)):
             cnt = int(np.count_nonzero(patches[0][i,:,1] != -2.0)) * (result.shape[1]//patches[0].shape[1])
-            print(cnt)
             patch_extractor.set_patch(result[i,:cnt], i)
     result = patch_extractor.data * np.array([factor_d,factor_d, 0 if z is None else factor_d])
     if path != "" and verbose > 0:
