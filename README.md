@@ -15,7 +15,8 @@ i.e., to prevent the aforementioned halos. We combine these techniques in a
 super-resolution method with a truncation approach to flexibly adapt the size of 
 the generated positions. We show that our method works for large, deforming 
 point sets from different sources to demonstrate the flexibility of our approach.
-Further Informations: https://ge.in.tum.de/publications/2020-iclr-prantl/
+For more information, please refer to the following: 
+https://ge.in.tum.de/publications/2020-iclr-prantl/
 
 This repository contains the code for our ICLR paper 
 '[Tranquil Clouds: Neural Networks for Learning Temporally Coherent Features in Point Clouds](https://openreview.net/forum?id=BJeKh3VYDH)'. 
