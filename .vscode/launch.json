@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Python: Current File (Integrated Terminal)",
             "type": "python",
@@ -25,6 +26,41 @@
             "request": "launch",
             "module": "neuralparticles.scripts.train",
             "args": ["data","data/scan_big/","config","config_scan/bversion_03.txt"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: run_punet.py (Integrated Terminal)",
+            "type": "python",
+            "request": "launch",
+            "module": "neuralparticles.scripts.run_punet",
+            "args": ["data","data/3D_data/","config","config_3d/version_03.txt","test","data/meshes/walking_man/", "res", "200"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: eval_mesh.py (Integrated Terminal)",
+            "type": "python",
+            "request": "launch",
+            "module": "neuralparticles.scripts.eval_mesh",
+            "args": [
+                "pred","data/3D_data/result/walking_man_v03/result_%03d.uni",
+                "ref","data/3D_data/result/walking_man_v03/reference_%03d.uni",
+                "out","data/3D_data/eval/walking_man_v03/out_%03d.pkl", 
+                "err","data/3D_data/eval/walking_man_v03/err.pkl",
+                "res", "200",
+                "t_end", "159"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: eval_stat.py (Integrated Terminal)",
+            "type": "python",
+            "request": "launch",
+            "module": "neuralparticles.statistics.eval_stat",
+            "args": [
+                "err0","data/3D_data/eval/walking_man_v03/err.pkl",
+                "err1","data/3D_data/eval/walking_man_v02/err.pkl",
+                "ref","data/3D_data/result/walking_man_v03/reference_%03d.uni",
+                "out","data/3D_data/eval/walking_man_v03/plt_%s.pdf", 
+                "t_end", "100"],
             "console": "integratedTerminal"
         },
         {
