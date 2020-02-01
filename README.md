@@ -36,22 +36,22 @@ The training data was generated using [Mantaflow](http://mantaflow.com)
 5.  Install requirements with pip `pip install matplotlib`
 
 ### Run Training
-**2D Data**
-Download data: ... 
-Run training: `python -m neuralparticles.train config config/ours.txt data 2D_data/`
+**2D Data** 
+*  Download data: ... 
+*  Run training: `python -m neuralparticles.train config config/ours.txt data 2D_data/`
 
 **3D Data**
-Download data: ...
-Run training: `python -m neuralparticles.train config config_3d/ours.txt data 3D_data/`
+*  Download data: ...
+*  Run training: `python -m neuralparticles.train config config_3d/ours.txt data 3D_data/`
 
 ### Run Inference
 **2D Data**
-Download data: ... 
-Run training: `python -m neuralparticles.run config config/ours.txt data 2D_data/`
+*   Download data: ... 
+*   Run training: `python -m neuralparticles.run config config/ours.txt data 2D_data/`
 
 **3D Data**
-Download data: ...
-Run training: `python -m neuralparticles.run config config_3d/ours.txt data 3D_data/`
+*   Download data: ...
+*   Run training: `python -m neuralparticles.run config config_3d/ours.txt data 3D_data/`
 
 ### Visualization
 We are using a special binary *.uni* file format to write out the generated data.
