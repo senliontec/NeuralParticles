@@ -1,0 +1,17 @@
+{
+    "id":             "p00",
+    "patch_size":     0.1,
+    "patch_size_ref": 0.1,
+    "stride":         1.0,
+    "surf":           1.0,
+    "factor":         9,
+    "min_n":          3,
+    "blur":           1.5,
+    "sdf_off":        0.0,
+    "var":            1,
+    "par_cnt":        100,
+    "par_cnt_ref":    900,
+    "par_var":        1,
+    "pad_val":        -2.0,
+    "features_ref":   []
+}

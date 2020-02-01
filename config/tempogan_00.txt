@@ -1,0 +1,6 @@
+{
+    "id":           "vtg00",
+    "data":         "data/tempogan_00.txt",
+    "preprocess":   "preprocess/tempogan_00.txt",
+    "train":        "train/tempogan_00.txt"
+}

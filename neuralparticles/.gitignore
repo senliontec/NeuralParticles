@@ -1,0 +1,10 @@
+*.sublime-project
+*.sublime-workspace
+*.uni
+*.npz
+*.pyc
+*.bin
+waveletNoiseTile.bin
+waveletNoiseTileDouble.bin
+build
+doc

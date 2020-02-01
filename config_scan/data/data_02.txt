@@ -1,0 +1,18 @@
+{
+    "id":             "dat02",
+    "prefix":         "scan_3D",
+    "dim":            3,
+    "t_int":          10,
+    "fps":            60,
+    "disc":           true,
+    "max_z":          10,
+    "cull":           true,
+    "scan":           true,
+    "frame_count":    14,
+    "data_count":     80,
+    "test_count":     2,
+    "sub_res":        2,
+    "res":            60,
+    "seed":           523244,
+    "bnd":            4
+}
