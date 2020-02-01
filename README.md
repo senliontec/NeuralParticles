@@ -18,22 +18,45 @@ point sets from different sources to demonstrate the flexibility of our approach
 For more information, please refer to the following: 
 https://ge.in.tum.de/publications/2020-iclr-prantl/
 
+An example generated with our method can be seen here: http://lukas.prantl.it/portfolio/tranquil-clouds/
+
 This repository contains the code for our ICLR paper 
 '[Tranquil Clouds: Neural Networks for Learning Temporally Coherent Features in Point Clouds](https://openreview.net/forum?id=BJeKh3VYDH)'. 
 The code is modified from [PointNet++](https://github.com/charlesq34/pointnet2) 
 and [PUNet](https://github.com/yulequan/PU-Net/blob/master/README.md).
+The training data was generated using [Mantaflow](http://mantaflow.com)
 
 ## Usage
 
 ### Installation
-1.  Install Tensorflow 1.13 GPU (newer versions are not supported!)
-2.  
-
-### Generate Data
+1.  Clone repository
+2.  Install Tensorflow 1.13 GPU (newer versions are not supported!)
+3.  Install Keras
+4.  Build the required TF tools `cd neuralparticles/tensorflow; make all`
+5.  Install requirements with pip `pip install matplotlib`
 
 ### Run Training
+**2D Data**
+Download data: ... 
+Run training: `python -m neuralparticles.train config config/ours.txt data 2D_data/`
 
-### Run Evaluations
+**3D Data**
+Download data: ...
+Run training: `python -m neuralparticles.train config config_3d/ours.txt data 3D_data/`
+
+### Run Inference
+**2D Data**
+Download data: ... 
+Run training: `python -m neuralparticles.run config config/ours.txt data 2D_data/`
+
+**3D Data**
+Download data: ...
+Run training: `python -m neuralparticles.run config config_3d/ours.txt data 3D_data/`
+
+### Visualization
+We are using a special binary *.uni* file format to write out the generated data.
+You can use [Mantaflow](http://mantaflow.com) or an online available viewer to visualize the data:
+http://lukas.prantl.it/portfolio/webgl-viewer/
 
 ## Citation
 
