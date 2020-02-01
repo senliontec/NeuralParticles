@@ -97,7 +97,7 @@ patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
 par_cnt = pre_config['par_cnt']
 par_cnt_dst = pre_config['par_cnt_ref']
 
-hres = data_config['res']
+hres = 200#data_config['res']
 res = int(hres/factor_d[0])
 
 if out_res < 0:
@@ -169,6 +169,8 @@ for i,item in enumerate(src_samples):
             ref_data[i] = d_ref
         else:
             ref_data.append(d_ref)
+print(np.max(data))
+print(np.max(ref_data))
 plot_z/=len(data)
 print(plot_z)
 '''data[...,:3] -= np.min(data[...,:3],axis=(0,1))
@@ -301,6 +303,4 @@ for i,item in enumerate(data):
         hdr['dimY'] = res
         if dim == 3: hdr['dimZ'] = res
         writeParticlesUni(tmp_path + "source_%03d.uni"%i, hdr, src_data * hres / out_res)
-
-
         print("particles: %d -> %d (fac: %.2f)" % (len(src_data), len(result), (len(result)/len(src_data))))

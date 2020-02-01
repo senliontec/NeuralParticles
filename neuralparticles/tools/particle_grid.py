@@ -37,7 +37,7 @@ def curvature(sdf):
 import time
 class ParticleIdxGrid:
     def __init__(self, particles, shape):
-        #self.particles = particles
+        self.particles = particles
         self.shape = shape
         self.grid = np.empty(shape,dtype=object)
         self.grid[:] = [[[[] for x in range(shape[2])] for y in range(shape[1])] for z in range(shape[0])]
@@ -54,10 +54,19 @@ class ParticleIdxGrid:
     def get_range(self, c, r):
         sz, sy, sx = self.shape
         x0,y0,z0 = np.clip((c-r).astype('int32'), 0, [sx,sy,sz])
-        x1,y1,z1 = np.clip((c+r).astype('int32'), 0, [sx,sy,sz])
+        x1,y1,z1 = np.clip((c+r).astype('int32')+1, 0, [sx,sy,sz])
 
         return [v for z in self.grid[z0:z1,y0:y1,x0:x1] for y in z for x in y for v in x]
 
+    def get_nn(self, pos):
+        nn = np.array([])
+        for r in range(1, np.max(self.shape)):
+            nn = np.array(self.get_range(pos, r))
+            if len(nn) > 0:
+                dist = np.linalg.norm(self.particles[nn] - pos, axis=-1)
+                if np.any(dist < r):
+                    return nn[np.argsort(dist)]
+        return None
 
 class ParticleGrid:
     def __init__(self, dimX, dimY, dimZ, sub_dim, extrapol=5):
