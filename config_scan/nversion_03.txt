@@ -1,7 +1,0 @@
-{
-    "id":           "nv03",
-    "data":         "data/data_01.txt",
-    "preprocess":   "preprocess/pre_01.txt",
-    "train":        "train/train_02.txt"
-}
-

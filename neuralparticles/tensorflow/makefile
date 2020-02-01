@@ -6,7 +6,7 @@ $(eval TF_LFLAGS := $(shell python -c 'import tensorflow as tf; print(" ".join(t
 
 
 all: losses tools
-losses: losses/tf_approxmatch_so.so losses/tf_auctionmatch_so.so losses/tf_nndistance_so.so
+losses: losses/tf_approxmatch_so.so losses/tf_nndistance_so.so
 tools: tools/tf_grouping_so.so tools/tf_interpolate_so.so tools/tf_sampling_so.so
 
 
@@ -16,13 +16,6 @@ losses/tf_approxmatch_so.so: losses/tf_approxmatch_g.cu.o losses/tf_approxmatch.
 
 losses/tf_approxmatch_g.cu.o: losses/tf_approxmatch_g.cu
 	nvcc -std=c++11 -c -o losses/tf_approxmatch_g.cu.o losses/tf_approxmatch_g.cu -DGOOGLE_CUDA=1 -x cu -Xcompiler -fPIC -O2 -D_FORCE_INLINES
-
-losses/tf_auctionmatch_so.so: losses/tf_auctionmatch_g.cu.o losses/tf_auctionmatch.cpp
-	g++ -std=c++11 losses/tf_auctionmatch.cpp losses/tf_auctionmatch_g.cu.o -o losses/tf_auctionmatch_so.so -shared -fPIC $(TF_CFLAGS) $(TF_LFLAGS) -O2
-
-
-losses/tf_auctionmatch_g.cu.o: losses/tf_auctionmatch_g.cu
-	nvcc -std=c++11 -c -o losses/tf_auctionmatch_g.cu.o losses/tf_auctionmatch_g.cu -DGOOGLE_CUDA=1 -x cu -Xcompiler -fPIC -O2 -D_FORCE_INLINES
 
 
 losses/tf_nndistance_so.so: losses/tf_nndistance_g.cu.o losses/tf_nndistance.cpp
