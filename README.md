@@ -26,8 +26,8 @@ and [PUNet](https://github.com/yulequan/PU-Net/blob/master/README.md).
 ## Usage
 
 ### Installation
-1.  ss
-2.  ss
+1.  Install Tensorflow 1.13 GPU (newer versions are not supported!)
+2.  
 
 ### Generate Data
 
