@@ -30,7 +30,7 @@ The training data was generated using [Mantaflow](http://mantaflow.com)
 
 ### Installation
 1.  Clone repository
-2.  Install Tensorflow 1.13 GPU with CUDA 9.0 (newer versions are not supported!)
+2.  Install Tensorflow 1.9.0 GPU with CUDA 9.0 (newer versions are not supported!)
 3.  Install Keras
 4.  Build the required TF tools `cd neuralparticles/tensorflow; make all`
 5.  Install requirements with pip `pip install matplotlib`
@@ -38,20 +38,20 @@ The training data was generated using [Mantaflow](http://mantaflow.com)
 ### Run Training
 **2D Data** 
 *  Download data: ... 
-*  Run training: `python -m neuralparticles.train config config/ours.txt data 2D_data/`
+*  Run training: `python -m train config config/ours.txt data 2D_data/`
 
 **3D Data**
 *  Download data: ...
-*  Run training: `python -m neuralparticles.train config config_3d/ours.txt data 3D_data/`
+*  Run training: `python -m train config config_3d/ours.txt data 3D_data/`
 
 ### Run Inference
 **2D Data**
 *   Download data: ... 
-*   Run training: `python -m neuralparticles.run config config/ours.txt data 2D_data/`
+*   Run training: `python -m run config config/ours.txt data 2D_data/`
 
 **3D Data**
 *   Download data: ...
-*   Run training: `python -m neuralparticles.run config config_3d/ours.txt data 3D_data/`
+*   Run training: `python -m run config config_3d/ours.txt data 3D_data/`
 
 ### Visualization
 We are using a special binary *.uni* file format to write out the generated data.
