@@ -96,21 +96,14 @@ def get_positions_idx(particle_data, sdf, patch_size, surface=1.0, bnd=0):
     idx = in_bound(particle_data[:,:2] if sdf.shape[0] == 1 else particle_data, bnd+patch_size/2,sdf.shape[1]-(bnd+patch_size/2))
     return idx[in_surface(sdf_f(particle_data[idx]), surface)]
 
-def get_vel(data, vel, pos, h=0.5):
-    dist = np.sum(np.square(np.expand_dims(data, axis=0) - np.expand_dims(pos, axis=1)), axis=-1)
-    dist = np.exp(-dist/(h**2))
-    w = np.clip(np.sum(dist, axis=1, keepdims=True), 1, 10000)
-
-    return np.dot(dist, vel)/w
-
 def get_positions(particle_data, sdf, patch_size, surface=1.0, bnd=0):
     return particle_data[get_positions_idx(particle_data, sdf, patch_size, surface, bnd)]
 
 def get_nearest_idx(data, pos):
-    return np.argmin(np.linalg.norm(pos-data, axis=-1), axis=-1)
+    return np.argmin(np.linalg.norm(pos-data, axis=-1), axis=0)
 
 def get_nearest_point(data, pos, aux_data={}):
-    idx = get_nearest_idx(data, pos)
+    idx = np.argmin(np.linalg.norm(pos-data, axis=-1), axis=0)
     aux = {}
     for k, v in aux_data.items():
         aux[k] = v[idx]
@@ -121,10 +114,8 @@ def get_data(prefix, par_aux=[]):
 
     for v in par_aux:
         par_aux_data[v] = readParticles((prefix+"_p%s")%v, "float32")
-
-    sdf = readGrid(prefix + "_sdf") if os.path.exists(prefix + "_sdf.uni") else np.ones((1,1,1,1))
         
-    return readParticles(prefix + "_ps"), sdf, par_aux_data
+    return readParticles(prefix + "_ps"), readGrid(prefix + "_sdf"), par_aux_data
 
 def load_patches_from_file(data_path, config_path):
     with open(config_path, 'r') as f:
@@ -428,10 +419,10 @@ def cluster_analysis(src, res, res_cnt, permute):
 
     src = src[:pnt_cnt]
 
-    r_mean_dev /= pnt_cnt+1e-10
-    r_min_dev /= pnt_cnt+1e-10
-    r_max_dev /= pnt_cnt+1e-10
-    in_r_diff /= pnt_cnt+1e-10
+    r_mean_dev /= pnt_cnt
+    r_min_dev /= pnt_cnt
+    r_max_dev /= pnt_cnt
+    in_r_diff /= pnt_cnt
 
 
     cost = np.linalg.norm(np.expand_dims(r_mean, axis=0) - np.expand_dims(src, axis=1), axis=-1)
@@ -453,28 +444,7 @@ class PatchExtractor:
         self.shuffle = shuffle
 
         if positions is not None:
-            if not temp_coh:
-                self.positions = np.empty((0,3))
-                p = src_data[get_positions_idx(src_data, sdf_data, patch_size, surface, bnd)]
-                np.random.shuffle(p)
-
-                for i in range(len(positions)):
-                    if np.all(np.linalg.norm(np.subtract(p,positions[i]), axis=-1) > self.radius):
-                        continue
-                    r_idx = particle_radius(positions[i], p, self.stride)
-                    p = np.delete(p, r_idx, axis=0)
-                    self.positions = np.append(self.positions, [positions[i]],axis=0)
-
-                while(True):
-                    if len(p) == 0:
-                        break
-                    r_idx = particle_radius(p, p[0], self.stride)
-                    if len(r_idx) > 5: 
-                        self.positions = np.append(self.positions, [p[0]], axis=0)
-                    p = np.delete(p, r_idx, axis=0)
-            else:
-                self.positions = positions.copy()
-
+            self.positions = positions.copy()
         else:
             idx = get_positions_idx(src_data, sdf_data, patch_size, surface, bnd)
             p = src_data[idx]
@@ -551,7 +521,7 @@ class PatchExtractor:
         return (patch - pos) / self.radius
 
     def get_patch_pos(self, pos, remove_data=True):
-        if remove_data and False:
+        if remove_data:
             self.data = remove_particles(self.data, pos, self.stride)[0]
 
         patch, aux = extract_particles(self.src_data, pos, self.cnt, self.radius, self.pad_val, self.aux_data, self.shuffle)

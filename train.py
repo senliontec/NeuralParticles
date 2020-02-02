@@ -8,14 +8,13 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import keras
-import random
 
 from neuralparticles.tensorflow.models.PUNet import PUNet
 from neuralparticles.tools.param_helpers import *
-from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_idx, get_norm_factor, get_data, get_vel
+from neuralparticles.tools.data_helpers import load_patches_from_file, PatchExtractor, get_data_pair, extract_particles, get_nearest_idx, get_norm_factor
 from neuralparticles.tensorflow.tools.eval_helpers import EvalCallback, EvalCompleteCallback, NthLogger
 #from neuralparticles.tensorflow.tools.patch_generator import PatchGenerator
-from neuralparticles.tensorflow.tools.patch_extract_generator import PatchGenerator, extract_series
+from neuralparticles.tensorflow.tools.patch_extract_generator import PatchGenerator
 
 import numpy as np
 
@@ -52,7 +51,7 @@ model_path = data_path + "models/"
 if not os.path.exists(model_path):
 	os.mkdir(model_path)
 
-tmp_folder = backupSources(data_path, config_path)
+tmp_folder = backupSources(data_path)
 tmp_model_path = tmp_folder + "models/"
 os.mkdir(tmp_model_path)
 tmp_checkpoint_path = tmp_model_path + "checkpoints/"
@@ -62,8 +61,7 @@ os.mkdir(tmp_eval_path)
 
 sys.stdout = Logger(tmp_folder + "logfile.log")
 
-gpus = np.asarray(gpu.split(","), dtype="int32")
-if gpus[0] != -1:
+if not gpu is "-1":
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu
 
 with open(config_path, 'r') as f:
@@ -92,7 +90,6 @@ np.random.seed(data_config['seed'])
 
 config_dict = {**data_config, **pre_config, **train_config}
 config_dict['norm_factor'] = get_norm_factor(data_path, config_path)
-config_dict['gpus'] = gpus
 punet = PUNet(**config_dict)
 
 pretrain = train_config['pretrain']
@@ -103,7 +100,7 @@ if len(eval_dataset) < eval_cnt:
 if len(eval_t) < eval_cnt:
     t_start = min(train_config['t_start'], data_config['frame_count']-1)
     t_end = min(train_config['t_end'], data_config['frame_count'])
-    eval_t.extend(np.random.randint(t_start+1, t_end-(eval_timesteps+1)*train_config['t_int'], eval_cnt-len(eval_t)))
+    eval_t.extend(np.random.randint(t_start, t_end, eval_cnt-len(eval_t)))
 
 if len(eval_var) < eval_cnt:
     eval_var.extend([0]*(eval_cnt-len(eval_var)))
@@ -139,54 +136,57 @@ np.random.seed(data_config['seed'])
 
 factor_d = math.pow(pre_config['factor'], 1/data_config['dim'])
 
-eval_src_patches = [[None for i in range(eval_timesteps + (2 if not train_config['adv_src'] else 0))] for j in range(len(eval_dataset))]
-eval_ref_patches = [[None for i in range(eval_timesteps + (2 if not train_config['adv_src'] else 0))] for j in range(len(eval_dataset))]
+eval_patch_extractors = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
+eval_ref_datas = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
+eval_src_patches = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
+eval_ref_patches = [[None for i in range(eval_timesteps)] for j in range(len(eval_dataset))]
 
 patch_size = pre_config['patch_size'] * data_config['res'] / factor_d
 patch_size_ref = pre_config['patch_size_ref'] * data_config['res']
+for i in range(len(eval_dataset)):
+    #pos = None
+    idx = None
+    eval_patch_src, _, eval_patch_aux = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i], features=['v'] if len(train_config['features']) == 0 else train_config['features'])[0]
+    
+    for j in range(eval_timesteps):
+        (eval_src_data, eval_sdf_data, eval_par_aux), (eval_ref_data, eval_ref_sdf_data,_) = get_data_pair(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i]) 
+        #eval_par_aux['p'] = np.sign(eval_par_aux['p'])*np.sqrt(np.abs(eval_par_aux['p']))
+        eval_ref_datas[i][j] = eval_ref_data
 
-path_src = "%ssource/%s_%s-%s" % (data_path, data_config['prefix'], data_config['id'], pre_config['id']) + "_d%03d_var%02d_%03d"
+        patch_extractor = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], aux_data=eval_par_aux, features=train_config['features'], pad_val=pre_config['pad_val'], bnd=data_config['bnd']/factor_d, shuffle=False)
+        eval_patch_extractors[i][j] = patch_extractor
+        
+        if idx is None:
+            pos = patch_extractor.positions[int(eval_patch_idx[i] * len(patch_extractor.positions))]
+            idx = get_nearest_idx(eval_src_data, pos)
+            eval_ref_patch = extract_particles(eval_ref_data, pos * factor_d, pre_config['par_cnt_ref'], patch_size_ref/2, pre_config['pad_val'])[0]
+        else:
+            pos = eval_patch_src[idx]
+            eval_ref_patch = np.ones((pre_config['par_cnt_ref'], 3)) * 100
+        '''if pos is None:
+            pos = patch_extractor.positions[int(eval_patch_idx[i] * len(patch_extractor.positions))]
+        else:
+            pos = pos + vel/data_config['fps']
 
-for i in range(eval_cnt):
-    eval_src_data, eval_sdf_data, eval_aux_data = get_data(path_src % (eval_dataset[i], eval_var[i], eval_t[i]), ['v'])    
-    position_idx = PatchExtractor(eval_src_data, eval_sdf_data, patch_size, pre_config['par_cnt'], pre_config['surf'], pre_config['stride'], data_config['bnd'], pre_config['pad_val']).pos_idx
+        pos, vel = get_nearest_point(eval_src_data, pos, eval_par_aux)
+        vel = vel['v']'''
+        
+        #eval_src_patch = patch_extractor.get_patch_pos(pos,False)
+        eval_src_patch = extract_particles(eval_patch_src, pos, pre_config['par_cnt'], patch_size/2, pre_config['pad_val'], eval_patch_aux)
+        if len(train_config['features']) > 0:
+            eval_src_patch = [np.array([np.concatenate([eval_src_patch[0]] + [eval_src_patch[1][f] for f in train_config['features']],axis=-1)])]
+        else:
+            eval_src_patch = [np.array([eval_src_patch[0]])]
 
-    print(position_idx.shape)
+        eval_src_patches[i][j] = eval_src_patch
+        eval_ref_patches[i][j] = eval_ref_patch
 
-    if not train_config['adv_src'] and train_config['loss_weights'][1] > 0.0:
-        for ti in range(eval_t[i]-eval_cnt//2, eval_t[i]+(eval_cnt+1)//2):
-            if ti > 0:
-                (src_data, src_sdf_data, src_aux), (ref_data, ref_sdf_data, ref_aux) = get_data_pair(data_path, config_path, eval_dataset[i], ti, eval_var[i], ref_features=['v'])
-            
-            new_idx = []
-            for pi in position_idx:
-                vel = get_vel(eval_src_data, eval_aux_data['v'], eval_src_data[[pi]])
-                if np.any(np.linalg.norm(np.subtract(src_data, eval_src_data[pi]+vel*(ti-eval_t[i])/data_config['fps']), axis=-1) <= 1.0):
-                    new_idx.append(pi)
-            position_idx = np.array(new_idx)
+        print("Eval with dataset %d, timestep %d, var %d, patch pos (%f, %f, %f)" % (eval_dataset[i], eval_t[i]+j, eval_var[i], pos[0], pos[1], pos[2]))
+        print("Eval trunc src: %d" % (np.count_nonzero(eval_src_patch[0][:,:,:1] != pre_config['pad_val'])))
+        print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patch[:,:1] != pre_config['pad_val'])))
 
-    idx = position_idx[np.random.randint(len(position_idx))]
-    print(position_idx.shape)
-
-    patch_ex_src, patch_ex_ref = extract_series(data_path, config_path, eval_dataset[i], eval_t[i], eval_var[i], pos_idx = [idx], cnt=eval_timesteps+2, shuffle=False, t_int=train_config['t_int'])
-
-    for j in range(len(eval_src_patches[i])):
-        eval_src_patches[i][j] = [np.expand_dims(patch_ex_src[j].pop_patch(remove_data=False), axis=0)]
-        eval_ref_patches[i][j] = patch_ex_ref[j].pop_patch(remove_data=False)
-
-        mask = eval_src_patches[i][j][0][0,:,:1] != pre_config['pad_val']
-        if train_config['jitter_aug'] > 0.0:
-            eval_src_patches[i][j][0] += np.random.normal(scale=train_config['jitter_aug'], size=eval_src_patches[i][j][0].shape) * mask
-
-        print("Eval with dataset %d, timestep %d" % (eval_dataset[i], eval_t[i]+j*train_config['t_int']))
-        print("Eval trunc src: %d" % (np.count_nonzero(mask)))
-        print("Eval trunc ref: %d" % (np.count_nonzero(eval_ref_patches[i][j][:,:1] != pre_config['pad_val'])))
-
-if not train_config['adv_src'] and train_config['loss_weights'][1] > 0.0:
-    for i in range(eval_cnt):
-        for j in range(eval_timesteps):
-            eval_src_patches[i][j] = [eval_src_patches[i][j+1][0], eval_src_patches[i][j][0], eval_src_patches[i][j+2][0]]
-        eval_src_patches[i] = eval_src_patches[i][:-2]
+        eval_patch_src = eval_patch_src + 0.01 * eval_patch_aux['v'] / (data_config['fps'] * pre_config['patch_size'])
+        #eval_patch_aux['v'] *= 0.9
 
 #src_data[1][:,:,-1] = np.sqrt(np.abs(src_data[1][:,:,-1])) * np.sign(src_data[1][:,:,-1])
 
@@ -221,7 +221,6 @@ config_dict['trunc_callbacks'] = [NthLogger(plot_intervall)]
 ''',
                             (EvalCompleteCallback(tmp_eval_path + "eval", eval_patch_extractors, eval_ref_datas,punet.model,
                                                   factor_d, data_config['res'], z=None if data_config['dim'] == 2 else data_config['res']//2, verbose=3 if verbose else 1))]'''
-
 history = punet.train(**config_dict, build_model=False)
 print(history.history)
 

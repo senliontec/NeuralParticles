@@ -54,7 +54,7 @@ def checkUnusedParams():
 
 # copies files and config_files into a temporary folder
 # returns the path to the temporary folder
-def backupSources(data_path, config_path):
+def backupSources(data_path):
 	tmp_path = data_path + "tmp/"
 	if not os.path.exists(tmp_path):
 		os.mkdir(tmp_path)
@@ -63,7 +63,7 @@ def backupSources(data_path, config_path):
 
 	print("temporary folder: %s" % tmp_path)
 
-	shutil.copytree(os.path.dirname(config_path), tmp_path + "config")
+	shutil.copytree("config", tmp_path + "config")
 	shutil.copytree(os.path.dirname(sys.argv[0]), tmp_path + "scripts")
 
 	shutil.copy(sys.argv[0], tmp_path)
