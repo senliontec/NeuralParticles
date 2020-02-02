@@ -30,13 +30,18 @@ The training data was generated using [Mantaflow](http://mantaflow.com)
 
 ### Installation
 1.  Clone repository
-2.  Install Tensorflow 1.9.0 GPU with CUDA 9.0 (newer versions are not supported!)
-3.  Install Keras
-4.  Build the required TF tools `cd neuralparticles/tensorflow; make all`
-5.  Install requirements with pip `pip install matplotlib`
+2.  Install Tensorflow 1.9.0 GPU with CUDA 9.0 and Python 3.6 (newer versions are not supported!)  
+    `conda create -n tc python=3.6`  
+    `conda activate tc`  
+    `pip install tensorflow-gpu==1.9.0`
+  
+3.  Build the required TF tools  
+    `cd neuralparticles/tensorflow; make`
+4.  Install requirements with pip  
+    `pip install matplotlib keras==2.2.4`
 
 ### Run Training
-**2D Data** 
+**2D Data**
 *  Download data: ... 
 *  Run training: `python -m train config config/ours.txt data 2D_data/`
 
