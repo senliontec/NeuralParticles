@@ -58,7 +58,8 @@ The training data was generated using [Mantaflow](http://mantaflow.com).
 *   Download data: https://syncandshare.lrz.de/getlink/fiWCVA4sEr4w1yMg4nD5Bs5Z/3D_data
 *   Run inference: `python -m run config config_3d/ours.txt data 3D_data/ real 1`
 
-Other 3D tests (3D data required!):
+*Additional 3D tests (3D data required!):* 
+
 **Spider Mesh Data**
 *   Download data: https://syncandshare.lrz.de/getlink/fiT622EgC5rC34KC9DQXfDAV/spider_data
 *   Run inference: `python -m run_mesh config config_3d/ours.txt data 3D_data/ test spider_data/ res 200`
