@@ -57,6 +57,20 @@ __global__ void approxmatch(int b,int n,int m,const float * __restrict__ xyz1,co
 				if (k<n)
 					ratioL[k]=remainL[k]/suml;
 			}
+			/*for (int k=threadIdx.x;k<n;k+=gridDim.x){
+				float x1=xyz1[i*n*3+k*3+0];
+				float y1=xyz1[i*n*3+k*3+1];
+				float z1=xyz1[i*n*3+k*3+2];
+				float suml=1e-9f;
+				for (int l=0;l<m;l++){
+					float x2=xyz2[i*m*3+l*3+0];
+					float y2=xyz2[i*m*3+l*3+1];
+					float z2=xyz2[i*m*3+l*3+2];
+					float w=expf(level*((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1)))*remainR[l];
+					suml+=w;
+				}
+				ratioL[k]=remainL[k]/suml;
+			}*/
 			__syncthreads();
 			for (int l0=0;l0<m;l0+=blockDim.x){
 				int l=l0+threadIdx.x;
@@ -92,6 +106,23 @@ __global__ void approxmatch(int b,int n,int m,const float * __restrict__ xyz1,co
 					remainR[l]=fmaxf(0.0f,remainR[l]-sumr);
 				}
 			}
+			/*for (int l=threadIdx.x;l<m;l+=blockDim.x){
+				float x2=xyz2[i*m*3+l*3+0];
+				float y2=xyz2[i*m*3+l*3+1];
+				float z2=xyz2[i*m*3+l*3+2];
+				float sumr=0;
+				for (int k=0;k<n;k++){
+					float x1=xyz1[i*n*3+k*3+0];
+					float y1=xyz1[i*n*3+k*3+1];
+					float z1=xyz1[i*n*3+k*3+2];
+					float w=expf(level*((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1)))*ratioL[k];
+					sumr+=w;
+				}
+				sumr*=remainR[l];
+				float consumption=fminf(remainR[l]/(sumr+1e-9f),1.0f);
+				ratioR[l]=consumption*remainR[l];
+				remainR[l]=fmaxf(0.0f,remainR[l]-sumr);
+			}*/
 			__syncthreads();
 			for (int k0=0;k0<n;k0+=blockDim.x){
 				int k=k0+threadIdx.x;
@@ -127,149 +158,27 @@ __global__ void approxmatch(int b,int n,int m,const float * __restrict__ xyz1,co
 				if (k<n)
 					remainL[k]=fmaxf(0.0f,remainL[k]-suml);
 			}
+			/*for (int k=threadIdx.x;k<n;k+=blockDim.x){
+				float x1=xyz1[i*n*3+k*3+0];
+				float y1=xyz1[i*n*3+k*3+1];
+				float z1=xyz1[i*n*3+k*3+2];
+				float suml=0;
+				for (int l=0;l<m;l++){
+					float x2=xyz2[i*m*3+l*3+0];
+					float y2=xyz2[i*m*3+l*3+1];
+					float z2=xyz2[i*m*3+l*3+2];
+					float w=expf(level*((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1)))*ratioL[k]*ratioR[l];
+					match[i*n*m+l*n+k]+=w;
+					suml+=w;
+				}
+				remainL[k]=fmaxf(0.0f,remainL[k]-suml);
+			}*/
 			__syncthreads();
 		}
 	}
 }
 void approxmatchLauncher(int b,int n,int m,const float * xyz1,const float * xyz2,float * match,float * temp){
 	approxmatch<<<32,512>>>(b,n,m,xyz1,xyz2,match,temp);
-}
-
-__global__ void approxmatchDyn(int b,int n,int m,const float * __restrict__ xyz1,const float * __restrict__ xyz2,float * __restrict__ match,float * temp, const int* __restrict__ cn, const int* __restrict__ cm){
-	float * remainL=temp+blockIdx.x*(n+m)*2, * remainR=temp+blockIdx.x*(n+m)*2+n,*ratioL=temp+blockIdx.x*(n+m)*2+n+m,*ratioR=temp+blockIdx.x*(n+m)*2+n+m+n;
-	float multiL,multiR;
-	const int Block=1024;
-	__shared__ float buf[Block*4];
-	for (int i=blockIdx.x;i<b;i+=gridDim.x){
-		if (cn[i]>=cm[i]){
-			multiL=1;
-			multiR=cn[i]/cm[i];
-		}else{
-			multiL=cm[i]/cn[i];
-			multiR=1;
-		}
-		for (int j=threadIdx.x;j<n*m;j+=blockDim.x)
-			match[i*n*m+j]=0;
-		for (int j=threadIdx.x;j<n;j+=blockDim.x)
-			remainL[j]=multiL;
-		for (int j=threadIdx.x;j<m;j+=blockDim.x)
-			remainR[j]=multiR;
-		__syncthreads();
-		for (int j=7;j>=-2;j--){
-			float level=-powf(4.0f,j);
-			if (j==-2){
-				level=0;
-			}
-			for (int k0=0;k0<cn[i];k0+=blockDim.x){
-				int k=k0+threadIdx.x;
-				float x1=0,y1=0,z1=0;
-				if (k<cn[i]){
-					x1=xyz1[i*n*3+k*3+0];
-					y1=xyz1[i*n*3+k*3+1];
-					z1=xyz1[i*n*3+k*3+2];
-				}
-				float suml=1e-9f;
-				for (int l0=0;l0<cm[i];l0+=Block){
-					int lend=min(cm[i],l0+Block)-l0;
-					for (int l=threadIdx.x;l<lend;l+=blockDim.x){
-						float x2=xyz2[i*m*3+l0*3+l*3+0];
-						float y2=xyz2[i*m*3+l0*3+l*3+1];
-						float z2=xyz2[i*m*3+l0*3+l*3+2];
-						buf[l*4+0]=x2;
-						buf[l*4+1]=y2;
-						buf[l*4+2]=z2;
-						buf[l*4+3]=remainR[l0+l];
-					}
-					__syncthreads();
-					for (int l=0;l<lend;l++){
-						float x2=buf[l*4+0];
-						float y2=buf[l*4+1];
-						float z2=buf[l*4+2];
-						float d=level*((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1));
-						float w=__expf(d)*buf[l*4+3];
-						suml+=w;
-					}
-					__syncthreads();
-				}
-				if (k<cn[i])
-					ratioL[k]=remainL[k]/suml;
-			}
-			__syncthreads();
-			for (int l0=0;l0<cm[i];l0+=blockDim.x){
-				int l=l0+threadIdx.x;
-				float x2=0,y2=0,z2=0;
-				if (l<cm[i]){
-					x2=xyz2[i*m*3+l*3+0];
-					y2=xyz2[i*m*3+l*3+1];
-					z2=xyz2[i*m*3+l*3+2];
-				}
-				float sumr=0;
-				for (int k0=0;k0<cn[i];k0+=Block){
-					int kend=min(cn[i],k0+Block)-k0;
-					for (int k=threadIdx.x;k<kend;k+=blockDim.x){
-						buf[k*4+0]=xyz1[i*n*3+k0*3+k*3+0];
-						buf[k*4+1]=xyz1[i*n*3+k0*3+k*3+1];
-						buf[k*4+2]=xyz1[i*n*3+k0*3+k*3+2];
-						buf[k*4+3]=ratioL[k0+k];
-					}
-					__syncthreads();
-					for (int k=0;k<kend;k++){
-						float x1=buf[k*4+0];
-						float y1=buf[k*4+1];
-						float z1=buf[k*4+2];
-						float w=__expf(level*((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1)))*buf[k*4+3];
-						sumr+=w;
-					}
-					__syncthreads();
-				}
-				if (l<cm[i]){
-					sumr*=remainR[l];
-					float consumption=fminf(remainR[l]/(sumr+1e-9f),1.0f);
-					ratioR[l]=consumption*remainR[l];
-					remainR[l]=fmaxf(0.0f,remainR[l]-sumr);
-				}
-			}
-			__syncthreads();
-			for (int k0=0;k0<cn[i];k0+=blockDim.x){
-				int k=k0+threadIdx.x;
-				float x1=0,y1=0,z1=0;
-				if (k<cn[i]){
-					x1=xyz1[i*n*3+k*3+0];
-					y1=xyz1[i*n*3+k*3+1];
-					z1=xyz1[i*n*3+k*3+2];
-				}
-				float suml=0;
-				for (int l0=0;l0<cm[i];l0+=Block){
-					int lend=min(cm[i],l0+Block)-l0;
-					for (int l=threadIdx.x;l<lend;l+=blockDim.x){
-						buf[l*4+0]=xyz2[i*m*3+l0*3+l*3+0];
-						buf[l*4+1]=xyz2[i*m*3+l0*3+l*3+1];
-						buf[l*4+2]=xyz2[i*m*3+l0*3+l*3+2];
-						buf[l*4+3]=ratioR[l0+l];
-					}
-					__syncthreads();
-					float rl=ratioL[k];
-					if (k<cn[i]){
-						for (int l=0;l<lend;l++){
-							float x2=buf[l*4+0];
-							float y2=buf[l*4+1];
-							float z2=buf[l*4+2];
-							float w=__expf(level*((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1)))*rl*buf[l*4+3];
-							match[i*n*m+(l0+l)*n+k]+=w;
-							suml+=w;
-						}
-					}
-					__syncthreads();
-				}
-				if (k<cn[i])
-					remainL[k]=fmaxf(0.0f,remainL[k]-suml);
-			}
-			__syncthreads();
-		}
-	}
-}
-void approxmatchLauncherDyn(int b,int n,int m,const float * xyz1,const float * xyz2,float * match,float * temp, const int* cn, const int* cm){
-	approxmatchDyn<<<32,512>>>(b,n,m,xyz1,xyz2,match,temp,cn,cm);
 }
 __global__ void matchcost(int b,int n,int m,const float * __restrict__ xyz1,const float * __restrict__ xyz2,const float * __restrict__ match,float * __restrict__ out){
 	__shared__ float allsum[512];
