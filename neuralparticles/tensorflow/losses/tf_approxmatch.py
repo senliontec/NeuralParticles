@@ -7,15 +7,21 @@ base_dir = osp.dirname(osp.abspath(__file__))
 approxmatch_module = tf.load_op_library(osp.join(base_dir, 'tf_approxmatch_so.so'))
 
 
-def approx_match(xyz1,xyz2):
+def approx_match(xyz1,xyz2,n=None,m=None):
 	'''
 input:
 	xyz1 : batch_size * #dataset_points * 3
 	xyz2 : batch_size * #query_points * 3
+	n : batch_size * 1
+	m : batch_size * 1
 returns:
 	match : batch_size * #query_points * #dataset_points
 	'''
-	return approxmatch_module.approx_match(xyz1,xyz2)
+	if n is None: 
+		n = tf.tile(tf.shape(xyz1)[1:2], tf.shape(xyz1)[:1])
+	if m is None: 
+		m = tf.tile(tf.shape(xyz2)[1:2], tf.shape(xyz2)[:1])
+	return approxmatch_module.approx_match(xyz1,xyz2,n,m)
 ops.NoGradient('ApproxMatch')
 #@tf.RegisterShape('ApproxMatch')
 @ops.RegisterShape('ApproxMatch')
@@ -49,9 +55,18 @@ def _match_cost_grad(op,grad_cost):
 	grad_1,grad_2=approxmatch_module.match_cost_grad(xyz1,xyz2,match)
 	return [grad_1*tf.expand_dims(tf.expand_dims(grad_cost,1),2),grad_2*tf.expand_dims(tf.expand_dims(grad_cost,1),2),None]
 
-def emd_loss(y_true, y_pred):
-    match = approx_match(y_pred, y_true)
-    return match_cost(y_pred, y_true, match)/tf.cast(tf.shape(y_pred)[1], tf.float32)
+def emd_loss(y_true, y_pred, n=None, m=None):
+	if n is None: 
+		n = tf.tile(tf.shape(y_true)[1:2], tf.shape(y_true)[:1])
+	if m is None: 
+		m = tf.tile(tf.shape(y_pred)[1:2], tf.shape(y_pred)[:1])
+	match = approx_match(y_true, y_pred, n, m)
+	return match_cost(y_true, y_pred, match)/tf.cast(tf.maximum(n,m), tf.float32)
+
+def approx_vel(pos_0, pos_1, n=None, m=None):
+	vel = tf.expand_dims(pos_1, axis=2) - tf.expand_dims(pos_0, axis=1)
+	match = tf.expand_dims(approx_match(pos_0, pos_1, n, m), axis=-1)
+	return tf.reduce_sum(vel*match, axis=1)
 
 if __name__=='__main__':
 	import numpy as np
