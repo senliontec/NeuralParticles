@@ -267,11 +267,12 @@ class PUNet(Network):
                 Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0))),
                 Input((self.particle_cnt_src, 3 + len(self.features) + (2 if 'v' in self.features else 0) + (2 if 'n' in self.features else 0)))])
             if self.truncate:
-                out1 = self.model(inputs[1])
-                out2 = self.model(inputs[2])
+                #out1 = self.model(inputs[1])
+                #out2 = self.model(inputs[2])
                 #out_mask = multiply([Flatten()(out_mask), soft_trunc_mask(out1[1], self.particle_cnt_dst), soft_trunc_mask(out2[1], self.particle_cnt_dst)])
                 #out_mask = Reshape((self.particle_cnt_dst, 1))(out_mask)
-                out1 = concatenate([out0, out1, out2], axis=1, name='temp')
+                #out1 = concatenate([out0, out1, out2], axis=1, name='temp')
+                out1 = concatenate([out0, self.model(inputs[1])[0], self.model(inputs[2])[0]], axis=1, name='temp')
             else:
                 out1 = concatenate([out0, self.model(inputs[1]), self.model(inputs[2])], axis=1, name='temp')
             outputs.append(out1)
