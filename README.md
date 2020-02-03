@@ -24,7 +24,7 @@ This repository contains the code for our ICLR paper
 '[Tranquil Clouds: Neural Networks for Learning Temporally Coherent Features in Point Clouds](https://openreview.net/forum?id=BJeKh3VYDH)'. 
 The code is modified from [PointNet++](https://github.com/charlesq34/pointnet2) 
 and [PUNet](https://github.com/yulequan/PU-Net/blob/master/README.md).
-The training data was generated using [Mantaflow](http://mantaflow.com)
+The training data was generated using [Mantaflow](http://mantaflow.com).
 
 ## Usage
 
@@ -42,23 +42,33 @@ The training data was generated using [Mantaflow](http://mantaflow.com)
 
 ### Run Training
 **2D Data**
-*  Download data: ... 
+*  Download data: https://syncandshare.lrz.de/getlink/fi9n8JVoJtPMu497cdvXYCVG/2D_data
 *  Run training: `python -m train config config/ours.txt data 2D_data/`
 
 **3D Data**
-*  Download data: ...
+*  Download data: https://syncandshare.lrz.de/getlink/fiWCVA4sEr4w1yMg4nD5Bs5Z/3D_data
 *  Run training: `python -m train config config_3d/ours.txt data 3D_data/`
 
 ### Run Inference
 **2D Data**
-*   Download data: ... 
-*   Run training: `python -m run config config/ours.txt data 2D_data/`
+*   Download data: https://syncandshare.lrz.de/getlink/fi9n8JVoJtPMu497cdvXYCVG/2D_data 
+*   Run inference: `python -m run config config/ours.txt data 2D_data/ real 1`
 
 **3D Data**
-*   Download data: ...
-*   Run training: `python -m run config config_3d/ours.txt data 3D_data/`
+*   Download data: https://syncandshare.lrz.de/getlink/fiWCVA4sEr4w1yMg4nD5Bs5Z/3D_data
+*   Run inference: `python -m run config config_3d/ours.txt data 3D_data/ real 1`
+
+Other 3D tests (3D data required!):
+**Spider Mesh Data**
+*   Download data: https://syncandshare.lrz.de/getlink/fiT622EgC5rC34KC9DQXfDAV/spider_data
+*   Run inference: `python -m run_mesh config config_3d/ours.txt data 3D_data/ test spider_data/ res 200`
+ 
+**Walking Man Mesh Data**
+*   Download data: https://syncandshare.lrz.de/getlink/fiTbE56WpRWPSFD4cUSVxwxL/man_data
+*   Run inference: `python -m run_mesh config config_3d/ours.txt data 3D_data/ test man_data/ res 200`
 
 ### Visualization
+The generated data is stored in the results folder of the data used (e.g. 3D_data/results/...).
 We are using a special binary *.uni* file format to write out the generated data.
 You can use [Mantaflow](http://mantaflow.com) or an online available viewer to visualize the data:
 http://lukas.prantl.it/portfolio/webgl-viewer/
