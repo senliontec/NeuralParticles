@@ -69,7 +69,7 @@ The training data was generated using [Mantaflow](http://mantaflow.com).
 *   Run inference: `python -m run_mesh config config_3d/ours.txt data 3D_data/ test man_data/ res 200`
 
 ### Visualization
-The generated data is stored in the results folder of the data used (e.g. 3D_data/results/...).
+The generated data is stored in the results folder of the data used (e.g. *3D_data/results/spider_v01/result_000.uni*).
 We are using a special binary *.uni* file format to write out the generated data.
 You can use [Mantaflow](http://mantaflow.com) or an online available viewer to visualize the data:
 http://lukas.prantl.it/portfolio/webgl-viewer/
