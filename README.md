@@ -45,7 +45,7 @@ The training data was generated using [Mantaflow](http://mantaflow.com).
     `cmake .. -DNUMPY=ON -DPYTHON_LIBRARY="ENV_PATH/lib/libpython3.6m.dylib" -DPYTHON_INCLUDE_DIRS="ENV_PATH/include/python3.6m"`  
     *(specify python library and include if necessary)*   
     `make -j4`  
-    *for more informations: http://mantaflow.com*
+    *for more information: http://mantaflow.com*
 2.  Generate ground-truth data:  
     **2D Data**: `python -m gen_ref config config/ours.txt data 2D_data/`  
     **3D Data**: `python -m gen_ref config config_3d/ours.txt data 3D_data/`
